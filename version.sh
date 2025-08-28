@@ -1,5 +1,5 @@
 #!/bin/sh
-VERSION=1.33-beta3
+VERSION=1.33-beta 3
 COMPILE=`cat .compile`
 COMPILE=`expr ${COMPILE:-0} + 1`
 echo $COMPILE > .compile
