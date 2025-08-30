@@ -633,21 +633,21 @@
 
 /* sklaffacct.c */
 
-#define MSG_INNAME	"F|r och efternamn      : "
+#define MSG_INNAME	"För och efternamn      : "
 #define MSG_INLOGIN	"Inloggningsnamn        : "
-#define MSG_INPASSWD	"|nskat l|senord        : "
-#define MSG_INMODEM	"Modempools-tillg}ng    : "
+#define MSG_INPASSWD	"Önskat lösenord        : "
+#define MSG_INMODEM	"Modempools-tillgång    : "
 #define MSG_INPOST	"E-postadress           : "
 #define MSG_INTELE	"Telefonnummer          : "
-#define MSG_ACCAPP	"Kontoans|kning: "
+#define MSG_ACCAPP	"Kontoansökning: "
 #define MSG_INSNAME	"Namn     : "
 #define MSG_INSLOGIN	"\nLogin    : "
-#define MSG_INSPASSWD	"\nL|sen    : "
+#define MSG_INSPASSWD	"\nLösen    : "
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSPOST	"\nE-post   : "
 #define MSG_INSTELE	"\nTelefon  : "
-#define MSG_APPLIED	"Din ans|kan {r registrerad.\nV{lkommen }ter.\n\n"
-#define MSG_UIDINUSE	"Inloggningsnamn kan ej anv{ndas. V{nligen v{lj annat."
+#define MSG_APPLIED	"Din ansökan är registrerad och vi hör snart av oss.\nVälkommen åter.\n\n"
+#define MSG_UIDINUSE	"Inloggningsnamn kan ej användas. Vänligen välj ett annat."
 
 /* mailtoss.c */
 
