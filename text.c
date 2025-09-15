@@ -348,8 +348,9 @@ normalize_label(const char *raw, char *norm, size_t nlen)   /* Normalize a label
 void
 display_header(struct TEXT_HEADER * th, int edit_subject, int type, int dtype, char *mailrec)
 {
-    LINE time_val, username, confname; /* + confname for humanized header */
-    char fname[128];  /* increased from LINE to avoid overflow, modified on 2025-07-12, PL */
+    LINE time_val, confname; /* + confname for humanized header */
+    char username[256];  /* expanded buffer to prevent overflow - 2025-09-14, PL */
+	char fname[128];  /* increased from LINE to avoid overflow, modified on 2025-07-12, PL */
     int uid, right, nc, fd;
     char *tmp, *buf, *oldbuf;
     char *ptr = NULL;   /* modified on 2025-07-12, PL */
@@ -454,8 +455,9 @@ if (Current_conf != 0) {
                         if (ptr) {
                             tmp = strchr(ptr, '\n');
                             *tmp = '\0';
-                            strcpy(username, (ptr + strlen(MSG_EMFROM)));
-                            *tmp = '\n';
+                            //strcpy(username, (ptr + strlen(MSG_EMFROM)));
+                            strlcpy(username, ptr + 6, sizeof(username));  /* fixed to prevent buffer overflow, 2025-09-14, PL */
+							*tmp = '\n';
                         }
                         free(oldbuf);
                     }
@@ -1911,8 +1913,9 @@ tree_top(long text)
 int
 list_subj(char *str)
 {
-    LINE subject, author, subj_disp, subj_dec;
+    LINE subject, subj_disp, subj_dec;
     char fname[128];  /* increased from LINE to avoid overflow, modified on 2025-07-12, PL */
+    char author[256]; /* increased to 256 to prevent buffer overflow 2025-09-14, PL */
     char *buf, *oldbuf; char c;
     char *ptr2 = NULL;   /* modified on 2025-07-12, PL */
     long firsttext, current_text;
@@ -1964,11 +1967,13 @@ list_subj(char *str)
                 user_name(th->comment_author, author);
                 from = 1;
             } else if ((th->author == Uid) && !Current_conf) {
-                if (te.body != NULL &&
-                    (ptr2 = strstr(te.body->line, MSG_COPYTO))) {
-                    strcpy(author, (ptr2 + 1 + strlen(MSG_COPYTO)));
-                    author[strlen(author) - 1] = 0;
-                    from = 1;
+				/* A ocuple of safety measures 2025-09-14 */
+				if (te.body != NULL && (ptr2 = strstr(te.body->line, MSG_COPYTO))) {
+			    strlcpy(author, ptr2 + 1 + strlen(MSG_COPYTO), sizeof(author));  /* fixed on 2025-09-14, PL */
+    			size_t len = strlen(author);
+    			if (len > 0)
+        		author[len - 1] = '\0';  /* remove trailing quote or newline safely */
+    			from = 1;
                 } else
                     user_name(th->author, author);
             } else if (th->author)
