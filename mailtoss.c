@@ -76,7 +76,15 @@ main(int argc, char *argv[])
     oldbuf = buf;
     if (close_file(fd) == -1)
         exit(1);
-    unlink(mbox);
+    //unlink(mbox);
+	/* modified on 2025-09-14, PL: truncate the spool file instead of deleting it */
+	int trunc_fd = open(mbox, O_WRONLY | O_TRUNC);
+	if (trunc_fd >= 0) {
+    close(trunc_fd);
+	} else {
+    perror("open for truncating spool file");
+	}
+	/* If you want the old behaviour, delete the above code block and uncomment unlink(mbox); */
 
     if (strlen(buf) < 50)
         exit(0);
