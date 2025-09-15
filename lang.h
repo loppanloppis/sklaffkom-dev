@@ -1023,7 +1023,7 @@
 #define MSG_EDRECOVER	"Resuming an aborted editing session..."
 #define MSG_NOSAVE	"You can't save your text here, please move it."
 #define MSG_QUSE	"j = quote line, a = quote all lines, q = abort, any other key = next line"
-#define MSG_NOBODYQUOTE	"Sorry, there's "no body" to be found for quation\n"
+#define MSG_NOBODYQUOTE	"Sorry, there's 'no body' to be found for quation\n"
 
 #define MSG_SURVHELP1    "Question types for surveys\n\n"
 #define MSG_SURVHELP2    "Free text      : ## text\n"
@@ -1105,7 +1105,7 @@
 #define MSG_FLAG18N     2
 #define MSG_FLAG18F      "ANSI colors"
 #define MSG_FLAG19	"utf8"
-#define MSG_FLAG19N	"2"
+#define MSG_FLAG19N	1
 #define MSG_FLAG19F	"UTF-8 (character set)"
 #define MSG_NOFLAG	"You must supply a flagname."
 #define MSG_PCWARN	"You should turn off IBM-PC first."
@@ -1284,7 +1284,7 @@
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSTELE	"\nTelephone: "
 #define MSG_INSPOST     "\nE-mail : "
-#define MSG_APPLIED	"Your application har been posted.\nWelcome back.\n\n"
+#define MSG_APPLIED	"Your application has been posted.\nWelcome back.\n\n"
 #define MSG_UIDINUSE	"login-name in use by another user."
 
 /* mailtoss.c */
