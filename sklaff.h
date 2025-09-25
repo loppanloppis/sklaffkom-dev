@@ -94,7 +94,7 @@
 
 /* Software for uploads and downloads. 
 Please read item 18 for instructions here: 
-https://github.com/joacimmelin/sklaffkom-1.32/wiki/Install-Instructions */
+https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 
 #define UPLOADPRGM      "/usr/local/bin/lrz"
 #define ULOPT1          "-Eq"
