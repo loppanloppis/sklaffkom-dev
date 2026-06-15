@@ -1064,7 +1064,9 @@ extract_ftn_msgid_from_line(const char *line, char *out, size_t outsz)
         p = line + 7;
     else if (strncmp(line, "^AMSGID:", 8) == 0)
         p = line + 8;
-    else
+    else if (strncmp(line, "FTN-MSGID:", 10) == 0)
+        p = line + 10; /* modified on 2026-06-15, PL */
+	else
         return 0;
 
     while (*p == ' ' || *p == '\t')
