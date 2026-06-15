@@ -110,6 +110,7 @@ static int write_fido_msg_out(const char *path, const char *area,
 static void write_fixed_field(unsigned char *dst, size_t len, const char *src);
 static void write_u16_le(unsigned char *dst, unsigned int val);
 static void make_fido_date(char *out, size_t outsz);
+static int parse_fido_msg_date(const char *s, time_t *out); /* modified on 2026-06-15, PL */
 static void make_ftn_msgid(char *out, size_t outsz, unsigned long serial);
 static unsigned long make_export_test_serial(const char *area, long msgnum);
 
@@ -136,6 +137,9 @@ static int add_msgitem(struct msgitem **list, struct msgitem **tail,
     const char *filename, const char *path, const char *msgid,
     const char *reply, const char *subject);
 static void free_msgitems(struct msgitem *list);
+
+static long msgitem_filename_number(const char *filename); /* modified on 2026-06-15, PL */
+static struct msgitem *sort_msgitems_by_number(struct msgitem *list); /* modified on 2026-06-15, PL */
 
 static int scan_existing_skl_msgids(const struct ftn_conf_info *ce,
     struct skref **out_refs, long *out_indexed);
@@ -244,6 +248,78 @@ make_fido_date(char *out, size_t outsz)
         tm->tm_sec);
 }
 
+static int
+parse_fido_msg_date(const char *s, time_t *out)
+{
+    struct tm tm;
+    char mon[4];
+    int day;
+    int year;
+    int hour;
+    int min;
+    int sec;
+    int month = -1;
+    int i;
+    static const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+
+    if (s == NULL || out == NULL)
+        return -1;
+
+    memset(&tm, 0, sizeof(tm));
+    memset(mon, 0, sizeof(mon));
+
+    /*
+     * Fido .MSG dates normally look like:
+     *
+     *   14 Jun 26  21:55:49
+     *
+     * Use the message timestamp for imported SklaffKOM texts, falling back
+     * to import time if parsing fails.
+     *
+     * modified on 2026-06-15, PL
+     */
+    if (sscanf(s, "%d %3s %d %d:%d:%d",
+            &day, mon, &year, &hour, &min, &sec) != 6)
+        return -1;
+
+    for (i = 0; i < 12; i++) {
+        if (strcasecmp(mon, months[i]) == 0) {
+            month = i;
+            break;
+        }
+    }
+
+    if (month < 0)
+        return -1;
+
+    if (year < 70)
+        year += 2000;
+    else if (year < 100)
+        year += 1900;
+
+    if (day < 1 || day > 31 ||
+        hour < 0 || hour > 23 ||
+        min < 0 || min > 59 ||
+        sec < 0 || sec > 60)
+        return -1;
+
+    tm.tm_mday = day;
+    tm.tm_mon = month;
+    tm.tm_year = year - 1900;
+    tm.tm_hour = hour;
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+    tm.tm_isdst = -1;
+
+    *out = mktime(&tm);
+    if (*out == (time_t)-1)
+        return -1;
+
+    return 0;
+}
 static void
 make_ftn_addr(char *out, size_t outsz, int zone, int net, int node, int point)
 {
@@ -882,6 +958,72 @@ free_msgrefs(struct msgref *list)
     }
 }
 
+static long
+msgitem_filename_number(const char *filename)
+{
+    char *endp;
+    long n;
+
+    if (filename == NULL || *filename == '\0')
+        return 0;
+
+    errno = 0;
+    n = strtol(filename, &endp, 10);
+
+    if (errno != 0 || endp == filename)
+        return 0;
+
+    if (strcasecmp(endp, ".msg") != 0)
+        return 0;
+
+    return n;
+}
+
+static struct msgitem *
+sort_msgitems_by_number(struct msgitem *list)
+{
+    struct msgitem *sorted = NULL;
+
+    while (list != NULL) {
+        struct msgitem *item = list;
+        struct msgitem **pp;
+        long itemnum;
+
+        list = list->next;
+        item->next = NULL;
+
+        itemnum = msgitem_filename_number(item->filename);
+
+        /*
+         * Keep FTN imports stable and predictable.  readdir() order is not
+         * guaranteed, so sort .MSG files by their numeric spool filename
+         * before planning/importing.  This makes SklaffKOM text numbers
+         * follow the local FTN spool order instead of filesystem order.
+         *
+         * modified on 2026-06-15, PL
+         */
+        pp = &sorted;
+        while (*pp != NULL) {
+            long curnum;
+
+            curnum = msgitem_filename_number((*pp)->filename);
+
+            if (itemnum > 0 && curnum > 0 && itemnum < curnum)
+                break;
+
+            if (itemnum == 0 && curnum > 0)
+                break;
+
+            pp = &(*pp)->next;
+        }
+
+        item->next = *pp;
+        *pp = item;
+    }
+
+    return sorted;
+}
+
 static void
 add_skref(struct skref **list, const char *msgid, long textnum)
 {
@@ -1207,6 +1349,8 @@ build_spool_index(const char *spooldir, struct msgref **out_refs,
     }
 
     closedir(dir);
+
+    items = sort_msgitems_by_number(items); /* modified on 2026-06-15, PL */
 
     *out_items = items;
     *out_seen = seen;
@@ -2874,8 +3018,11 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     /*
      * This mirrors send_news():
      *   - size is counted from the imported message buffer
-     *   - timestamp is import time for now
+     *   - timestamp is taken from the FTN .MSG date when possible
+     *
+     * modified on 2026-06-15, PL
      */
+
 	mbuf = build_ftn_mbuf(area, msg, unsafe_reason);
     if (mbuf == NULL) {
         fprintf(stderr, "[ERROR] Could not build FTN message buffer\n");
@@ -2883,8 +3030,9 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     }
 
     size = count_body_lines(mbuf);
-    now = time(NULL);
-
+    if (parse_fido_msg_date(msg->date, &now) != 0)
+        now = time(NULL);
+	
     if (rewrite_conf_last_text(confid, &new_textnum) != 0) {
         free(mbuf);
         return -1;
