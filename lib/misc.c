@@ -40,20 +40,89 @@
 #include "sklaff.h"
 #include "ext_globals.h"
 
+/*
+ * is_ftn_initial_quote - recognize FTN-style quoted lines
+ * args: line to check (s)
+ * ret: quote line (1) or not (0)
+ *
+ * FTN clients often quote using sender initials before '>', for example:
+ *
+ *   AB> quoted text
+ *    A> quoted text
+ *   pF> quoted text
+ *
+ * Keep this conservative: allow leading whitespace, then 1-3 alphabetic
+ * initials, then '>', followed by whitespace or end-of-line.  This avoids
+ * treating ordinary text such as "foo>bar" or "Article>..." as quotes.
+ *
+ * modified on 2026-06-15, PL
+ */
+static int
+is_ftn_initial_quote(const char *s)
+{
+    const unsigned char *p;
+    int n = 0;
+
+    if (s == NULL)
+        return 0;
+
+    p = (const unsigned char *)s;
+
+    while (*p == ' ' || *p == '\t')
+        p++;
+
+    while (isalpha(*p) && n < 3) {
+        p++;
+        n++;
+    }
+
+    if (n == 0 || n > 3)
+        return 0;
+
+    if (*p != '>')
+        return 0;
+
+    p++;
+
+    if (*p == '\0' || *p == '\n' || *p == '\r' ||
+        *p == ' ' || *p == '\t')
+        return 1;
+
+    return 0;
+}
 
 /* Count quote depth: skip leading spaces, then count '>' allowing optional single
  * space after each '>' so it matches ">>", "> >", "> > >", etc.
+ *
+ * Also recognize FTN-style quote prefixes such as "AB> " and " A> ".
+ * modified on 2026-06-15, PL
  */
-int quote_depth(const char *s) {
+int
+quote_depth(const char *s)
+{
     const unsigned char *p = (const unsigned char *)s;
-    while (*p == ' ' || *p == '\t') p++;
     int d = 0;
+
+    if (s == NULL)
+        return 0;
+
+    while (*p == ' ' || *p == '\t')
+        p++;
+
     while (*p == '>') {
         d++;
         p++;
-        if (*p == ' ') p++;   /* tolerate one space after each '>' */
+        if (*p == ' ')
+            p++;   /* tolerate one space after each '>' */
     }
-    return d;
+
+    if (d > 0)
+        return d;
+
+    if (is_ftn_initial_quote(s))
+        return 1;
+
+    return 0;
 }
 
 /*
