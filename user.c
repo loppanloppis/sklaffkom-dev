@@ -1159,7 +1159,8 @@ read_sklaffrc(int uid)
     headptr[17].heading = "sig";
     headptr[18].heading = "url";
     headptr[19].heading = "Numlines"; /* 2025-08-10, PL: we now set terminal height in sklaffrc on a per-user basis */
-    headptr[20].heading = "";
+    headptr[20].heading = "blocklist"; /* modified on 2026-06-16, PL */
+	headptr[21].heading = "";
 
     memset(kaffer->user.adress, 0, 80);
     memset(kaffer->user.postnr, 0, 80);
@@ -1179,6 +1180,7 @@ read_sklaffrc(int uid)
     memset(kaffer->login, 0, 4096);
     memset(kaffer->timeout, 0, 80);
     memset(kaffer->paydate, 0, 80);
+	memset(kaffer->blocklist, 0, 4096); /* modified on 2026-06-16, PL */
 
     /* Loop two times, one time for global sklaffrc, one for users local */
     for (fusker = 0; fusker != 2; fusker++) {
@@ -1296,12 +1298,15 @@ read_sklaffrc(int uid)
                                 strcpy(kaffer->user.email2, entry);
                             if (strcmp(headptr[i].heading, "url") == 0)
                                 strcpy(kaffer->user.url, entry);
-			    if (strcmp(headptr[i].heading, "Numlines") == 0) {
-    				long v = strtol(entry, NULL, 10);
-			    if (v >= 10 && v <= 200)            /* sane range limit */
-			        Numlines = (int)v;
-				}
-                            memset(entry, 0, 4096);
+			    			if (strcmp(headptr[i].heading, "Numlines") == 0) {
+    							long v = strtol(entry, NULL, 10);
+			    				if (v >= 10 && v <= 200)            /* sane range limit */
+			        			Numlines = (int)v;
+							}
+                            if (strcmp(headptr[i].heading, "blocklist") == 0)
+   								strcpy(kaffer->blocklist, entry); /* modified on 2026-06-16, PL */
+							
+							memset(entry, 0, 4096);
                         }
                         state = 1;
                     }           /* new heading */
@@ -1417,7 +1422,12 @@ write_sklaffrc(int uid, struct SKLAFFRC *kaffer)
         strcat(out2, kaffer->sig);
         strcat(out2, "\n");
     }
-    if (strlen(kaffer->editor) > 0) {
+    if (strlen(kaffer->blocklist) > 0) {
+    	strcat(outbuf, "![blocklist]\n");
+    	strcat(outbuf, kaffer->blocklist);
+    	strcat(outbuf, "\n");
+	}
+	if (strlen(kaffer->editor) > 0) {
         strcat(outbuf, "![editor]\n");
         strcat(outbuf, kaffer->editor);
         strcat(outbuf, "\n");

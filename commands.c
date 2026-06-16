@@ -7541,3 +7541,90 @@ cmd_version(char *args)
     output("\n");
     return 0;
 }
+
+/*
+ * cmd_block_user - modify user's personal blocklist
+ * args: user arguments (args)
+ * ret: ok (0) or error (-1)
+ */
+
+int
+cmd_block_user(char *args)
+{
+    int u_num, j;
+    char u_name[255];
+    struct SKLAFFRC *rc;
+    char user_home[255];
+    char *ptr, *nbuf;
+    struct TEXT_HEADER th;
+    int fd;
+    char *func_name = "cmd_block_user";
+
+    (void)args;
+
+    u_num = Uid;
+    user_name(u_num, u_name);
+
+    rc = read_sklaffrc(u_num);
+    if (rc != NULL) {
+        (void) user_dir(u_num, user_home);
+        strcat(user_home, TMP_NOTE);
+
+        if ((fd = create_file(user_home)) == -1) {
+            sys_error(func_name, 3, "open_file (LOCAL_SKLAFFRC)");
+            return -1;
+        }
+
+        j = strlen(rc->blocklist) + LINE_LEN;
+        if ((nbuf = malloc(j)) == NULL) {
+            sys_error(func_name, 1, "malloc");
+            return -1;
+        }
+
+        memset(nbuf, 0, j);
+        strcpy(nbuf, rc->blocklist);
+
+        critical();
+        write_file(fd, nbuf);
+        close_file(fd);
+        non_critical();
+
+        output("\n");
+        output(MSG_BLOCKINTRO1 "\n");
+        output(MSG_BLOCKINTRO2 "\n\n");
+
+        if (line_ed(user_home, &th, 0, 1, 0, NULL, NULL) == 0) {
+            unlink(user_home);
+            output("\n");
+        } else {
+            if ((fd = open_file(user_home, 0)) == -1) {
+                sys_error(func_name, 4, "open_file");
+                return -1;
+            }
+
+            if ((ptr = read_file(fd)) == NULL) {
+                sys_error(func_name, 3, "read_file");
+                close_file(fd);
+                return 0;
+            }
+
+            close_file(fd);
+            unlink(user_home);
+
+            strcpy(rc->blocklist, ptr); /* modified on 2026-06-16, PL */
+            free(ptr);
+        }
+
+        write_sklaffrc(Uid, rc);
+
+        /*
+         * If SklaffKOM keeps the current user's SKLAFFRC in memory elsewhere,
+         * reload/update that copy here too. Do not make display_text() read
+         * sklaffrc from disk for every displayed text.
+         *
+         * modified on 2026-06-16, PL
+         */
+    }
+
+    return 0;
+}

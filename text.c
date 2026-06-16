@@ -877,6 +877,8 @@ display_text(int conf, long num, int stack, int dtype)
     struct TEXT_BODY *tb;
     struct COMMENT_LIST *cl, *tmpcl, *savedcl;
     char *survey_reply = NULL;  /* modified on 2025-07-12, PL */
+	struct SKLAFFRC *rc = NULL; /* modified on 2026-06-16, PL */
+	int blocked = 0; /* modified on 2026-06-16, PL */
 
     rot = Rot13;
     Rot13 = 0;
@@ -1028,6 +1030,35 @@ if (!ptr || strlen(ptr) == 0) {
         display_header(th, 0, type, dtype, emau);
         strcpy(aname, emau);
     }
+    
+    /*
+     * Personal blocklist.  Keep text numbering intact by showing a small
+     * placeholder instead of skipping the text completely.
+     *
+     * modified on 2026-06-16, PL
+     */
+    rc = read_sklaffrc(Uid);
+    if (rc != NULL) {
+    	if (th->author) {
+            user_name(th->author, aname);
+            blocked = sender_is_blocked(rc->blocklist, aname);
+        } else {
+            blocked = sender_is_blocked(rc->blocklist, emau);
+        }
+
+        free(rc);
+        rc = NULL;
+    }
+
+    if (blocked) {
+        output(MSG_BLOCKED_MSG "\n\n", num);
+        free_text_entry(&te);
+        Rot13 = 0;
+        return 0;
+    }
+    
+    
+    
     tb = te.body;
     if (rot)
         Rot13 = 1;

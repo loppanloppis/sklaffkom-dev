@@ -413,6 +413,7 @@ void normalize_label(const char *raw, char *norm, size_t nlen);                 
 long clamp_nonneg(long v);                                                          /* modified on 2025-10-02, PL */
 const char *time_string_static(time_t t);                                                   /* 2025-10-24 PL */
 const char *month_name_sv(const char *mon);												/* 2026-06-04 PL nicer output in new "version" command */
+int sender_is_blocked(const char *blocklist, const char *sender); /* modified on 2026-06-16, PL */
 
 // enable the function below when ready and uncomment in conf.c
 //int has_file_area(int confnum);															/* 2025-11-11 PL */
@@ -516,6 +517,7 @@ int cmd_like(char *args); /*2025-10-18 PL */
 int cmd_unlike(char *args); /*2025-10-24 PL */
 int cmd_change_cdesc(char *args); /*2025-10-25 PL */
 int cmd_version(char *args); /*2026-06-02 PL */
+int cmd_block_user(char *args); /* modified on 2026-06-16, PL */
 
 /* admin.c */
 
