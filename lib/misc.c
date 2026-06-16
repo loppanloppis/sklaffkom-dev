@@ -41,27 +41,28 @@
 #include "ext_globals.h"
 
 /*
- * is_ftn_initial_quote - recognize FTN-style quoted lines
+ * ftn_initial_quote_depth - recognize FTN-style quoted lines
  * args: line to check (s)
- * ret: quote line (1) or not (0)
+ * ret: quote depth, or 0 if not a quote
  *
- * FTN clients often quote using sender initials before '>', for example:
+ * FTN clients often quote using sender initials before one or more '>',
+ * for example:
  *
  *   AB> quoted text
  *    A> quoted text
- *   pF> quoted text
+ *   Ni>> quoted text
  *
  * Keep this conservative: allow leading whitespace, then 1-3 alphabetic
- * initials, then '>', followed by whitespace or end-of-line.  This avoids
- * treating ordinary text such as "foo>bar" or "Article>..." as quotes.
+ * initials, then one or more '>', followed by whitespace or end-of-line.
  *
- * modified on 2026-06-15, PL
+ * modified on 2026-06-16, PL
  */
 static int
-is_ftn_initial_quote(const char *s)
+ftn_initial_quote_depth(const char *s)
 {
     const unsigned char *p;
-    int n = 0;
+    int initials = 0;
+    int depth = 0;
 
     if (s == NULL)
         return 0;
@@ -71,22 +72,25 @@ is_ftn_initial_quote(const char *s)
     while (*p == ' ' || *p == '\t')
         p++;
 
-    while (isalpha(*p) && n < 3) {
+    while (isalpha(*p) && initials < 3) {
         p++;
-        n++;
+        initials++;
     }
 
-    if (n == 0 || n > 3)
+    if (initials == 0 || initials > 3)
         return 0;
 
-    if (*p != '>')
-        return 0;
+    while (*p == '>') {
+        p++;
+        depth++;
+    }
 
-    p++;
+    if (depth == 0)
+        return 0;
 
     if (*p == '\0' || *p == '\n' || *p == '\r' ||
         *p == ' ' || *p == '\t')
-        return 1;
+        return depth;
 
     return 0;
 }
@@ -94,17 +98,21 @@ is_ftn_initial_quote(const char *s)
 /* Count quote depth: skip leading spaces, then count '>' allowing optional single
  * space after each '>' so it matches ">>", "> >", "> > >", etc.
  *
- * Also recognize FTN-style quote prefixes such as "AB> " and " A> ".
- * modified on 2026-06-15, PL
+ * Also recognize FTN-style quote prefixes such as "AB> ", " A> " and
+ * "Ni>> ".
+ *
+ * modified on 2026-06-16, PL
  */
 int
 quote_depth(const char *s)
 {
-    const unsigned char *p = (const unsigned char *)s;
+    const unsigned char *p;
     int d = 0;
 
     if (s == NULL)
         return 0;
+
+    p = (const unsigned char *)s;
 
     while (*p == ' ' || *p == '\t')
         p++;
@@ -119,12 +127,8 @@ quote_depth(const char *s)
     if (d > 0)
         return d;
 
-    if (is_ftn_initial_quote(s))
-        return 1;
-
-    return 0;
+    return ftn_initial_quote_depth(s);
 }
-
 /*
  * normalize_label - normalize a header label to one trailing colon and space
  * args: raw label (raw), output buffer (norm), output buffer length (nlen)
