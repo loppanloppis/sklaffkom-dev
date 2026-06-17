@@ -854,6 +854,154 @@ mark_as_unread(long text, int conf)
     }
     return 0;
 }
+/*
+ * text_is_ftn_conf - check if a conference is an FTN conference
+ * args: conference number (conf)
+ * ret: FTN conference (1) or not (0)
+ *
+ * modified on 2026-06-17, PL
+ */
+static int
+text_is_ftn_conf(int conf)
+{
+    struct CONF_ENTRY *ce;
+
+    if (conf <= 0)
+        return 0;
+
+    ce = get_conf_struct(conf);
+    if (ce == NULL)
+        return 0;
+
+    return (ce->type == FTN_CONF);
+}
+
+/*
+ * clean_ftn_display_line - clean FTN/BBS display noise
+ * args: source line (src), destination buffer (dst), destination size (dstsz)
+ * ret: none
+ *
+ * For now:
+ * - strip BBS pipe color codes such as |08, |12 and |0
+ * - replace common broken bullet marker "M-~" with "*"
+ *
+ * Do this at display time only.  Stored FTN texts are left untouched.
+ *
+ * modified on 2026-06-17, PL
+ */
+ 
+static void
+clean_ftn_display_line(const char *src, char *dst, size_t dstsz)
+{
+    size_t di = 0;
+    size_t i = 0;
+
+    if (dstsz == 0)
+        return;
+
+    dst[0] = '\0';
+
+    if (src == NULL)
+        return;
+
+    while (src[i] != '\0' && di + 1 < dstsz) {
+        /*
+         * Strip pipe color codes:
+         *
+         *   |0
+         *   |08
+         *   |12
+         *
+         * modified on 2026-06-17, PL
+         */
+        if (src[i] == '|' && isdigit((unsigned char)src[i + 1])) {
+            i += 2;
+
+            if (isdigit((unsigned char)src[i]))
+                i++;
+
+            continue;
+        }
+		/*
+		 * Replace UTF-8 replacement character with a simple ASCII bullet.
+		 * This often appears when old CP437/BBS glyphs have already been decoded
+		 * incorrectly before reaching the display layer.
+		 *
+		 * modified on 2026-06-17, PL
+ */
+		if ((unsigned char)src[i] == 0xef &&
+		    (unsigned char)src[i + 1] == 0xbf &&
+		    (unsigned char)src[i + 2] == 0xbd) {
+		    dst[di++] = '*';
+		    i += 3;
+		    continue;
+		}
+
+        /*
+         * Some FTN/BBS software shows broken CP437-ish bullet markers as
+         * "M-~".  Render them as a simple ASCII bullet for now.
+         *
+         * modified on 2026-06-17, PL
+         */
+        if ((unsigned char)src[i] == 0xfe) {
+    		dst[di++] = '*';
+    		i++;
+    		continue;
+		}
+		
+		/*
+		 * Replace common CP437 box-drawing characters with '*'.
+		 *
+		 * CP437:
+		 *   0xda = upper left corner
+		 *   0xbf = upper right corner
+		 *   0xc0 = lower left corner
+		 *   0xd9 = lower right corner
+		 *   0xb3 = vertical line
+		 *   0xc4 = horizontal line
+		 *
+		 * modified on 2026-06-17, PL
+		 */
+		switch ((unsigned char)src[i]) {
+		case 0xda:
+		case 0xbf:
+		case 0xc0:
+		case 0xd9:
+		case 0xb3:
+		case 0xc4:
+		    dst[di++] = '*';
+    		i++;
+    		continue;
+		}
+
+		/*
+		 * Replace common UTF-8 box-drawing characters with '*'.
+		 *
+		 * modified on 2026-06-17, PL
+		 */
+		if ((unsigned char)src[i] == 0xe2 &&
+    		src[i + 1] != '\0' &&
+    		src[i + 2] != '\0' &&
+    		(unsigned char)src[i + 1] == 0x94) {
+
+    		unsigned char c3 = (unsigned char)src[i + 2];
+
+    	if (c3 == 0x8c || /* ┌ */
+        	c3 == 0x90 || /* ┐ */
+        	c3 == 0x94 || /* └ */
+        	c3 == 0x98 || /* ┘ */
+        	c3 == 0x82 || /* │ */
+        	c3 == 0x80) { /* ─ */
+        	dst[di++] = '*';
+        	i += 3;
+        	continue;
+    	}
+	}
+        dst[di++] = src[i++];
+    }
+
+    dst[di] = '\0';
+}
 
 /*
  * display_text - display text
@@ -879,6 +1027,8 @@ display_text(int conf, long num, int stack, int dtype)
     char *survey_reply = NULL;  /* modified on 2025-07-12, PL */
 	struct SKLAFFRC *rc = NULL; /* modified on 2026-06-16, PL */
 	int blocked = 0; /* modified on 2026-06-16, PL */
+	int raw_ftn_output = 0; /* modified on 2026-06-17, PL */
+	char ftnline[LINE_LEN * 4]; /* modified on 2026-06-17, PL */
 
     rot = Rot13;
     Rot13 = 0;
@@ -949,6 +1099,9 @@ output("\n");
 
     strcpy(Sub, th->subject);
     th->num = num;
+    
+    raw_ftn_output = (Utf8 && text_is_ftn_conf(conf)); /* modified on 2026-06-17, PL */
+    
     if (Last_conf) {
         type = Last_conf;
     } else {
@@ -1092,19 +1245,63 @@ if (!ptr || strlen(ptr) == 0) {
                     break;
                 }
            } else {
-    		int qd = quote_depth(tb->line);
-			const char *col =
-        	(qd == 0) ? "" :   /* bugfix, now displays on light terminals (used to be 97: bright white body) 2026-05-13 PL */
-	    	(qd == 1) ? "\x1b[33m" :   /* yellow (level 1)    */
-	    	(qd == 2) ? "\x1b[32m" :   /* green (level 2)   */
-        	(qd == 3) ? "\x1b[94m" :   /* bright blue level 3 */
-                	    "\x1b[94m";    /* quote level 4+ */
+    		int qd;
 
-            if (output_body_line(tb->line, col) == -1) {
-            survey_valid = 0;
-            break;
-            }	
+			/*
+			* For raw FTN output, clean the line before quote detection so lines like
+			* "|08AB>> quoted text" are recognized as FTN quotes after pipe color codes
+			* have been stripped.
+			*
+			* modified on 2026-06-17, PL
+			*/
+			if (raw_ftn_output) {
+    			clean_ftn_display_line(tb->line, ftnline, sizeof(ftnline));
+    			qd = quote_depth(ftnline);
+			} else {
+    			qd = quote_depth(tb->line);
+			}
+
+const char *col =
+    (qd == 0) ? "" :   /* bugfix, now displays on light terminals (used to be 97: bright white body) 2026-05-13 PL */
+    (qd == 1) ? "\x1b[33m" :   /* yellow (level 1)    */
+    (qd == 2) ? "\x1b[32m" :   /* green (level 2)     */
+    (qd == 3) ? "\x1b[94m" :   /* bright blue level 3 */
+                "\x1b[94m";    /* quote level 4+ */
+
+            /*
+			 * FTN texts are not stored as SklaffKOM/SF7.  When the user has UTF-8
+			 * enabled, avoid the normal SF7 output conversion so literal FTN/BBS
+			 * characters such as '|', '[' and ']' are not rendered as Swedish legacy
+			 * characters.  Also strip simple BBS pipe color codes for now.
+			 *
+			 * modified on 2026-06-17, PL
+			 */
+			if (raw_ftn_output) {
+			    clean_ftn_display_line(tb->line, ftnline, sizeof(ftnline));
+
+		    /*
+		     * FTN raw output bypasses output_body_line(), so preserve quote colors
+		     * manually here.
+		     *
+		     * modified on 2026-06-17, PL
+		     */
+		    if (qd > 0 && col != NULL && *col != '\0')
+		        output_raw("%s", col);
+
+		    if (output_raw("%s\n", ftnline) == -1) {
+		        survey_valid = 0;
+	        break;
+	    }
+	
+		    if (qd > 0 && col != NULL && *col != '\0')
+		        output_raw(RESET);
+		} else {
+		    if (output_body_line(tb->line, col) == -1) {
+		        survey_valid = 0;
+        break;
     }
+}
+}
 			} else
             bypass--;
         tb = tb->next;

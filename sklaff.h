@@ -361,6 +361,7 @@ void lock(int);
 void non_critical(void);
 int output(char *,...);
 int outputex(char *,...);
+int output_raw(char *fmt, ...); /* modified on 2026-06-17, PL */
 int close_file(int);
 int create_file(char *);
 int open_file(const char *filename, int flag);

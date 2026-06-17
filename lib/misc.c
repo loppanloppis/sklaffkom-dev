@@ -1,3 +1,5 @@
+/* misc.c */
+
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
@@ -41,19 +43,95 @@
 #include "ext_globals.h"
 
 
+/*
+ * ftn_initial_quote_depth - recognize FTN-style initial quote prefixes
+ * args: line to check (s)
+ * ret: quote depth, or 0 if not a quote
+ *
+ * Examples:
+ *   AB>  -> 1
+ *   AB>> -> 2
+ *   A>   -> 1
+ *   Ni>> -> 2
+ *
+ * modified on 2026-06-17, PL
+ */
+static int
+ftn_initial_quote_depth(const char *s)
+{
+    const unsigned char *p;
+    int initials = 0;
+    int depth = 0;
+
+    if (s == NULL)
+        return 0;
+
+    p = (const unsigned char *)s;
+
+    while (*p == ' ' || *p == '\t')
+        p++;
+
+    while (isalpha((unsigned char)*p) && initials < 3) {
+        p++;
+        initials++;
+    }
+
+    if (initials == 0)
+        return 0;
+
+    while (*p == '>') {
+        p++;
+        depth++;
+    }
+
+    if (depth == 0)
+        return 0;
+
+    /*
+     * Be conservative: after AB> or AB>>, require whitespace or end-of-line.
+     *
+     * modified on 2026-06-17, PL
+     */
+    if (*p == '\0' || *p == '\n' || *p == '\r' ||
+        *p == ' ' || *p == '\t')
+        return depth;
+
+    return 0;
+}
+
 /* Count quote depth: skip leading spaces, then count '>' allowing optional single
  * space after each '>' so it matches ">>", "> >", "> > >", etc.
+ *
+ * Also recognize FTN-style quote prefixes such as "AB> ", "A> " and
+ * "Ni>> ".
+ *
+ * modified on 2026-06-17, PL
  */
-int quote_depth(const char *s) {
-    const unsigned char *p = (const unsigned char *)s;
-    while (*p == ' ' || *p == '\t') p++;
+int
+quote_depth(const char *s)
+{
+    const unsigned char *p;
     int d = 0;
+
+    if (s == NULL)
+        return 0;
+
+    p = (const unsigned char *)s;
+
+    while (*p == ' ' || *p == '\t')
+        p++;
+
     while (*p == '>') {
         d++;
         p++;
-        if (*p == ' ') p++;   /* tolerate one space after each '>' */
+        if (*p == ' ')
+            p++;   /* tolerate one space after each '>' */
     }
-    return d;
+
+    if (d > 0)
+        return d;
+
+    return ftn_initial_quote_depth(s);
 }
 
 /*
