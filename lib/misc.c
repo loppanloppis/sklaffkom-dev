@@ -118,36 +118,177 @@ swedish_month(const char *mon)
 }
 
 /*
+ * trim_ascii - trim leading/trailing ASCII whitespace in-place
+ * args: string to trim
+ * ret: none
+ *
+ * modified on 2026-06-18, PL
+ */
+static void
+trim_ascii(char *s)
+{
+    char *p;
+    size_t len;
+
+    if (s == NULL)
+        return;
+
+    p = s;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+        p++;
+
+    if (p != s)
+        memmove(s, p, strlen(p) + 1);
+
+    len = strlen(s);
+    while (len > 0 &&
+        (s[len - 1] == ' ' || s[len - 1] == '\t' ||
+         s[len - 1] == '\r' || s[len - 1] == '\n')) {
+        s[--len] = '\0';
+    }
+}
+
+/*
+ * strip_outer_quotes - strip one surrounding quote pair
+ * args: string to modify
+ * ret: none
+ *
+ * modified on 2026-06-18, PL
+ */
+static void
+strip_outer_quotes(char *s)
+{
+    size_t len;
+
+    if (s == NULL)
+        return;
+
+    trim_ascii(s);
+
+    len = strlen(s);
+    if (len >= 2 && s[0] == '"' && s[len - 1] == '"') {
+        s[len - 1] = '\0';
+        memmove(s, s + 1, len - 1);
+    }
+
+    trim_ascii(s);
+}
+
+/*
+ * extract_sender_display - extract display name from "Name <addr>"
+ * args: sender string, output buffer, output size
+ * ret: none
+ *
+ * modified on 2026-06-18, PL
+ */
+static void
+extract_sender_display(const char *sender, char *out, size_t outsz)
+{
+    char *lt;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (sender == NULL)
+        return;
+
+    strlcpy(out, sender, outsz);
+
+    lt = strchr(out, '<');
+    if (lt != NULL)
+        *lt = '\0';
+
+    strip_outer_quotes(out);
+}
+
+/*
+ * extract_sender_email - extract email from "Name <addr>"
+ * args: sender string, output buffer, output size
+ * ret: none
+ *
+ * modified on 2026-06-18, PL
+ */
+static void
+extract_sender_email(const char *sender, char *out, size_t outsz)
+{
+    const char *lt;
+    const char *gt;
+    size_t len;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (sender == NULL)
+        return;
+
+    lt = strchr(sender, '<');
+    if (lt == NULL)
+        return;
+
+    gt = strchr(lt + 1, '>');
+    if (gt == NULL)
+        return;
+
+    len = (size_t)(gt - (lt + 1));
+    if (len >= outsz)
+        len = outsz - 1;
+
+    memcpy(out, lt + 1, len);
+    out[len] = '\0';
+
+    trim_ascii(out);
+}
+
+/*
  * sender_is_blocked - check sender against user's blocklist
- * args: blocklist text, sender name
+ * args: blocklist text, sender name/address
  * ret: blocked (1) or not blocked (0)
  *
  * Blocklist format: one sender per line. Empty lines and lines beginning
  * with '#' are ignored. Matching is exact but case-insensitive.
  *
- * modified on 2026-06-16, PL
+ * For imported mail/news/FTN senders, also match:
+ *
+ *   Full sender:   Ubuntu User <ubuntu.user@mainsite.tk>
+ *   Display name:  Ubuntu User
+ *   Email address: ubuntu.user@mainsite.tk
+ *
+ * modified on 2026-06-18, PL
  */
 int
 sender_is_blocked(const char *blocklist, const char *sender)
 {
-    char line[LINE_LEN];
+	LINE line;
+	LONG_LINE sender_full;
+	LONG_LINE sender_display;
+	LINE sender_email;
     const char *p;
     const char *start;
     size_t len;
-    char *s;
 
     if (blocklist == NULL || sender == NULL || *sender == '\0')
         return 0;
 
+    strlcpy(sender_full, sender, sizeof(sender_full));
+    trim_ascii(sender_full);
+    strip_outer_quotes(sender_full);
+
+    extract_sender_display(sender_full, sender_display, sizeof(sender_display));
+    extract_sender_email(sender_full, sender_email, sizeof(sender_email));
+
     p = blocklist;
 
-    while (*p) {
+    while (*p != '\0') {
         while (*p == '\r' || *p == '\n')
             p++;
 
         start = p;
 
-        while (*p && *p != '\n' && *p != '\r')
+        while (*p != '\0' && *p != '\n' && *p != '\r')
             p++;
 
         len = (size_t)(p - start);
@@ -157,18 +298,19 @@ sender_is_blocked(const char *blocklist, const char *sender)
         memcpy(line, start, len);
         line[len] = '\0';
 
-        s = line;
+        trim_ascii(line);
+        strip_outer_quotes(line);
 
-        while (*s == ' ' || *s == '\t')
-            s++;
+        if (line[0] != '\0' && line[0] != '#') {
+            if (strcasecmp(line, sender_full) == 0)
+                return 1;
 
-        len = strlen(s);
-        while (len > 0 &&
-            (s[len - 1] == ' ' || s[len - 1] == '\t'))
-            s[--len] = '\0';
+            if (sender_display[0] != '\0' &&
+                strcasecmp(line, sender_display) == 0)
+                return 1;
 
-        if (*s != '\0' && *s != '#') {
-            if (strcasecmp(s, sender) == 0)
+            if (sender_email[0] != '\0' &&
+                strcasecmp(line, sender_email) == 0)
                 return 1;
         }
     }

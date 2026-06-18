@@ -964,7 +964,7 @@ output("\n");
         /* Rewritten 2025-07-09 to avoid segfault if author = 0 and header-lookup fails */
 	tb = te.body;
 ptr = NULL;
-char *tmp = NULL;  // <- this was missing before
+//char *tmp = NULL;  // <- this was missing before
 
 // Look for From-line variants
 while (tb) {
@@ -993,12 +993,35 @@ if (!ptr || strlen(ptr) == 0) {
     debuglog("WARNING: Could not extract 'From' address. Using fallback 'Unknown sender'", 2);
     
 } else {
-    strncpy(emau, ptr, LINE_LEN - 1);
-    emau[LINE_LEN - 1] = '\0';  // Ensure null termination
+strncpy(emau, ptr, LINE_LEN - 1);
+emau[LINE_LEN - 1] = '\0';  /* modified on 2026-06-18, PL */
 
-    // Strip trailing newline or whitespace
-    tmp = strchr(emau, '\n');
-    if (tmp) *tmp = '\0';
+/*
+ * Trim extracted external sender before display/blocklist matching.
+ * News From: lines often carry trailing CR/LF or whitespace.
+ *
+ * modified on 2026-06-18, PL
+ */
+{
+    char *p;
+    size_t len;
+
+    p = emau;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+        p++;
+
+    if (p != emau)
+        memmove(emau, p, strlen(p) + 1);
+
+    len = strlen(emau);
+    while (len > 0 &&
+        (emau[len - 1] == ' ' ||
+         emau[len - 1] == '\t' ||
+         emau[len - 1] == '\r' ||
+         emau[len - 1] == '\n')) {
+        emau[--len] = '\0';
+    }
+}
 
     
 }
@@ -1029,9 +1052,8 @@ if (!ptr || strlen(ptr) == 0) {
    th->size -= bypass;
         display_header(th, 0, type, dtype, emau);
         strcpy(aname, emau);
-    }
-    
-    /*
+	}    
+	/*
      * Personal blocklist.  Keep text numbering intact by showing a small
      * placeholder instead of skipping the text completely.
      *
