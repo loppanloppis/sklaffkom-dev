@@ -854,26 +854,27 @@ mark_as_unread(long text, int conf)
     }
     return 0;
 }
+
 /*
- * text_is_ftn_conf - check if a conference is an FTN conference
+ * text_conf_type - get conference type for display decisions
  * args: conference number (conf)
- * ret: FTN conference (1) or not (0)
+ * ret: conference type, or -1 on failure
  *
- * modified on 2026-06-17, PL
+ * modified on 2026-06-18, PL
  */
 static int
-text_is_ftn_conf(int conf)
+text_conf_type(int conf)
 {
     struct CONF_ENTRY *ce;
 
     if (conf <= 0)
-        return 0;
+        return -1;
 
     ce = get_conf_struct(conf);
     if (ce == NULL)
-        return 0;
+        return -1;
 
-    return (ce->type == FTN_CONF);
+    return ce->type;
 }
 
 /*
@@ -1027,7 +1028,10 @@ display_text(int conf, long num, int stack, int dtype)
     char *survey_reply = NULL;  /* modified on 2025-07-12, PL */
 	struct SKLAFFRC *rc = NULL; /* modified on 2026-06-16, PL */
 	int blocked = 0; /* modified on 2026-06-16, PL */
+	int conf_type = -1; /* modified on 2026-06-18, PL */
 	int raw_ftn_output = 0; /* modified on 2026-06-17, PL */
+	int raw_news_output = 0; /* modified on 2026-06-18, PL */
+	int raw_external_output = 0; /* modified on 2026-06-18, PL */
 	char ftnline[LINE_LEN * 4]; /* modified on 2026-06-17, PL */
 
     rot = Rot13;
@@ -1100,7 +1104,20 @@ output("\n");
     strcpy(Sub, th->subject);
     th->num = num;
     
-    raw_ftn_output = (Utf8 && text_is_ftn_conf(conf)); /* modified on 2026-06-17, PL */
+    conf_type = text_conf_type(conf); /* modified on 2026-06-18, PL */
+
+	/*
+	* Imported external text formats are not stored as SklaffKOM/SF7.
+	* In UTF-8 mode, display them without SF7 character conversion so literal
+	* characters such as '|', '[', ']' and '\' survive intact.
+	*
+	* FTN gets additional BBS/CP437 cleanup.  Usenet starts with raw output only.
+	*
+	* modified on 2026-06-18, PL
+	*/
+	raw_ftn_output = (Utf8 && conf_type == FTN_CONF);
+	raw_news_output = (Utf8 && conf_type == NEWS_CONF);
+	raw_external_output = (raw_ftn_output || raw_news_output);
     
     if (Last_conf) {
         type = Last_conf;
@@ -1268,39 +1285,47 @@ const char *col =
     (qd == 3) ? "\x1b[94m" :   /* bright blue level 3 */
                 "\x1b[94m";    /* quote level 4+ */
 
-            /*
-			 * FTN texts are not stored as SklaffKOM/SF7.  When the user has UTF-8
-			 * enabled, avoid the normal SF7 output conversion so literal FTN/BBS
-			 * characters such as '|', '[' and ']' are not rendered as Swedish legacy
-			 * characters.  Also strip simple BBS pipe color codes for now.
-			 *
-			 * modified on 2026-06-17, PL
-			 */
-			if (raw_ftn_output) {
-			    clean_ftn_display_line(tb->line, ftnline, sizeof(ftnline));
+          if (raw_external_output) {
+    const char *out_line;
 
-		    /*
-		     * FTN raw output bypasses output_body_line(), so preserve quote colors
-		     * manually here.
-		     *
-		     * modified on 2026-06-17, PL
-		     */
-		    if (qd > 0 && col != NULL && *col != '\0')
-		        output_raw("%s", col);
+    /*
+     * FTN gets BBS/CP437 display cleanup. NEWS_CONF only bypasses SF7
+     * conversion for now, so code snippets and literal '|', '[', ']' and '\'
+     * survive intact.
+     *
+     * modified on 2026-06-18, PL
+     */
+    if (raw_ftn_output)
+        out_line = ftnline;
+    else
+        out_line = tb->line;
 
-		    if (output_raw("%s\n", ftnline) == -1) {
-		        survey_valid = 0;
-	        break;
-	    }
-	
-		    if (qd > 0 && col != NULL && *col != '\0')
-		        output_raw(RESET);
-		} else {
-		    if (output_body_line(tb->line, col) == -1) {
-		        survey_valid = 0;
+    /*
+     * Raw external output bypasses output_body_line(), so preserve quote
+     * colors manually here.
+     *
+     * modified on 2026-06-18, PL
+     */
+    if (qd > 0 && col != NULL && *col != '\0')
+        output_raw("%s", col);
+
+    if (output_raw("%s\n", out_line) == -1) {
+        survey_valid = 0;
+        break;
+    }
+
+    if (qd > 0 && col != NULL && *col != '\0')
+        output_raw(RESET);
+} else {
+    if (output_body_line(tb->line, col) == -1) {
+        survey_valid = 0;
         break;
     }
 }
+			
+			
+			
+			
 }
 			} else
             bypass--;
