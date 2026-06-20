@@ -2852,6 +2852,7 @@ cmd_comment(char *args)
     LONG_LINE group, tmp, cname;
     char *buf, *oldbuf, *nbuf, *ptr2, *mailrec, *inbuf, *ptr3, *ptr4, sav;
     int conf, fd, commentuid, allow, nc, *ptr, i, right;
+    int is_news_reply, is_ftn_reply; /* 2026-06-20 PL */
     long textnum, last, commenttext, savednum;
     struct TEXT_HEADER th, *thtmp;
     struct TEXT_BODY *tb;
@@ -2916,11 +2917,27 @@ cmd_comment(char *args)
     thtmp = &te.th;
     commenttext = thtmp->num;
     commentuid = thtmp->author;
+    is_news_reply = 0;
+	is_ftn_reply = 0;
+
+	if (Current_conf > 0) {
+    	ce = get_conf_struct(Current_conf);
+    	if (ce != NULL) {
+        	is_news_reply = (ce->type == NEWS_CONF);
+        	is_ftn_reply = (ce->type == FTN_CONF);
+    	}
+	}
     dlog(6, "cmd_comment: replying to text=%ld author=%d subject=[%s]",
          commenttext, commentuid, thtmp->subject);
 
     mailrec = NULL;
-    if (!commentuid) {
+		/*
+		* Only mail and Usenet replies need an email address extracted from From:.
+		* Imported FTN texts also have author 0, but use an FTN address instead.
+		*
+		* modified on 2026-06-20, PL
+		*/
+		if (!commentuid && !is_ftn_reply) {
         /* Extract mail recipient from From: lines in body for mail replies */
         tb = te.body;
         while (tb) {
@@ -3000,7 +3017,7 @@ cmd_comment(char *args)
     if (Current_conf || !commentuid) {
         output("\n");
 #ifdef POSTING_OK
-        if (Current_conf && !commentuid) {
+			if (is_news_reply) {
             if ((fd = open_file(POST_INFO, 0)) == -1)
                 return -1;
             if ((buf = read_file(fd)) == NULL)
