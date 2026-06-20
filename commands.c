@@ -2994,7 +2994,8 @@ cmd_comment(char *args)
             dlog(7, "cmd_comment: mail reply to=[%s]", mailrec);
         }
     }
-    free_text_entry(&te);
+	strlcpy(th.subject, thtmp->subject, sizeof(th.subject)); /* 2026-06-20 PL */
+	free_text_entry(&te);
 
     if (Current_conf)
         conf = Current_conf;
@@ -3010,7 +3011,6 @@ cmd_comment(char *args)
     th.size = 0;
     th.time = 0;
     th.type = TYPE_TEXT;
-    strcpy(th.subject, thtmp->subject);
     strcpy(fname, Home);
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_comment: edit file path=[%s]", fname);
