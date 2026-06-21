@@ -1417,31 +1417,64 @@ scan_existing_skl_msgids(const struct ftn_conf_info *ce,
         return 0;
     }
 
-    for (i = 1; i <= ce->last_text; i++) {
-        FILE *fp;
-        LONG_LINE line;
-        char msgid[256];
+	for (i = 1; i <= ce->last_text; i++) {
+    FILE *fp;
+    LONG_LINE line;
+    char msgid[256];
+    int found_msgid = 0;
 
-        if (snprintf(path, sizeof(path), "%s/%d/%ld", SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
-            fprintf(stderr, "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
-                SKLAFF_DB, ce->num, i);
-            return -1;
+    if (snprintf(path, sizeof(path), "%s/%d/%ld",
+            SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
+        fprintf(stderr,
+            "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
+            SKLAFF_DB, ce->num, i);
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (fp == NULL)
+        continue;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (extract_ftn_msgid_from_line(line, msgid,
+                sizeof(msgid))) {
+            add_skref(out_refs, msgid, i);
+            indexed++;
+            found_msgid = 1;
+            break;
         }
+    }
 
-        fp = fopen(path, "r");
-        if (fp == NULL)
-            continue;
+    fclose(fp);
 
-        while (fgets(line, sizeof(line), fp) != NULL) {
-            if (extract_ftn_msgid_from_line(line, msgid, sizeof(msgid))) {
+    /*
+     * Locally written FTN texts have a real SklaffKOM author uid but no
+     * stored FTN-MSGID.  Recreate the deterministic MSGID used by export-one
+     * so echoed messages are recognized instead of imported as duplicates.
+     *
+     * modified on 2026-06-21, PL
+     */
+    if (!found_msgid) {
+        long uid = 0;
+        long when = 0;
+        long com = 0;
+        unsigned long serial;
+        char subject[256];
+        char *body = NULL;
+
+        if (read_skom_export_text(ce->num, i, &uid, &when, &com,
+                subject, sizeof(subject), &body) == 0) {
+            if (uid > 0) {
+                serial = make_export_one_serial(ce->num, i);
+                make_ftn_msgid(msgid, sizeof(msgid), serial);
                 add_skref(out_refs, msgid, i);
                 indexed++;
-                break;
             }
-        }
 
-        fclose(fp);
+            free(body);
+        }
     }
+}
 
     *out_indexed = indexed;
 
