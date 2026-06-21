@@ -2613,7 +2613,8 @@ cmd_post_text(char *args)
 #ifdef POSTING_OK
     if (ce->type == NEWS_CONF) {
         struct passwd *pw = getpwuid(Uid);
-        snprintf(uname, sizeof(uname), "%s@%s (%s)", pw->pw_name, MACHINE_NAME, user_name(Uid, tmp));
+        snprintf(uname, sizeof(uname), "%s <%s@%s>",
+    		user_name(Uid, tmp), pw->pw_name, MACHINE_NAME);
         un = uname;
  //     snprintf(group, sizeof(group), "%s %s", MSG_NGROUP, conf_name(confid, tmp));
         th.author = 0;
@@ -3177,7 +3178,8 @@ cmd_comment(char *args)
             return -1;
         }
         pw = getpwuid(Uid);
-        snprintf(uname, sizeof(uname), "%s@%s (%s)", pw->pw_name, MACHINE_NAME, user_name(Uid, tmp));
+		snprintf(uname, sizeof(uname), "%s <%s@%s>",
+    		user_name(Uid, tmp), pw->pw_name, MACHINE_NAME);
         snprintf(group, sizeof(group), "%s %s", MSG_NGROUP, conf_name(nc, tmp));
         dlog(7, "cmd_comment: uname=[%s] newsgroup=[%s] subject=[%s]", uname, conf_name(nc, tmp), th.subject);
 
