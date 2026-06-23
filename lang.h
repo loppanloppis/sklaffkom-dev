@@ -309,10 +309,13 @@
 #define MSG_NETHACKER01	"Fel: Kan inte starta Nethack - har SysOp glömt att installera den?"
 #define MSG_FILE_DB_ER	"Strul med filkatalogen. Meddela SysOp."
 #define MSG_ULPRGMERROR "Uploadprogrammet saknas eller kan inte k|ras. Kontakta SysOp."
-#define MSG_FILES_OFF 	"Filöverföringar är inte konfigurerade på detta system."
+#define MSG_FILES_OFF 	"Fil|verf|ringar är inte konfigurerade på detta system."
 #define MSG_OPEN_C_E	"Fel : kunde inte |ppna confxtra. Meddela SysOp!"
 #define MSG_READ_C_E	"Fel : kunde inte l{sa confxtra. Meddela SysOp!"
 #define MSG_WRITE_C_E	"Fel : kunde inte skriva till confxtra. Meddela SysOp!"
+#define MSG_BLOCKINTRO1	"Redigera blockerade avs{ndare, en per rad."
+#define MSG_BLOCKINTRO2	"Tomma rader och rader som börjar med # ignoreras."
+#define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avsändare)"
 
 /* Nytt (Se) tiden-kommando */
 #define MSG_DISPTIME    "Klockan {r nu"
@@ -695,7 +698,7 @@
 #define MSG_ADMHELP12	"                            conf = -1 rensar i alla m|ten.\n"
 #define MSG_ADMHELP13	"   mailpurge <uid> <num>  - Rensar brev, beh}ller minst <num> st.\n"
 #define MSG_ADMHELP14	"                            mbox = -1 rensar i alla brevl}dor.\n"
-#define MSG_ADMHELP18   "   forcepurge <uid> <num> - Rensar texter utan h{nsyn till livsl{ngd,\n"
+#define MSG_ADMHELP18   "   forcepurge <conf> <num> - Rensar texter utan h{nsyn till livsl{ngd,\n"
 #define MSG_ADMHELP19   "                            beh}ller minst <num> st.\n\n"                                                     
 #define MSG_ADMHELP15	"   who - Inloggade anv{ndare.\n"
 #define MSG_ADMHELP16	"   down - Tar ner SklaffKOM snyggt.\n"
@@ -1025,6 +1028,9 @@
 #define MSG_OPEN_C_E	"Error : failed to open confxtra. Contact your SysOp."
 #define MSG_READ_C_E	"Error : failed to read confxtra. Contact your SysOp."
 #define MSG_WRITE_C_E	"Error : failed to write confxtra. Contact your SysOp."
+#define MSG_BLOCKINTRO1 "Enter your list of blocked users, one per row."
+#define MSG_BLOCKINTRO2 "Empty lines, and lines starting with # are ignored."
+#define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
 
 /* New time */
 #define MSG_DISPTIME    "Current time is"
@@ -1400,7 +1406,7 @@
 #define MSG_ADMHELP12	"                            conf = -1 purges all conferences.\n"
 #define MSG_ADMHELP13	"   mailpurge <uid> <num>  - Purges mail, leaves at least <num> mails.\n"
 #define MSG_ADMHELP14	"                            mbox = -1 purges in all mailboxes.\n"
-#define MSG_ADMHELP18   "   forcepurge <uid> <num> - Purges articles with no consideration to it's age,\n"
+#define MSG_ADMHELP18   "   forcepurge <conf> <num> - Purges articles with no consideration to it's age,\n"
 #define MSG_ADMHELP19   "                            beh}ller minst <num> st.\n\n"                  
 #define MSG_ADMHELP15	"   who - Display active users.\n"
 #define MSG_ADMHELP16	"   down - Shuts down SklaffKOM properly.\n"
@@ -1421,7 +1427,7 @@
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSTELE	"\nTelephone: "
 #define MSG_INSPOST     "\nE-mail : "
-#define MSG_APPLIED	"Your application has been posted.\nWelcome back.\n\n"
+#define MSG_APPLIED	"We have now received your application and will get back to you shortly!\nWelcome!\n\n"
 #define MSG_UIDINUSE	"login-name in use by another user."
 
 /* mailtoss.c */

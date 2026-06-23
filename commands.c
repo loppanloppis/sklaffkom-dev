@@ -2613,7 +2613,8 @@ cmd_post_text(char *args)
 #ifdef POSTING_OK
     if (ce->type == NEWS_CONF) {
         struct passwd *pw = getpwuid(Uid);
-        snprintf(uname, sizeof(uname), "%s@%s (%s)", pw->pw_name, MACHINE_NAME, user_name(Uid, tmp));
+        snprintf(uname, sizeof(uname), "%s <%s@%s>",
+    		user_name(Uid, tmp), pw->pw_name, MACHINE_NAME);
         un = uname;
  //     snprintf(group, sizeof(group), "%s %s", MSG_NGROUP, conf_name(confid, tmp));
         th.author = 0;
@@ -2852,6 +2853,7 @@ cmd_comment(char *args)
     LONG_LINE group, tmp, cname;
     char *buf, *oldbuf, *nbuf, *ptr2, *mailrec, *inbuf, *ptr3, *ptr4, sav;
     int conf, fd, commentuid, allow, nc, *ptr, i, right;
+    int is_news_reply, is_ftn_reply; /* 2026-06-20 PL */
     long textnum, last, commenttext, savednum;
     struct TEXT_HEADER th, *thtmp;
     struct TEXT_BODY *tb;
@@ -2916,11 +2918,27 @@ cmd_comment(char *args)
     thtmp = &te.th;
     commenttext = thtmp->num;
     commentuid = thtmp->author;
+    is_news_reply = 0;
+	is_ftn_reply = 0;
+
+	if (Current_conf > 0) {
+    	ce = get_conf_struct(Current_conf);
+    	if (ce != NULL) {
+        	is_news_reply = (ce->type == NEWS_CONF);
+        	is_ftn_reply = (ce->type == FTN_CONF);
+    	}
+	}
     dlog(6, "cmd_comment: replying to text=%ld author=%d subject=[%s]",
          commenttext, commentuid, thtmp->subject);
 
     mailrec = NULL;
-    if (!commentuid) {
+		/*
+		* Only mail and Usenet replies need an email address extracted from From:.
+		* Imported FTN texts also have author 0, but use an FTN address instead.
+		*
+		* modified on 2026-06-20, PL
+		*/
+		if (!commentuid && !is_ftn_reply) {
         /* Extract mail recipient from From: lines in body for mail replies */
         tb = te.body;
         while (tb) {
@@ -2977,7 +2995,8 @@ cmd_comment(char *args)
             dlog(7, "cmd_comment: mail reply to=[%s]", mailrec);
         }
     }
-    free_text_entry(&te);
+	strlcpy(th.subject, thtmp->subject, sizeof(th.subject)); /* 2026-06-20 PL */
+	free_text_entry(&te);
 
     if (Current_conf)
         conf = Current_conf;
@@ -2993,14 +3012,13 @@ cmd_comment(char *args)
     th.size = 0;
     th.time = 0;
     th.type = TYPE_TEXT;
-    strcpy(th.subject, thtmp->subject);
     strcpy(fname, Home);
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_comment: edit file path=[%s]", fname);
     if (Current_conf || !commentuid) {
         output("\n");
 #ifdef POSTING_OK
-        if (Current_conf && !commentuid) {
+			if (is_news_reply) {
             if ((fd = open_file(POST_INFO, 0)) == -1)
                 return -1;
             if ((buf = read_file(fd)) == NULL)
@@ -3160,7 +3178,8 @@ cmd_comment(char *args)
             return -1;
         }
         pw = getpwuid(Uid);
-        snprintf(uname, sizeof(uname), "%s@%s (%s)", pw->pw_name, MACHINE_NAME, user_name(Uid, tmp));
+		snprintf(uname, sizeof(uname), "%s <%s@%s>",
+    		user_name(Uid, tmp), pw->pw_name, MACHINE_NAME);
         snprintf(group, sizeof(group), "%s %s", MSG_NGROUP, conf_name(nc, tmp));
         dlog(7, "cmd_comment: uname=[%s] newsgroup=[%s] subject=[%s]", uname, conf_name(nc, tmp), th.subject);
 
@@ -7539,5 +7558,92 @@ cmd_version(char *args)
         show_external_versions();
 	*/
     output("\n");
+    return 0;
+}
+
+/*
+ * cmd_block_user - modify user's personal blocklist
+ * args: user arguments (args)
+ * ret: ok (0) or error (-1)
+ */
+
+int
+cmd_block_user(char *args)
+{
+    int u_num, j;
+    char u_name[255];
+    struct SKLAFFRC *rc;
+    char user_home[255];
+    char *ptr, *nbuf;
+    struct TEXT_HEADER th;
+    int fd;
+    char *func_name = "cmd_block_user";
+
+    (void)args;
+
+    u_num = Uid;
+    user_name(u_num, u_name);
+
+    rc = read_sklaffrc(u_num);
+    if (rc != NULL) {
+        (void) user_dir(u_num, user_home);
+        strcat(user_home, TMP_NOTE);
+
+        if ((fd = create_file(user_home)) == -1) {
+            sys_error(func_name, 3, "open_file (LOCAL_SKLAFFRC)");
+            return -1;
+        }
+
+        j = strlen(rc->blocklist) + LINE_LEN;
+        if ((nbuf = malloc(j)) == NULL) {
+            sys_error(func_name, 1, "malloc");
+            return -1;
+        }
+
+        memset(nbuf, 0, j);
+        strcpy(nbuf, rc->blocklist);
+
+        critical();
+        write_file(fd, nbuf);
+        close_file(fd);
+        non_critical();
+
+        output("\n");
+        output(MSG_BLOCKINTRO1 "\n");
+        output(MSG_BLOCKINTRO2 "\n\n");
+
+        if (line_ed(user_home, &th, 0, 1, 0, NULL, NULL) == 0) {
+            unlink(user_home);
+            output("\n");
+        } else {
+            if ((fd = open_file(user_home, 0)) == -1) {
+                sys_error(func_name, 4, "open_file");
+                return -1;
+            }
+
+            if ((ptr = read_file(fd)) == NULL) {
+                sys_error(func_name, 3, "read_file");
+                close_file(fd);
+                return 0;
+            }
+
+            close_file(fd);
+            unlink(user_home);
+
+            strcpy(rc->blocklist, ptr); /* modified on 2026-06-16, PL */
+            free(ptr);
+        }
+
+        write_sklaffrc(Uid, rc);
+
+        /*
+         * If SklaffKOM keeps the current user's SKLAFFRC in memory elsewhere,
+         * reload/update that copy here too. Do not make display_text() read
+         * sklaffrc from disk for every displayed text.
+         *
+         * modified on 2026-06-16, PL
+         */
+    }
+
     return 0;
 }

@@ -1,0 +1,17 @@
+Beskrivning:
+  Detta n}got primitiva kommando l}ter dig blockera anv{ndare du inte vill se 
+  inl{gg ifr}n.
+  
+Observera
+  Matchningen {r "case-insensitive" men m}ste i |vrigt vara exakt.
+
+  Det betyder att "Kalle Johansson" och "kALle joHanSSoN" ger tr{ff, men
+  "Johanna" och "anna" g|r det inte.
+  
+  I nuvarande version st|ds inte argument, utan ist{llet |ppnas SklaffKOM's
+  vanliga editor. I den redigerar du din lista med o|nskade anvs{ndare.
+  
+  Ett tips kan ju vara att "Hoppa {rende" efter en blockerad text, s} slipper
+  du {ven eventuella citeringar i efterf|ljande kommentarer.
+  
+  Allt f|r en trevligare l{supplevelse!

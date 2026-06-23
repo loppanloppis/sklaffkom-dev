@@ -1,3 +1,5 @@
+/* misc.c */
+
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
@@ -41,21 +43,17 @@
 #include "ext_globals.h"
 
 /*
- * ftn_initial_quote_depth - recognize FTN-style quoted lines
+ * ftn_initial_quote_depth - recognize FTN-style initial quote prefixes
  * args: line to check (s)
  * ret: quote depth, or 0 if not a quote
  *
- * FTN clients often quote using sender initials before one or more '>',
- * for example:
+ * Examples:
+ *   AB>  -> 1
+ *   AB>> -> 2
+ *   A>   -> 1
+ *   Ni>> -> 2
  *
- *   AB> quoted text
- *    A> quoted text
- *   Ni>> quoted text
- *
- * Keep this conservative: allow leading whitespace, then 1-3 alphabetic
- * initials, then one or more '>', followed by whitespace or end-of-line.
- *
- * modified on 2026-06-16, PL
+ * modified on 2026-06-17, PL
  */
 static int
 ftn_initial_quote_depth(const char *s)
@@ -72,12 +70,12 @@ ftn_initial_quote_depth(const char *s)
     while (*p == ' ' || *p == '\t')
         p++;
 
-    while (isalpha(*p) && initials < 3) {
+    while (isalpha((unsigned char)*p) && initials < 3) {
         p++;
         initials++;
     }
 
-    if (initials == 0 || initials > 3)
+    if (initials == 0)
         return 0;
 
     while (*p == '>') {
@@ -88,6 +86,11 @@ ftn_initial_quote_depth(const char *s)
     if (depth == 0)
         return 0;
 
+    /*
+     * Be conservative: after AB> or AB>>, require whitespace or end-of-line.
+     *
+     * modified on 2026-06-17, PL
+     */
     if (*p == '\0' || *p == '\n' || *p == '\r' ||
         *p == ' ' || *p == '\t')
         return depth;
@@ -98,10 +101,10 @@ ftn_initial_quote_depth(const char *s)
 /* Count quote depth: skip leading spaces, then count '>' allowing optional single
  * space after each '>' so it matches ">>", "> >", "> > >", etc.
  *
- * Also recognize FTN-style quote prefixes such as "AB> ", " A> " and
+ * Also recognize FTN-style quote prefixes such as "AB> ", "A> " and
  * "Ni>> ".
  *
- * modified on 2026-06-16, PL
+ * modified on 2026-06-17, PL
  */
 int
 quote_depth(const char *s)
@@ -188,4 +191,63 @@ swedish_month(const char *mon)
     if (!strcmp(mon, "Dec")) return "december";
 
     return mon;
+}
+
+/*
+ * sender_is_blocked - check sender against user's blocklist
+ * args: blocklist text, sender name
+ * ret: blocked (1) or not blocked (0)
+ *
+ * Blocklist format: one sender per line. Empty lines and lines beginning
+ * with '#' are ignored. Matching is exact but case-insensitive.
+ *
+ * modified on 2026-06-16, PL
+ */
+int
+sender_is_blocked(const char *blocklist, const char *sender)
+{
+    char line[LINE_LEN];
+    const char *p;
+    const char *start;
+    size_t len;
+    char *s;
+
+    if (blocklist == NULL || sender == NULL || *sender == '\0')
+        return 0;
+
+    p = blocklist;
+
+    while (*p) {
+        while (*p == '\r' || *p == '\n')
+            p++;
+
+        start = p;
+
+        while (*p && *p != '\n' && *p != '\r')
+            p++;
+
+        len = (size_t)(p - start);
+        if (len >= sizeof(line))
+            len = sizeof(line) - 1;
+
+        memcpy(line, start, len);
+        line[len] = '\0';
+
+        s = line;
+
+        while (*s == ' ' || *s == '\t')
+            s++;
+
+        len = strlen(s);
+        while (len > 0 &&
+            (s[len - 1] == ' ' || s[len - 1] == '\t'))
+            s[--len] = '\0';
+
+        if (*s != '\0' && *s != '#') {
+            if (strcasecmp(s, sender) == 0)
+                return 1;
+        }
+    }
+
+    return 0;
 }

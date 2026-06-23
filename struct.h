@@ -203,6 +203,7 @@ struct SKLAFFRC {
     char paid[80];
     char login[4096];
     char paydate[80];
+	char blocklist[4096]; /* modified on 2026-06-16, PL */
 };
 
 /* LikeEntry - one liked post 2025-10-24 PL */

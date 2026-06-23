@@ -185,7 +185,9 @@ static void make_skom_from_name(long uid, char *out, size_t outsz); /* modified 
 
 static char *wrap_ftn_body_for_skom(const char *body);
 static void append_wrapped_segment(char *out, size_t outsz,
-    const char *seg, size_t len);
+    const char *seg, size_t len, const char *cont_prefix); /* modified on 2026-06-17, PL */
+static void ftn_quote_prefix(const char *line, size_t len,
+    char *out, size_t outsz); /* modified on 2026-06-17, PL */
 static void append_to_dynbuf(char **buf, size_t *cap, size_t *len,
     const char *text);
 
@@ -320,6 +322,7 @@ parse_fido_msg_date(const char *s, time_t *out)
 
     return 0;
 }
+
 static void
 make_ftn_addr(char *out, size_t outsz, int zone, int net, int node, int point)
 {
@@ -429,21 +432,148 @@ append_to_dynbuf(char **buf, size_t *cap, size_t *len, const char *text)
     (*buf)[*len] = '\0';
 }
 
+/*
+ * ftn_quote_prefix - extract quote prefix for FTN-style quoted lines
+ * args: source line (line), line length (len), output buffer (out), output size
+ * ret: none
+ *
+ * Recognizes:
+ *   > quoted
+ *   >> quoted
+ *   > > quoted
+ *   V> quoted
+ *   Ni>> quoted
+ *
+ * The returned prefix includes trailing whitespace if present, so wrapped
+ * continuation lines keep the same readable quote marker.
+ *
+ * modified on 2026-06-17, PL
+ */
 static void
-append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
+ftn_quote_prefix(const char *line, size_t len, char *out, size_t outsz)
+{
+    size_t i = 0;
+    size_t start;
+    int initials = 0;
+    int depth = 0;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (line == NULL || len == 0)
+        return;
+
+    /*
+     * Allow leading whitespace as part of the prefix.
+     * modified on 2026-06-17, PL
+     */
+    while (i < len && (line[i] == ' ' || line[i] == '\t'))
+        i++;
+
+    start = 0;
+
+    /*
+     * Classic quote: >, >>, > >, etc.
+     * modified on 2026-06-17, PL
+     */
+    if (i < len && line[i] == '>') {
+        while (i < len && line[i] == '>') {
+            i++;
+            depth++;
+
+            if (i < len && line[i] == ' ')
+                i++;
+        }
+
+        if (depth > 0) {
+            if (i < len && (line[i] == ' ' || line[i] == '\t'))
+                i++;
+
+            if (i > start) {
+                size_t n = i - start;
+
+                if (n >= outsz)
+                    n = outsz - 1;
+
+                memcpy(out, line + start, n);
+                out[n] = '\0';
+            }
+        }
+
+        return;
+    }
+
+    /*
+     * FTN initials quote: A>, AB>, Ni>>, etc.
+     * Be conservative: 1-3 alphabetic initials, then one or more '>'.
+     *
+     * modified on 2026-06-17, PL
+     */
+    while (i < len && isalpha((unsigned char)line[i]) && initials < 3) {
+        i++;
+        initials++;
+    }
+
+    if (initials == 0)
+        return;
+
+    while (i < len && line[i] == '>') {
+        i++;
+        depth++;
+    }
+
+    if (depth == 0)
+        return;
+
+    /*
+     * Require whitespace/end after the quote marker to avoid matching
+     * normal strings like "foo>bar".
+     *
+     * modified on 2026-06-17, PL
+     */
+    if (i < len &&
+        line[i] != ' ' && line[i] != '\t' &&
+        line[i] != '\r' && line[i] != '\n')
+        return;
+
+    if (i < len && (line[i] == ' ' || line[i] == '\t'))
+        i++;
+
+    if (i > start) {
+        size_t n = i - start;
+
+        if (n >= outsz)
+            n = outsz - 1;
+
+        memcpy(out, line + start, n);
+        out[n] = '\0';
+    }
+}
+
+static void
+append_wrapped_segment(char *out, size_t outsz,
+    const char *seg, size_t len, const char *cont_prefix)
 {
     size_t pos = 0;
+    int first = 1;
+    size_t prefix_len = 0;
 
     if (out == NULL || outsz == 0 || seg == NULL)
         return;
 
     out[0] = '\0';
 
+    if (cont_prefix != NULL)
+        prefix_len = strlen(cont_prefix);
+
     while (pos < len) {
         size_t left = len - pos;
         size_t take = left;
         size_t i;
         size_t start;
+        size_t wrap_col = FTN_WRAP_COL;
 
         while (left > 0 && (seg[pos] == ' ' || seg[pos] == '\t')) {
             pos++;
@@ -453,9 +583,18 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
         if (left == 0)
             break;
 
+        /*
+         * Continuation lines include the quote prefix, so leave room for it
+         * when choosing the wrap point.
+         *
+         * modified on 2026-06-17, PL
+         */
+        if (!first && prefix_len > 0 && prefix_len < wrap_col)
+            wrap_col -= prefix_len;
+
         take = left;
-        if (take > FTN_WRAP_COL) {
-            take = FTN_WRAP_COL;
+        if (take > wrap_col) {
+            take = wrap_col;
 
             /*
              * Prefer breaking at whitespace before the wrap column.
@@ -471,10 +610,28 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
             }
 
             if (i == 0)
-                take = FTN_WRAP_COL;
+                take = wrap_col;
         }
 
         start = strlen(out);
+
+        /*
+         * Prefix continuation lines of quoted FTN text:
+         *
+         *   V> long text...
+         *   V> continuation...
+         *
+         * modified on 2026-06-17, PL
+         */
+        if (!first && prefix_len > 0) {
+            if (start + prefix_len + 1 >= outsz)
+                break;
+
+            memcpy(out + start, cont_prefix, prefix_len);
+            start += prefix_len;
+            out[start] = '\0';
+        }
+
         if (start + take + 2 >= outsz)
             break;
 
@@ -483,6 +640,7 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
         out[start + take + 1] = '\0';
 
         pos += take;
+        first = 0;
 
         while (pos < len && (seg[pos] == ' ' || seg[pos] == '\t'))
             pos++;
@@ -507,8 +665,12 @@ wrap_ftn_body_for_skom(const char *body)
     while (1) {
         if (*p == '\n' || *p == '\0') {
             size_t linelen = (size_t)(p - line_start);
+			
+			char quote_prefix[32];
 
-            /*
+			ftn_quote_prefix(line_start, linelen, quote_prefix, sizeof(quote_prefix)); /* modified on 2026-06-17, PL */
+            
+			/*
              * Preserve blank lines. Preserve quoted/origin/control-ish lines
              * as-is, but wrap normal prose before storing it in SklaffKOM.
              *
@@ -516,23 +678,36 @@ wrap_ftn_body_for_skom(const char *body)
              */
             if (linelen == 0) {
                 append_to_dynbuf(&out, &cap, &outlen, "\n");
-            } else if (line_start[0] == '>' ||
-                       line_start[0] == '|' ||
-                       line_start[0] == '*' ||
-                       line_start[0] == '-' ||
-                       line_start[0] == '\001') {
-                char *tmp;
+           	} else if (quote_prefix[0] != '\0' && linelen > FTN_WRAP_COL) {
+    			char wrapped[4096];
 
-                tmp = malloc(linelen + 2);
-                if (tmp != NULL) {
-                    memcpy(tmp, line_start, linelen);
-                    tmp[linelen] = '\n';
-                    tmp[linelen + 1] = '\0';
-                    append_to_dynbuf(&out, &cap, &outlen, tmp);
-                    free(tmp);
-                }
-            } else if (linelen <= FTN_WRAP_COL) {
-                char *tmp;
+	    /*
+	     * Long FTN quote lines should wrap with the same quote prefix on
+	     * continuation lines, otherwise SklaffKOM cannot color them as quotes.
+	     *
+	     * modified on 2026-06-17, PL
+	     */
+
+				append_wrapped_segment(wrapped, sizeof(wrapped),
+			    line_start, linelen, quote_prefix); /* modified on 2026-06-17, PL */
+    			append_to_dynbuf(&out, &cap, &outlen, wrapped);
+			} else if (line_start[0] == '>' ||
+           		line_start[0] == '|' ||
+           		line_start[0] == '*' ||
+           		line_start[0] == '-' ||
+           		line_start[0] == '\001') {
+    		char *tmp;
+
+    		tmp = malloc(linelen + 2);
+    		if (tmp != NULL) {
+        	memcpy(tmp, line_start, linelen);
+        	tmp[linelen] = '\n';
+        	tmp[linelen + 1] = '\0';
+        	append_to_dynbuf(&out, &cap, &outlen, tmp);
+        	free(tmp);
+    		}
+		} else if (linelen <= FTN_WRAP_COL) {
+    		char *tmp;
 
                 tmp = malloc(linelen + 2);
                 if (tmp != NULL) {
@@ -545,8 +720,8 @@ wrap_ftn_body_for_skom(const char *body)
             } else {
                 char wrapped[4096];
 
-                append_wrapped_segment(wrapped, sizeof(wrapped),
-                    line_start, linelen);
+					append_wrapped_segment(wrapped, sizeof(wrapped),
+				    line_start, linelen, NULL); /* modified on 2026-06-17, PL */
                 append_to_dynbuf(&out, &cap, &outlen, wrapped);
             }
 
@@ -1242,31 +1417,64 @@ scan_existing_skl_msgids(const struct ftn_conf_info *ce,
         return 0;
     }
 
-    for (i = 1; i <= ce->last_text; i++) {
-        FILE *fp;
-        LONG_LINE line;
-        char msgid[256];
+	for (i = 1; i <= ce->last_text; i++) {
+    FILE *fp;
+    LONG_LINE line;
+    char msgid[256];
+    int found_msgid = 0;
 
-        if (snprintf(path, sizeof(path), "%s/%d/%ld", SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
-            fprintf(stderr, "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
-                SKLAFF_DB, ce->num, i);
-            return -1;
+    if (snprintf(path, sizeof(path), "%s/%d/%ld",
+            SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
+        fprintf(stderr,
+            "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
+            SKLAFF_DB, ce->num, i);
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (fp == NULL)
+        continue;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (extract_ftn_msgid_from_line(line, msgid,
+                sizeof(msgid))) {
+            add_skref(out_refs, msgid, i);
+            indexed++;
+            found_msgid = 1;
+            break;
         }
+    }
 
-        fp = fopen(path, "r");
-        if (fp == NULL)
-            continue;
+    fclose(fp);
 
-        while (fgets(line, sizeof(line), fp) != NULL) {
-            if (extract_ftn_msgid_from_line(line, msgid, sizeof(msgid))) {
+    /*
+     * Locally written FTN texts have a real SklaffKOM author uid but no
+     * stored FTN-MSGID.  Recreate the deterministic MSGID used by export-one
+     * so echoed messages are recognized instead of imported as duplicates.
+     *
+     * modified on 2026-06-21, PL
+     */
+    if (!found_msgid) {
+        long uid = 0;
+        long when = 0;
+        long com = 0;
+        unsigned long serial;
+        char subject[256];
+        char *body = NULL;
+
+        if (read_skom_export_text(ce->num, i, &uid, &when, &com,
+                subject, sizeof(subject), &body) == 0) {
+            if (uid > 0) {
+                serial = make_export_one_serial(ce->num, i);
+                make_ftn_msgid(msgid, sizeof(msgid), serial);
                 add_skref(out_refs, msgid, i);
                 indexed++;
-                break;
             }
-        }
 
-        fclose(fp);
+            free(body);
+        }
     }
+}
 
     *out_indexed = indexed;
 
@@ -1292,7 +1500,7 @@ build_spool_index(const char *spooldir, struct msgref **out_refs,
     if (spooldir == NULL || out_refs == NULL || out_items == NULL ||
         out_seen == NULL || out_indexed == NULL || out_failed == NULL)
         return -1;
-
+	
     *out_refs = NULL;
     *out_items = NULL;
     *out_seen = 0;
@@ -1352,7 +1560,7 @@ build_spool_index(const char *spooldir, struct msgref **out_refs,
 
     items = sort_msgitems_by_number(items); /* modified on 2026-06-15, PL */
 
-    *out_items = items;
+	*out_items = items;
     *out_seen = seen;
     *out_indexed = indexed;
     *out_failed = failed;
@@ -3022,7 +3230,6 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
      *
      * modified on 2026-06-15, PL
      */
-
 	mbuf = build_ftn_mbuf(area, msg, unsafe_reason);
     if (mbuf == NULL) {
         fprintf(stderr, "[ERROR] Could not build FTN message buffer\n");
@@ -3030,9 +3237,9 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     }
 
     size = count_body_lines(mbuf);
-    if (parse_fido_msg_date(msg->date, &now) != 0)
+	 if (parse_fido_msg_date(msg->date, &now) != 0)
         now = time(NULL);
-	
+
     if (rewrite_conf_last_text(confid, &new_textnum) != 0) {
         free(mbuf);
         return -1;

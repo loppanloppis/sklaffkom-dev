@@ -14,6 +14,7 @@ Avprioritera (m|te):cmd_deprio:Avprioritera m|te
 Backa:cmd_back_text:Backar ett antal texter
 B|rja om:cmd_restart:B|rjar om med en ny inloggning
 BBSLink:cmd_bbslink:Anropar spel via BBSLink
+Blockera:cmd_block_user:Redigerar blockarade anv{ndarnamn
 Clear:cmd_cls:Rensa sk{rmen
 Cls:cmd_cls:Synonym till Clear (rensar sk{rmen)
 Endast:cmd_only:V{lj hur m}nga texter i aktuellt m|te som skall vara nya
