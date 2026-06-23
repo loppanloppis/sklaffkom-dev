@@ -2604,8 +2604,8 @@ cmd_post_text(char *args)
     th.author = Uid;
     ce = get_conf_struct(confid);
 #ifndef POSTING_OK
-    if (ce->type == NEWS_CONF) {
-        dlog(5, "cmd_post_text: NEWS_CONF but POSTING_OK not defined -> MSG_NONEWS");
+    if (ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+        dlog(5, "cmd_post_text: external conf but POSTING_OK not defined -> MSG_NONEWS");
         output("\n%s\n\n", MSG_NONEWS);
         return 0;
     }
@@ -3060,6 +3060,17 @@ cmd_comment(char *args)
         nc = conf;
         ptr = NULL;
     }
+
+#ifndef POSTING_OK
+    if (nc > 0) {
+        ce = get_conf_struct(nc);
+        if (ce != NULL && (ce->type == NEWS_CONF || ce->type == FTN_CONF)) {
+            dlog(5, "cmd_comment: external conf but POSTING_OK not defined -> MSG_NONEWS");
+            output("\n%s\n\n", MSG_NONEWS);
+            return 0;
+        }
+    }
+#endif
 
     dlog(6, "cmd_comment: display_header subject=[%s] nc=%d mailrec=%s",
          th.subject, nc, mailrec ? mailrec : "(null)");
@@ -6395,7 +6406,7 @@ cmd_post_survey(char *args)
     }
     th.author = Uid;
     ce = get_conf_struct(confid);
-    if (ce->type == NEWS_CONF) {
+    if (ce->type == NEWS_CONF || ce->type == FTN_CONF) {
         output("\n%s\n\n", MSG_NONEWS);
         return 0;
     }

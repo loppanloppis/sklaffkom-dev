@@ -41,7 +41,7 @@
 #define MODEM_GROUP	50
 #define INET_GROUP	60
 
-/* Allow news postings in news-conferences */
+/* Allow news postings in news- and FTN-conferences */
 
 //#undef POSTING_OK
 #define POSTING_OK
