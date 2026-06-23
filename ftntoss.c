@@ -2,6 +2,7 @@
 
 #include "sklaff.h"
 #include "ftnmsg.h"
+#include "ext_globals.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -190,6 +191,28 @@ static void ftn_quote_prefix(const char *line, size_t len,
     char *out, size_t outsz); /* modified on 2026-06-17, PL */
 static void append_to_dynbuf(char **buf, size_t *cap, size_t *len,
     const char *text);
+
+static void sklaff_version_no_build(char *out, size_t outsz);
+
+static void
+sklaff_version_no_build(char *out, size_t outsz)
+{
+    char *p;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    strlcpy(out, sklaff_version, outsz);
+
+    /*
+     * FTN tearline should show the release version, not the local build number.
+     *
+     * modified on 2026-06-23, PL
+     */
+    p = strstr(out, "(#");
+    if (p != NULL)
+        *p = '\0';
+}
 
 static void
 write_fixed_field(unsigned char *dst, size_t len, const char *src)
@@ -810,6 +833,7 @@ write_fido_msg_out(const char *path, const char *area,
     FILE *fp;
     unsigned char hdr[190];
     char datebuf[32];
+	char version[64];
 
     if (path == NULL || area == NULL || from == NULL || to == NULL ||
             subject == NULL || body == NULL || msgid == NULL ||
@@ -884,10 +908,13 @@ write_fido_msg_out(const char *path, const char *area,
     {
         char origin_addr[64];
 
+		sklaff_version_no_build(version, sizeof(version));
+
         make_ftn_addr(origin_addr, sizeof(origin_addr), FTN_OUR_ZONE,
             FTN_OUR_NET, FTN_OUR_NODE, FTN_OUR_POINT);
-        fprintf(fp, "--- SklaffKOM\r");
-        fprintf(fp, " * Origin: %s (%s)\r", FTN_ORIGIN, origin_addr);
+        fprintf(fp, "\r--- SklaffKOM v%s\r", version);
+		fprintf(fp, " * Origin: %s, %s (%s)\r",
+    		SKLAFF_ID, SKLAFF_LOC, origin_addr);
     }
 
     fputc('\0', fp);
