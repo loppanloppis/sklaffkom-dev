@@ -107,6 +107,7 @@
 #define MSG_MINUTES	"minuter."
 #define MSG_ONEMIN	"en minut."
 #define MSG_WARNING	"Om en minut blir jag utloggad pga inaktivitet!"
+#define MSG_FTN		"ftn"
 
 /* bbslink.c */
 
@@ -822,6 +823,7 @@
 #define MSG_MINUTES	"minutes."
 #define MSG_ONEMIN	"one minute."
 #define MSG_WARNING	"Inactivity logout in one minute!"
+#define MSG_FTN		"ftn"
 
 /* bbslink.c */                                                                 
                                                                                 
@@ -1024,7 +1026,6 @@
 #define MSG_FILE_DB_ER	"File DB configuration error, speak with your SysOp!"
 #define MSG_ULPRGMERROR "Upload program missing or can't be run. Contact your SysOp!"
 #define MSG_FILES_OFF 	"File transfers are not configured on this system."
-#define MSG_FILES_OFF 	"Filöverföringar är inte konfigurerade på detta system."
 #define MSG_OPEN_C_E	"Error : failed to open confxtra. Contact your SysOp."
 #define MSG_READ_C_E	"Error : failed to read confxtra. Contact your SysOp."
 #define MSG_WRITE_C_E	"Error : failed to write confxtra. Contact your SysOp."
