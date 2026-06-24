@@ -9,6 +9,7 @@ Add permissions:cmd_add_rights:Add permissions for user in current conference
 (Read) all (texts):cmd_readall:Displays all your unread articles
 Answer:cmd_answermsg:Answer a say-message
 Back:cmd_back_text:Unreads latest read <number of articles> articles
+Block:cmd_block_user:Edit your list of blocked users
 Clear:cmd_cls:Clear screen
 Cls:cmd_cls:Same as Clear (clear screen)
 Change loginscript:cmd_mod_login:Change commands executed at login

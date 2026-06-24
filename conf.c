@@ -569,8 +569,7 @@ list_confs(int uid, int all)
         int  type;
         int  is_member;
         struct CEL *next;
-    } *local = NULL, *usenet = NULL, *tail = NULL;
-
+	} *local = NULL, *ftn = NULL, *usenet = NULL, *tail = NULL; /* modified on 2026-06-18, PL */
     /* -------- Build rmap from user's CONFS_FILE (once) -------- */
     user_dir(uid, confsname);
     strcat(confsname, CONFS_FILE);
@@ -683,22 +682,57 @@ if ((buf = get_conf_entry(buf, &ce))) {
             ur = 0;                 /* unread doesn't matter if not a member */
             }
         n->unreads   = ur;
-        n->next      = NULL;
+        n->next      = NULL;		
+		if (ce.type == FTN_CONF) {
+    /*
+     * Group FTN conferences after local conferences, sorted alphabetically.
+     *
+     * modified on 2026-06-18, PL
+     */
+    		if (!ftn || strcasecmp(n->name, ftn->name) < 0) {
+        		n->next = ftn;
+        		ftn = n;
+    		} else {
+        		struct CEL *p = ftn;
 
-        if (ce.type == NEWS_CONF) {
-            /* insert alphabetically */
-            if (!usenet || strcasecmp(n->name, usenet->name) < 0) {
-                n->next = usenet; usenet = n;
-            } else {
-                struct CEL *p = usenet;
-                while (p->next && strcasecmp(n->name, p->next->name) > 0) p = p->next;
-                n->next = p->next; p->next = n;
-            }
-        } else {
-            /* keep original order */
-            if (!local) { local = n; tail = n; }
-            else { tail->next = n; tail = n; }
-        }
+        		while (p->next && strcasecmp(n->name, p->next->name) > 0)
+            	p = p->next;
+
+        		n->next = p->next;
+        		p->next = n;
+    		}
+		} else if (ce.type == NEWS_CONF) {
+    	/*
+     	* Group Usenet conferences last, sorted alphabetically.
+     	*
+     	* modified on 2026-06-18, PL
+     	*/
+    		if (!usenet || strcasecmp(n->name, usenet->name) < 0) {
+        		n->next = usenet;
+        		usenet = n;
+    		} else {
+        		struct CEL *p = usenet;
+
+        		while (p->next && strcasecmp(n->name, p->next->name) > 0)
+            	p = p->next;
+
+        		n->next = p->next;
+        		p->next = n;
+    		}
+		} else {
+    	/*
+     	* Keep local conferences in original order.
+     	*
+     	* modified on 2026-06-18, PL
+     	*/
+    		if (!local) {
+        		local = n;
+        		tail = n;
+    		} else {
+        		tail->next = n;
+        		tail = n;
+    		}
+		}
     }
     free(oldbuf);
     free(oldmbuf);
@@ -725,6 +759,26 @@ if ((buf = get_conf_entry(buf, &ce))) {
             c->total, c->unreads, mark, c->name, type_suffix, file_suffix
         );
     }
+	/* -------- Print FTN (with colored "(FTN)" suffix) -------- */
+	for (struct CEL *c = ftn; c; c = c->next) {
+	    const char *mark = c->is_member ? " " : (Ansi_output ? YELLOW "*" DOT : "*");
+	    char filelist[PATH_MAX];
+	    const char *file_suffix = "";
+
+	    snprintf(filelist, sizeof(filelist), "%s/%d%s", FILE_DB, c->num, INDEX_FILE);
+	    if (file_exists(filelist) != -1)
+	        file_suffix = " (F)";
+
+	    output_ansi_fmt(
+	        CYAN"%6ld  %6ld"DOT"  %s" BR_RED "%s" BLUE" (FTN)" DOT "%s\n",
+	        "%6ld  %6ld  %s%s (FTN)%s\n",
+	        c->total, c->unreads, mark, c->name, file_suffix
+	    );
+	}
+
+
+
+
     /* -------- Print Usenet (with colored "(Usenet)" suffix) -------- */
     for (struct CEL *c = usenet; c; c = c->next) {
         const char *mark = c->is_member ? " " : (Ansi_output ? YELLOW "*" DOT : "*");
@@ -742,6 +796,7 @@ if ((buf = get_conf_entry(buf, &ce))) {
     while (rmap) { struct ReadMap *t = rmap->next; free(rmap); rmap = t; }
     /* free CEL lists to keep valgrind happy */
     while (local) { struct CEL *t = local->next; free(local); local = t; }
+    while (ftn) { struct CEL *t = ftn->next; free(ftn); ftn = t; } /* modified on 2026-06-18, PL */
     while (usenet){ struct CEL *t = usenet->next; free(usenet); usenet = t; }
 
     return 0;

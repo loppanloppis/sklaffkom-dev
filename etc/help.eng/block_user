@@ -1,0 +1,17 @@
+Description:
+This somewhat primitive command allows you to block users you don't want to 
+see posts from.
+
+Note
+The match is "case-insensitive" but must otherwise be exact.
+
+This means that "Kalle Johansson" and "kALle joHanSSoN" will match, but
+"Johanna" and "anna" will not.
+
+In the current version, arguments are not supported, but instead SklaffKOM's
+regular editor is opened. In it, you edit your list of unwanted users.
+
+A tip might be to "Skip subject" after a blocked text, so you also avoid any
+quotes in subsequent comments.
+
+Everything for a more pleasant reading experience!

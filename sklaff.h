@@ -41,7 +41,7 @@
 #define MODEM_GROUP	50
 #define INET_GROUP	60
 
-/* Allow news postings in news-conferences */
+/* Allow news postings in news- and FTN-conferences */
 
 //#undef POSTING_OK
 #define POSTING_OK
@@ -361,6 +361,7 @@ void lock(int);
 void non_critical(void);
 int output(char *,...);
 int outputex(char *,...);
+int output_raw(char *fmt, ...); /* modified on 2026-06-17, PL */
 int close_file(int);
 int create_file(char *);
 int open_file(const char *filename, int flag);
@@ -413,6 +414,7 @@ void normalize_label(const char *raw, char *norm, size_t nlen);                 
 long clamp_nonneg(long v);                                                          /* modified on 2025-10-02, PL */
 const char *time_string_static(time_t t);                                                   /* 2025-10-24 PL */
 const char *month_name_sv(const char *mon);												/* 2026-06-04 PL nicer output in new "version" command */
+int sender_is_blocked(const char *blocklist, const char *sender); /* modified on 2026-06-16, PL */
 
 // enable the function below when ready and uncomment in conf.c
 //int has_file_area(int confnum);															/* 2025-11-11 PL */
@@ -516,6 +518,7 @@ int cmd_like(char *args); /*2025-10-18 PL */
 int cmd_unlike(char *args); /*2025-10-24 PL */
 int cmd_change_cdesc(char *args); /*2025-10-25 PL */
 int cmd_version(char *args); /*2026-06-02 PL */
+int cmd_block_user(char *args); /* modified on 2026-06-16, PL */
 
 /* admin.c */
 

@@ -2,6 +2,7 @@
 
 #include "sklaff.h"
 #include "ftnmsg.h"
+#include "ext_globals.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -110,6 +111,7 @@ static int write_fido_msg_out(const char *path, const char *area,
 static void write_fixed_field(unsigned char *dst, size_t len, const char *src);
 static void write_u16_le(unsigned char *dst, unsigned int val);
 static void make_fido_date(char *out, size_t outsz);
+static int parse_fido_msg_date(const char *s, time_t *out); /* modified on 2026-06-15, PL */
 static void make_ftn_msgid(char *out, size_t outsz, unsigned long serial);
 static unsigned long make_export_test_serial(const char *area, long msgnum);
 
@@ -136,6 +138,9 @@ static int add_msgitem(struct msgitem **list, struct msgitem **tail,
     const char *filename, const char *path, const char *msgid,
     const char *reply, const char *subject);
 static void free_msgitems(struct msgitem *list);
+
+static long msgitem_filename_number(const char *filename); /* modified on 2026-06-15, PL */
+static struct msgitem *sort_msgitems_by_number(struct msgitem *list); /* modified on 2026-06-15, PL */
 
 static int scan_existing_skl_msgids(const struct ftn_conf_info *ce,
     struct skref **out_refs, long *out_indexed);
@@ -181,9 +186,33 @@ static void make_skom_from_name(long uid, char *out, size_t outsz); /* modified 
 
 static char *wrap_ftn_body_for_skom(const char *body);
 static void append_wrapped_segment(char *out, size_t outsz,
-    const char *seg, size_t len);
+    const char *seg, size_t len, const char *cont_prefix); /* modified on 2026-06-17, PL */
+static void ftn_quote_prefix(const char *line, size_t len,
+    char *out, size_t outsz); /* modified on 2026-06-17, PL */
 static void append_to_dynbuf(char **buf, size_t *cap, size_t *len,
     const char *text);
+
+static void sklaff_version_no_build(char *out, size_t outsz);
+
+static void
+sklaff_version_no_build(char *out, size_t outsz)
+{
+    char *p;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    strlcpy(out, sklaff_version, outsz);
+
+    /*
+     * FTN tearline should show the release version, not the local build number.
+     *
+     * modified on 2026-06-23, PL
+     */
+    p = strstr(out, "(#");
+    if (p != NULL)
+        *p = '\0';
+}
 
 static void
 write_fixed_field(unsigned char *dst, size_t len, const char *src)
@@ -242,6 +271,79 @@ make_fido_date(char *out, size_t outsz)
         tm->tm_hour,
         tm->tm_min,
         tm->tm_sec);
+}
+
+static int
+parse_fido_msg_date(const char *s, time_t *out)
+{
+    struct tm tm;
+    char mon[4];
+    int day;
+    int year;
+    int hour;
+    int min;
+    int sec;
+    int month = -1;
+    int i;
+    static const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+
+    if (s == NULL || out == NULL)
+        return -1;
+
+    memset(&tm, 0, sizeof(tm));
+    memset(mon, 0, sizeof(mon));
+
+    /*
+     * Fido .MSG dates normally look like:
+     *
+     *   14 Jun 26  21:55:49
+     *
+     * Use the message timestamp for imported SklaffKOM texts, falling back
+     * to import time if parsing fails.
+     *
+     * modified on 2026-06-15, PL
+     */
+    if (sscanf(s, "%d %3s %d %d:%d:%d",
+            &day, mon, &year, &hour, &min, &sec) != 6)
+        return -1;
+
+    for (i = 0; i < 12; i++) {
+        if (strcasecmp(mon, months[i]) == 0) {
+            month = i;
+            break;
+        }
+    }
+
+    if (month < 0)
+        return -1;
+
+    if (year < 70)
+        year += 2000;
+    else if (year < 100)
+        year += 1900;
+
+    if (day < 1 || day > 31 ||
+        hour < 0 || hour > 23 ||
+        min < 0 || min > 59 ||
+        sec < 0 || sec > 60)
+        return -1;
+
+    tm.tm_mday = day;
+    tm.tm_mon = month;
+    tm.tm_year = year - 1900;
+    tm.tm_hour = hour;
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+    tm.tm_isdst = -1;
+
+    *out = mktime(&tm);
+    if (*out == (time_t)-1)
+        return -1;
+
+    return 0;
 }
 
 static void
@@ -353,21 +455,148 @@ append_to_dynbuf(char **buf, size_t *cap, size_t *len, const char *text)
     (*buf)[*len] = '\0';
 }
 
+/*
+ * ftn_quote_prefix - extract quote prefix for FTN-style quoted lines
+ * args: source line (line), line length (len), output buffer (out), output size
+ * ret: none
+ *
+ * Recognizes:
+ *   > quoted
+ *   >> quoted
+ *   > > quoted
+ *   V> quoted
+ *   Ni>> quoted
+ *
+ * The returned prefix includes trailing whitespace if present, so wrapped
+ * continuation lines keep the same readable quote marker.
+ *
+ * modified on 2026-06-17, PL
+ */
 static void
-append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
+ftn_quote_prefix(const char *line, size_t len, char *out, size_t outsz)
+{
+    size_t i = 0;
+    size_t start;
+    int initials = 0;
+    int depth = 0;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (line == NULL || len == 0)
+        return;
+
+    /*
+     * Allow leading whitespace as part of the prefix.
+     * modified on 2026-06-17, PL
+     */
+    while (i < len && (line[i] == ' ' || line[i] == '\t'))
+        i++;
+
+    start = 0;
+
+    /*
+     * Classic quote: >, >>, > >, etc.
+     * modified on 2026-06-17, PL
+     */
+    if (i < len && line[i] == '>') {
+        while (i < len && line[i] == '>') {
+            i++;
+            depth++;
+
+            if (i < len && line[i] == ' ')
+                i++;
+        }
+
+        if (depth > 0) {
+            if (i < len && (line[i] == ' ' || line[i] == '\t'))
+                i++;
+
+            if (i > start) {
+                size_t n = i - start;
+
+                if (n >= outsz)
+                    n = outsz - 1;
+
+                memcpy(out, line + start, n);
+                out[n] = '\0';
+            }
+        }
+
+        return;
+    }
+
+    /*
+     * FTN initials quote: A>, AB>, Ni>>, etc.
+     * Be conservative: 1-3 alphabetic initials, then one or more '>'.
+     *
+     * modified on 2026-06-17, PL
+     */
+    while (i < len && isalpha((unsigned char)line[i]) && initials < 3) {
+        i++;
+        initials++;
+    }
+
+    if (initials == 0)
+        return;
+
+    while (i < len && line[i] == '>') {
+        i++;
+        depth++;
+    }
+
+    if (depth == 0)
+        return;
+
+    /*
+     * Require whitespace/end after the quote marker to avoid matching
+     * normal strings like "foo>bar".
+     *
+     * modified on 2026-06-17, PL
+     */
+    if (i < len &&
+        line[i] != ' ' && line[i] != '\t' &&
+        line[i] != '\r' && line[i] != '\n')
+        return;
+
+    if (i < len && (line[i] == ' ' || line[i] == '\t'))
+        i++;
+
+    if (i > start) {
+        size_t n = i - start;
+
+        if (n >= outsz)
+            n = outsz - 1;
+
+        memcpy(out, line + start, n);
+        out[n] = '\0';
+    }
+}
+
+static void
+append_wrapped_segment(char *out, size_t outsz,
+    const char *seg, size_t len, const char *cont_prefix)
 {
     size_t pos = 0;
+    int first = 1;
+    size_t prefix_len = 0;
 
     if (out == NULL || outsz == 0 || seg == NULL)
         return;
 
     out[0] = '\0';
 
+    if (cont_prefix != NULL)
+        prefix_len = strlen(cont_prefix);
+
     while (pos < len) {
         size_t left = len - pos;
         size_t take = left;
         size_t i;
         size_t start;
+        size_t wrap_col = FTN_WRAP_COL;
 
         while (left > 0 && (seg[pos] == ' ' || seg[pos] == '\t')) {
             pos++;
@@ -377,9 +606,18 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
         if (left == 0)
             break;
 
+        /*
+         * Continuation lines include the quote prefix, so leave room for it
+         * when choosing the wrap point.
+         *
+         * modified on 2026-06-17, PL
+         */
+        if (!first && prefix_len > 0 && prefix_len < wrap_col)
+            wrap_col -= prefix_len;
+
         take = left;
-        if (take > FTN_WRAP_COL) {
-            take = FTN_WRAP_COL;
+        if (take > wrap_col) {
+            take = wrap_col;
 
             /*
              * Prefer breaking at whitespace before the wrap column.
@@ -395,10 +633,28 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
             }
 
             if (i == 0)
-                take = FTN_WRAP_COL;
+                take = wrap_col;
         }
 
         start = strlen(out);
+
+        /*
+         * Prefix continuation lines of quoted FTN text:
+         *
+         *   V> long text...
+         *   V> continuation...
+         *
+         * modified on 2026-06-17, PL
+         */
+        if (!first && prefix_len > 0) {
+            if (start + prefix_len + 1 >= outsz)
+                break;
+
+            memcpy(out + start, cont_prefix, prefix_len);
+            start += prefix_len;
+            out[start] = '\0';
+        }
+
         if (start + take + 2 >= outsz)
             break;
 
@@ -407,6 +663,7 @@ append_wrapped_segment(char *out, size_t outsz, const char *seg, size_t len)
         out[start + take + 1] = '\0';
 
         pos += take;
+        first = 0;
 
         while (pos < len && (seg[pos] == ' ' || seg[pos] == '\t'))
             pos++;
@@ -431,8 +688,12 @@ wrap_ftn_body_for_skom(const char *body)
     while (1) {
         if (*p == '\n' || *p == '\0') {
             size_t linelen = (size_t)(p - line_start);
+			
+			char quote_prefix[32];
 
-            /*
+			ftn_quote_prefix(line_start, linelen, quote_prefix, sizeof(quote_prefix)); /* modified on 2026-06-17, PL */
+            
+			/*
              * Preserve blank lines. Preserve quoted/origin/control-ish lines
              * as-is, but wrap normal prose before storing it in SklaffKOM.
              *
@@ -440,23 +701,36 @@ wrap_ftn_body_for_skom(const char *body)
              */
             if (linelen == 0) {
                 append_to_dynbuf(&out, &cap, &outlen, "\n");
-            } else if (line_start[0] == '>' ||
-                       line_start[0] == '|' ||
-                       line_start[0] == '*' ||
-                       line_start[0] == '-' ||
-                       line_start[0] == '\001') {
-                char *tmp;
+           	} else if (quote_prefix[0] != '\0' && linelen > FTN_WRAP_COL) {
+    			char wrapped[4096];
 
-                tmp = malloc(linelen + 2);
-                if (tmp != NULL) {
-                    memcpy(tmp, line_start, linelen);
-                    tmp[linelen] = '\n';
-                    tmp[linelen + 1] = '\0';
-                    append_to_dynbuf(&out, &cap, &outlen, tmp);
-                    free(tmp);
-                }
-            } else if (linelen <= FTN_WRAP_COL) {
-                char *tmp;
+	    /*
+	     * Long FTN quote lines should wrap with the same quote prefix on
+	     * continuation lines, otherwise SklaffKOM cannot color them as quotes.
+	     *
+	     * modified on 2026-06-17, PL
+	     */
+
+				append_wrapped_segment(wrapped, sizeof(wrapped),
+			    line_start, linelen, quote_prefix); /* modified on 2026-06-17, PL */
+    			append_to_dynbuf(&out, &cap, &outlen, wrapped);
+			} else if (line_start[0] == '>' ||
+           		line_start[0] == '|' ||
+           		line_start[0] == '*' ||
+           		line_start[0] == '-' ||
+           		line_start[0] == '\001') {
+    		char *tmp;
+
+    		tmp = malloc(linelen + 2);
+    		if (tmp != NULL) {
+        	memcpy(tmp, line_start, linelen);
+        	tmp[linelen] = '\n';
+        	tmp[linelen + 1] = '\0';
+        	append_to_dynbuf(&out, &cap, &outlen, tmp);
+        	free(tmp);
+    		}
+		} else if (linelen <= FTN_WRAP_COL) {
+    		char *tmp;
 
                 tmp = malloc(linelen + 2);
                 if (tmp != NULL) {
@@ -469,8 +743,8 @@ wrap_ftn_body_for_skom(const char *body)
             } else {
                 char wrapped[4096];
 
-                append_wrapped_segment(wrapped, sizeof(wrapped),
-                    line_start, linelen);
+					append_wrapped_segment(wrapped, sizeof(wrapped),
+				    line_start, linelen, NULL); /* modified on 2026-06-17, PL */
                 append_to_dynbuf(&out, &cap, &outlen, wrapped);
             }
 
@@ -559,6 +833,7 @@ write_fido_msg_out(const char *path, const char *area,
     FILE *fp;
     unsigned char hdr[190];
     char datebuf[32];
+	char version[64];
 
     if (path == NULL || area == NULL || from == NULL || to == NULL ||
             subject == NULL || body == NULL || msgid == NULL ||
@@ -633,10 +908,13 @@ write_fido_msg_out(const char *path, const char *area,
     {
         char origin_addr[64];
 
+		sklaff_version_no_build(version, sizeof(version));
+
         make_ftn_addr(origin_addr, sizeof(origin_addr), FTN_OUR_ZONE,
             FTN_OUR_NET, FTN_OUR_NODE, FTN_OUR_POINT);
-        fprintf(fp, "--- SklaffKOM\r");
-        fprintf(fp, " * Origin: %s (%s)\r", FTN_ORIGIN, origin_addr);
+        fprintf(fp, "\r--- SklaffKOM v%s\r", version);
+		fprintf(fp, " * Origin: %s, %s (%s)\r",
+    		SKLAFF_ID, SKLAFF_LOC, origin_addr);
     }
 
     fputc('\0', fp);
@@ -882,6 +1160,72 @@ free_msgrefs(struct msgref *list)
     }
 }
 
+static long
+msgitem_filename_number(const char *filename)
+{
+    char *endp;
+    long n;
+
+    if (filename == NULL || *filename == '\0')
+        return 0;
+
+    errno = 0;
+    n = strtol(filename, &endp, 10);
+
+    if (errno != 0 || endp == filename)
+        return 0;
+
+    if (strcasecmp(endp, ".msg") != 0)
+        return 0;
+
+    return n;
+}
+
+static struct msgitem *
+sort_msgitems_by_number(struct msgitem *list)
+{
+    struct msgitem *sorted = NULL;
+
+    while (list != NULL) {
+        struct msgitem *item = list;
+        struct msgitem **pp;
+        long itemnum;
+
+        list = list->next;
+        item->next = NULL;
+
+        itemnum = msgitem_filename_number(item->filename);
+
+        /*
+         * Keep FTN imports stable and predictable.  readdir() order is not
+         * guaranteed, so sort .MSG files by their numeric spool filename
+         * before planning/importing.  This makes SklaffKOM text numbers
+         * follow the local FTN spool order instead of filesystem order.
+         *
+         * modified on 2026-06-15, PL
+         */
+        pp = &sorted;
+        while (*pp != NULL) {
+            long curnum;
+
+            curnum = msgitem_filename_number((*pp)->filename);
+
+            if (itemnum > 0 && curnum > 0 && itemnum < curnum)
+                break;
+
+            if (itemnum == 0 && curnum > 0)
+                break;
+
+            pp = &(*pp)->next;
+        }
+
+        item->next = *pp;
+        *pp = item;
+    }
+
+    return sorted;
+}
+
 static void
 add_skref(struct skref **list, const char *msgid, long textnum)
 {
@@ -1064,7 +1408,9 @@ extract_ftn_msgid_from_line(const char *line, char *out, size_t outsz)
         p = line + 7;
     else if (strncmp(line, "^AMSGID:", 8) == 0)
         p = line + 8;
-    else
+    else if (strncmp(line, "FTN-MSGID:", 10) == 0)
+        p = line + 10; /* modified on 2026-06-15, PL */
+	else
         return 0;
 
     while (*p == ' ' || *p == '\t')
@@ -1098,31 +1444,64 @@ scan_existing_skl_msgids(const struct ftn_conf_info *ce,
         return 0;
     }
 
-    for (i = 1; i <= ce->last_text; i++) {
-        FILE *fp;
-        LONG_LINE line;
-        char msgid[256];
+	for (i = 1; i <= ce->last_text; i++) {
+    FILE *fp;
+    LONG_LINE line;
+    char msgid[256];
+    int found_msgid = 0;
 
-        if (snprintf(path, sizeof(path), "%s/%d/%ld", SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
-            fprintf(stderr, "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
-                SKLAFF_DB, ce->num, i);
-            return -1;
+    if (snprintf(path, sizeof(path), "%s/%d/%ld",
+            SKLAFF_DB, ce->num, i) >= (int)sizeof(path)) {
+        fprintf(stderr,
+            "[ERROR] SklaffKOM text path too long: %s/%d/%ld\n",
+            SKLAFF_DB, ce->num, i);
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (fp == NULL)
+        continue;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (extract_ftn_msgid_from_line(line, msgid,
+                sizeof(msgid))) {
+            add_skref(out_refs, msgid, i);
+            indexed++;
+            found_msgid = 1;
+            break;
         }
+    }
 
-        fp = fopen(path, "r");
-        if (fp == NULL)
-            continue;
+    fclose(fp);
 
-        while (fgets(line, sizeof(line), fp) != NULL) {
-            if (extract_ftn_msgid_from_line(line, msgid, sizeof(msgid))) {
+    /*
+     * Locally written FTN texts have a real SklaffKOM author uid but no
+     * stored FTN-MSGID.  Recreate the deterministic MSGID used by export-one
+     * so echoed messages are recognized instead of imported as duplicates.
+     *
+     * modified on 2026-06-21, PL
+     */
+    if (!found_msgid) {
+        long uid = 0;
+        long when = 0;
+        long com = 0;
+        unsigned long serial;
+        char subject[256];
+        char *body = NULL;
+
+        if (read_skom_export_text(ce->num, i, &uid, &when, &com,
+                subject, sizeof(subject), &body) == 0) {
+            if (uid > 0) {
+                serial = make_export_one_serial(ce->num, i);
+                make_ftn_msgid(msgid, sizeof(msgid), serial);
                 add_skref(out_refs, msgid, i);
                 indexed++;
-                break;
             }
-        }
 
-        fclose(fp);
+            free(body);
+        }
     }
+}
 
     *out_indexed = indexed;
 
@@ -1148,7 +1527,7 @@ build_spool_index(const char *spooldir, struct msgref **out_refs,
     if (spooldir == NULL || out_refs == NULL || out_items == NULL ||
         out_seen == NULL || out_indexed == NULL || out_failed == NULL)
         return -1;
-
+	
     *out_refs = NULL;
     *out_items = NULL;
     *out_seen = 0;
@@ -1206,7 +1585,9 @@ build_spool_index(const char *spooldir, struct msgref **out_refs,
 
     closedir(dir);
 
-    *out_items = items;
+    items = sort_msgitems_by_number(items); /* modified on 2026-06-15, PL */
+
+	*out_items = items;
     *out_seen = seen;
     *out_indexed = indexed;
     *out_failed = failed;
@@ -2872,7 +3253,9 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     /*
      * This mirrors send_news():
      *   - size is counted from the imported message buffer
-     *   - timestamp is import time for now
+     *   - timestamp is taken from the FTN .MSG date when possible
+     *
+     * modified on 2026-06-15, PL
      */
 	mbuf = build_ftn_mbuf(area, msg, unsafe_reason);
     if (mbuf == NULL) {
@@ -2881,7 +3264,8 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     }
 
     size = count_body_lines(mbuf);
-    now = time(NULL);
+	 if (parse_fido_msg_date(msg->date, &now) != 0)
+        now = time(NULL);
 
     if (rewrite_conf_last_text(confid, &new_textnum) != 0) {
         free(mbuf);
