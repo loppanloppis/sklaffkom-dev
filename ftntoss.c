@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/types.h>
 #include <pwd.h> /* modified on 2026-06-14, PL */
 
 #define FTNTOSS_LOCKFILE "/tmp/ftntoss.lock" /* modified on 2026-06-11, PL */
@@ -193,6 +194,8 @@ static void append_to_dynbuf(char **buf, size_t *cap, size_t *len,
     const char *text);
 
 static void sklaff_version_no_build(char *out, size_t outsz);
+
+static void ftntoss_notify_all_processes(int sig); /* modified on 2026-07-05, PL */
 
 static void
 sklaff_version_no_build(char *out, size_t outsz)
@@ -1895,6 +1898,47 @@ strip_eol(char *s)
     }
 }
 
+static void
+ftntoss_notify_all_processes(int sig)
+{
+    FILE *fp;
+    char line[512];
+    char *p;
+    char *end;
+    long pid;
+
+    /*
+     * ftntoss is linked as a small standalone tool.  Do not use
+     * notify_all_processes() from msg.c or get_active_entry() from buf.c
+     * here, because those objects pull in large parts of the interactive
+     * SklaffKOM binary.
+     *
+     * ACTIVE_FILE format:
+     * uid:pid:login_time:avail:from:tty:...
+     *
+     * modified on 2026-07-05, PL
+     */
+    fp = fopen(ACTIVE_FILE, "r");
+    if (fp == NULL)
+        return;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        p = strchr(line, ':');
+        if (p == NULL)
+            continue;
+
+        p++;
+        pid = strtol(p, &end, 10);
+        if (p == end || *end != ':')
+            continue;
+
+        if (pid > 1)
+            kill((pid_t)pid, sig);
+    }
+
+    fclose(fp);
+}
+
 static int
 read_skom_export_text(int confnum, long textnum, long *out_uid,
     long *out_time, long *out_com, char *subject, size_t subjectsz,
@@ -2483,6 +2527,14 @@ import_one_ftn(const char *area, const char *filename)
         goto cleanup;
     }
 
+    /*
+     * Wake active SklaffKOM sessions so their prompts notice newly imported
+     * FTN text, matching newstoss/mailtoss behaviour.
+     *
+     * modified on 2026-06-24, PL
+     */
+    ftntoss_notify_all_processes(SIGNAL_NEW_TEXT); /* modified on 2026-07-05, PL */
+
     printf("\nftntoss import-one done\n");
     printf("Imported: SklaffKOM text %ld\n", imported_text);
 
@@ -2723,6 +2775,15 @@ import_all_ftn(const char *area, int include_unsafe)
     printf("Orphan replies:   %ld parent not found\n", orphan);
     printf("Re without REPLY: %ld skipped\n", skipped_re_without_reply);
     printf("Failed:           %ld\n", failed);
+
+    /*
+     * Wake active SklaffKOM sessions once after a successful import batch.
+     *
+     * modified on 2026-06-24, PL
+     */
+    if (imported > 0)
+    ftntoss_notify_all_processes(SIGNAL_NEW_TEXT); /* modified on 2026-07-05, PL */
+
     rc = failed ? -1 : 0;
 
 cleanup:
