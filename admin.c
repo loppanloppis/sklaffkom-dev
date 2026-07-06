@@ -905,6 +905,12 @@ if (st_type == STATUS_EXTERNAL)
             case NEWS_CONF:
                 output("%s\n", MSG_NEWS2);
                 break;
+            case FTN_CONF:
+                output("%s\n", MSG_FTN);
+                break;
+            default:
+                output("%s\n", MSG_UNKNOWNU);
+                break;
             }
             if (ce->comconf)
                 output("%s%s\n", MSG_CONFCOM,

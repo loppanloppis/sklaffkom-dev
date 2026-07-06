@@ -36,6 +36,27 @@
 #include <errno.h>   /* ENOENT for graceful "no mail" exit (2025-08-13, PL) */
 #include <stdarg.h>  /* verbose status output (2026-05-13, PL) */
 
+#define MAILTOSS_WRAP_COL 78 /* modified on 2026-06-23, PL */
+
+/*
+ * Keep raw spool copies before truncation when debugging mail import.
+ * Leave undefined for normal production runs.
+ *
+ * Debug messages are saved in your SKLAFFDIR/var/mailtoss-debug directory.
+ * You need to create this directory manually with appropriate permissions.
+ *
+ * Example :
+ * mkdir -p /usr/local/sklaff/var/mailtoss-debug
+ * chown sklaff:sklaff /usr/local/sklaff/var/mailtoss-debug
+ * chmod 700 /usr/local/sklaff/var/mailtoss-debug
+ *
+ * modified on 2026-07-05, PL
+ */
+
+/* #define MAILTOSS_DEBUG */
+
+static char *wrap_mail_body_for_skom(const char *body); /* modified on 2026-06-23, PL */
+
 static int
 hexval(int c)
 {
@@ -112,6 +133,95 @@ mt_status(const char *fmt, ...)
     vprintf(fmt, ap);
     va_end(ap);
     printf("\n");
+}
+
+static char *
+wrap_mail_body_for_skom(const char *body)
+{
+    const char *line;
+    char *out;
+    char *d;
+    size_t len;
+
+    if (body == NULL)
+        return NULL;
+
+    len = strlen(body);
+
+    /*
+     * Wrapping can only add one newline per MAILTOSS_WRAP_COL characters.
+     * Allocate generously so the code stays simple and avoids old fixed-size
+     * line buffers.
+     *
+     * modified on 2026-06-23, PL
+     */
+    out = malloc((len * 2) + 2);
+    if (out == NULL)
+        return NULL;
+
+    d = out;
+    line = body;
+
+    while (*line != '\0') {
+        const char *eol;
+        size_t linelen;
+
+        eol = line;
+        while (*eol != '\0' && *eol != '\r' && *eol != '\n')
+            eol++;
+
+        linelen = (size_t)(eol - line);
+
+        while (linelen > MAILTOSS_WRAP_COL) {
+            size_t cut = MAILTOSS_WRAP_COL;
+            size_t j;
+
+            /*
+             * Prefer word wrapping for ordinary text.  If there is no usable
+             * whitespace, hard-wrap instead; this prevents long mail lines
+             * from being clipped by older SklaffKOM display paths.
+             *
+             * modified on 2026-06-23, PL
+             */
+            for (j = MAILTOSS_WRAP_COL; j > 0; j--) {
+                if (line[j - 1] == ' ' || line[j - 1] == '\t') {
+                    if (j > 1)
+                        cut = j - 1;
+                    break;
+                }
+            }
+
+            memcpy(d, line, cut);
+            d += cut;
+            *d++ = '\n';
+
+            line += cut;
+            linelen -= cut;
+
+            while (linelen > 0 && (*line == ' ' || *line == '\t')) {
+                line++;
+                linelen--;
+            }
+        }
+
+        if (linelen > 0) {
+            memcpy(d, line, linelen);
+            d += linelen;
+        }
+
+        if (*eol == '\r' && eol[1] == '\n')
+            eol++;
+
+        if (*eol == '\r' || *eol == '\n') {
+            *d++ = '\n';
+            line = eol + 1;
+        } else {
+            line = eol;
+        }
+    }
+
+    *d = '\0';
+    return out;
 }
 
 static int
@@ -214,7 +324,29 @@ main(int argc, char *argv[])
 
     mt_status("%d nya mail identifierade.", identified);
 
-    if (truncate_spool(mbox) == -1) {
+#ifdef MAILTOSS_DEBUG
+    /*
+	* Debug: keep a copy of every raw mail spool before mailtoss truncates it.
+	 * This makes intermittent MIME/wrapping import bugs reproducible.
+	 *
+	* modified on 2026-06-23, PL
+	*/
+	{
+        char dbgfile[512];
+        time_t now;
+
+        now = time(NULL);
+        snprintf(dbgfile, sizeof(dbgfile),
+        "%s/var/mailtoss-debug/%s-%ld-%d.mbox",
+        SKLAFFDIR, argv[1], (long)now, getpid());
+
+        if (copy_file(mbox, dbgfile) == -1)
+            mt_status("kunde inte spara debugkopia av spoolen: %s", dbgfile);
+        else
+            mt_status("debugkopia av spoolen sparad: %s", dbgfile);
+	}
+#endif
+	if (truncate_spool(mbox) == -1) {
         mt_status("kunde inte trunkera spoolen: %s", strerror(errno));
         free(oldbuf);
         exit(1);
@@ -277,7 +409,7 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
     struct TEXT_HEADER th;
     int fd, fdo;
 	char *buf, *oldbuf, *nbuf = NULL, *ptr, *tmp, *fbuf;
-	char *plainbuf = NULL, *decodedbuf = NULL, *sf7body = NULL, *storebuf = NULL; 	/* added 2026-05-28 for better looking e-mail imports */
+	char *plainbuf = NULL, *decodedbuf = NULL, *sf7body = NULL, *wrappedbody = NULL, *storebuf = NULL; 	/* added 2026-05-28 for better looking e-mail imports */
 	const char *hdr_end;															/* added 2026-05-28 for better looking e-mail imports */
 	size_t header_len, store_len;													/* added 2026-05-28 for better looking e-mail imports */
 
@@ -338,9 +470,9 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
     }
 
  	if (mail_has_base64(mbuf)) {
-    	decodedbuf = mail_base64_decode_dup(plainbuf);
+        decodedbuf = mail_base64_decode_dup(plainbuf);
 	} else if (mail_has_quoted_printable(mbuf)) {
-    	decodedbuf = mail_qp_decode_dup(plainbuf);
+        decodedbuf = qp_decode_dup(plainbuf); /* modified on 2026-06-23, PL */
 	} else {
     	decodedbuf = strdup(plainbuf);
 	}
@@ -359,6 +491,14 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
         return -1;
     }
 
+    wrappedbody = wrap_mail_body_for_skom(sf7body); /* modified on 2026-06-23, PL */
+    free(sf7body);
+
+    if (wrappedbody == NULL) {
+        sys_error("send_mail", 1, "wrap_mail_body_for_skom");
+        return -1;
+    }
+
     /*
      * Preserve original headers, but replace raw MIME body with clean SF7 text.
      */
@@ -374,10 +514,10 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
     }
 
     if (header_len > 0) {
-		store_len = header_len + 2 + strlen(sf7body) + 1;
+		store_len = header_len + 2 + strlen(wrappedbody) + 1;
         storebuf = malloc(store_len);
         if (storebuf == NULL) {
-            free(sf7body);
+            free(wrappedbody);
             sys_error("send_mail", 1, "malloc storebuf");
             return -1;
         }
@@ -385,17 +525,17 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
         memcpy(storebuf, mbuf, header_len);
         storebuf[header_len] = '\0';
         strcat(storebuf, "\n\n");
-        strcat(storebuf, sf7body);
+        strcat(storebuf, wrappedbody);
     } else {
-        storebuf = strdup(sf7body);
+        storebuf = strdup(wrappedbody);
         if (storebuf == NULL) {
-            free(sf7body);
+            free(wrappedbody);
             sys_error("send_mail", 1, "strdup storebuf");
             return -1;
         }
     }
 
-    free(sf7body);
+    free(wrappedbody);
 
     th.size = 0;
     ptr = storebuf;
