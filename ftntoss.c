@@ -16,7 +16,9 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h> /* modified on 2026-07-09, PL */
 #include <pwd.h> /* modified on 2026-06-14, PL */
+#include <grp.h> /* modified on 2026-07-09, PL */
 
 #define FTNTOSS_LOCKFILE "/tmp/ftntoss.lock" /* modified on 2026-06-11, PL */
 #define FTN_WRAP_COL 78 /* modified on 2026-06-13, PL */
@@ -196,6 +198,10 @@ static void append_to_dynbuf(char **buf, size_t *cap, size_t *len,
 static void sklaff_version_no_build(char *out, size_t outsz);
 
 static void ftntoss_notify_all_processes(int sig); /* modified on 2026-07-05, PL */
+
+static int ftntoss_get_sklaff_ids(uid_t *uid, gid_t *gid); /* modified on 2026-07-09, PL */
+static int ftntoss_fix_fd_to_sklaff(FILE *fp, const char *path, mode_t mode); /* modified on 2026-07-09, PL */
+static int ftntoss_fix_fd_like_stat(FILE *fp, const char *path, const struct stat *st); /* modified on 2026-07-09, PL */
 
 static void
 sklaff_version_no_build(char *out, size_t outsz)
@@ -1898,6 +1904,148 @@ strip_eol(char *s)
     }
 }
 
+static int
+ftntoss_get_sklaff_ids(uid_t *uid, gid_t *gid)
+{
+    static int cached = 0;
+    static uid_t sklaff_uid;
+    static gid_t sklaff_gid;
+    struct passwd *pw;
+    struct group *gr;
+
+    if (uid == NULL || gid == NULL)
+        return -1;
+
+    if (!cached) {
+        pw = getpwnam("sklaff");
+        gr = getgrnam("sklaff");
+
+        if (pw == NULL || gr == NULL) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: could not resolve user/group sklaff:sklaff\n");
+            fprintf(stderr,
+                "[ERROR] ftntoss: imported SklaffKOM files need owner sklaff\n");
+            return -1;
+        }
+
+        sklaff_uid = pw->pw_uid;
+        sklaff_gid = gr->gr_gid;
+        cached = 1;
+    }
+
+    *uid = sklaff_uid;
+    *gid = sklaff_gid;
+    return 0;
+}
+
+static int
+ftntoss_fix_fd_to_sklaff(FILE *fp, const char *path, mode_t mode)
+{
+    uid_t uid;
+    gid_t gid;
+    int fd;
+
+    if (fp == NULL || path == NULL)
+        return -1;
+
+    if (ftntoss_get_sklaff_ids(&uid, &gid) != 0)
+        return -1;
+
+    fd = fileno(fp);
+    if (fd == -1) {
+        perror("fileno");
+        return -1;
+    }
+
+    if (geteuid() == 0) {
+        if (fchown(fd, uid, gid) == -1) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: fchown(%s, sklaff:sklaff) failed: %s\n",
+                path, strerror(errno));
+            return -1;
+        }
+    } else if (geteuid() != uid) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: %s was created while running as uid %ld\n",
+            path, (long)geteuid());
+        fprintf(stderr,
+            "[ERROR] ftntoss: run this command as root/sudo or as user sklaff, "
+            "otherwise SklaffKOM may not be able to read imported texts.\n");
+        return -1;
+    }
+
+    if (fchmod(fd, mode) == -1) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: fchmod(%s, %04o) failed: %s\n",
+            path, (unsigned)mode, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+ftntoss_fix_fd_like_stat(FILE *fp, const char *path, const struct stat *st)
+{
+    uid_t uid;
+    gid_t gid;
+    int fd;
+    mode_t mode;
+
+    if (fp == NULL || path == NULL || st == NULL)
+        return -1;
+
+    if (ftntoss_get_sklaff_ids(&uid, &gid) != 0)
+        return -1;
+
+    fd = fileno(fp);
+    if (fd == -1) {
+        perror("fileno");
+        return -1;
+    }
+
+    /*
+     * rewrite_conf_last_text() writes a temporary CONF_FILE and renames it
+     * over the real one.  If ftntoss is run with sudo, the replacement must
+     * not accidentally become root:root 0600, because SklaffKOM later reads
+     * CONF_FILE while running as user sklaff.
+     *
+     * Always force owner to sklaff.  Preserve the existing group when we have
+     * privileges, because many stock files are sklaff:root.  When running
+     * directly as sklaff, preserving the root group may not be possible, but
+     * owner sklaff plus mode 0600 is enough for the live BBS to read the file.
+     *
+     * modified on 2026-07-09, PL
+     */
+    if (geteuid() == 0) {
+        if (fchown(fd, uid, st->st_gid) == -1) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: fchown(%s, sklaff:%ld) failed: %s\n",
+                path, (long)st->st_gid, strerror(errno));
+            return -1;
+        }
+    } else if (geteuid() != uid) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: cannot safely rewrite %s as uid %ld; "
+            "expected user sklaff\n",
+            path, (long)geteuid());
+        fprintf(stderr,
+            "[ERROR] ftntoss: run this command as root/sudo or as the "
+            "SklaffKOM owner user.\n");
+        return -1;
+    }
+
+    mode = st->st_mode & 07777;
+    if (fchmod(fd, mode) == -1) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: fchmod(%s, %04o) failed: %s\n",
+            path, (unsigned)mode, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 static void
 ftntoss_notify_all_processes(int sig)
 {
@@ -3184,6 +3332,7 @@ rewrite_conf_last_text(int confid, long *new_textnum)
     FILE *out;
     char tmpfile[PATH_MAX];
     LONG_LINE line;
+    struct stat conf_st; /* modified on 2026-07-09, PL */
     int found = 0;
 
     if (new_textnum == NULL)
@@ -3191,6 +3340,11 @@ rewrite_conf_last_text(int confid, long *new_textnum)
 
     if (snprintf(tmpfile, sizeof(tmpfile), "%s.ftntoss.tmp", CONF_FILE) >= (int)sizeof(tmpfile)) {
         fprintf(stderr, "[ERROR] CONF_FILE temp path too long\n");
+        return -1;
+    }
+
+    if (stat(CONF_FILE, &conf_st) == -1) {
+        perror(CONF_FILE);
         return -1;
     }
 
@@ -3204,6 +3358,13 @@ rewrite_conf_last_text(int confid, long *new_textnum)
     if (out == NULL) {
         perror(tmpfile);
         fclose(in);
+        return -1;
+    }
+
+    if (ftntoss_fix_fd_like_stat(out, tmpfile, &conf_st) != 0) {
+        fclose(in);
+        fclose(out);
+        unlink(tmpfile);
         return -1;
     }
 
@@ -3343,6 +3504,13 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
     fp = fopen(path, "w");
     if (fp == NULL) {
         perror(path);
+        free(mbuf);
+        return -1;
+    }
+
+    if (ftntoss_fix_fd_to_sklaff(fp, path, 0600) != 0) {
+        fclose(fp);
+        unlink(path);
         free(mbuf);
         return -1;
     }
