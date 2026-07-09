@@ -144,6 +144,8 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define LOGOUT_FILE_ENG     "/usr/local/sklaff/etc/logout.eng"
 #define LOGOUT_FILE_SWE "/usr/local/sklaff/etc/logout.swe"
 #define INFO_FILE	SKLAFFDIR "/etc/info"
+#define INFO_FILE_ENG	SKLAFFDIR "/etc/info.eng"
+#define INFO_FILE_SWE	SKLAFFDIR "/etc/info.swe"
 #define LICENS_FILE	SKLAFFDIR "/etc/COPYING"
 #define DOWN_FILE 	SKLAFFDIR "/etc/down"
 #define PAY_FILE	SKLAFFDIR "/etc/pay"
@@ -404,6 +406,7 @@ void human_size(off_t bytes, char *out, size_t outsz);									/* For 1024-based
 void display_langfile(const char *base, const char *base_eng, const char *base_swe);        /* Support for multilingual display of files (news etc) 2025-09-24 PL */
 void display_news(void);
 void display_logout(void);
+void display_info(void);
 
 /* lib/ftn.c */
 void export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum); /* modified on 2026-06-14, PL */

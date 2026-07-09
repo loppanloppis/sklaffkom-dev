@@ -1,0 +1,248 @@
+General
+-------
+SklaffKOM was developed mainly from late 1992 through 1994 by a
+small group of cheerful enthusiasts. Since then it has continued to
+grow, more or less constantly, with new features and improvements. The
+program runs in most UNIX environments and is available in Swedish and
+English.
+
+SklaffKOM is released under the GNU license. This text gives you a
+tour of how the program works and what makes it a little different from
+other systems of the same kind.
+
+For more information about SklaffKOM, please visit
+https://www.sklaffkom.se.
+
+Conferences
+-----------
+There are four kinds of conferences in SklaffKOM: open, closed, secret
+and news conferences. Secret conferences are invisible everywhere in
+the system except to the conference creator and to users who have
+permission to enter them.
+
+Conferences are created with "Create conference". If the conference
+name contains words in parentheses, those words are not counted as part
+of the name. For example, you enter the conference "(SklaffKOM)
+suggestions" by typing "Goto suggestions".
+
+To see which conferences exist, use "List conferences". Conferences
+marked with an asterisk before the name are conferences you do not
+subscribe to. News conferences are normally created only by the
+administration user, on request from users.
+
+The conference creator can use "Add permissions" and
+"Subtract permission" for users in their conference. Having permission
+means that you may subscribe to the conference. All subscribers may read
+and write articles, and may also transfer files in the conference. To
+see who has permission in a conference, use "List permissions".
+
+You subscribe to a conference with "Subscribe". You can leave a
+conference with "Unsubscribe". To see who subscribes to a conference,
+use "List subscribers".
+
+The conference creator cannot delete articles in the conference. Only
+the author of an article can delete it. The name of a conference can be
+changed by its creator with "Change conferencename". The conference
+can also be deleted by its creator with "Delete conference".
+
+Articles
+--------
+Articles are arranged in trees, one separate set of trees for each
+conference. Each new article is the root of a tree, and its follow-ups
+are branches. Normally you read articles from the root and onward
+through the tree. Articles cannot be moved between conferences, and one
+article cannot belong to several conferences at the same time.
+
+SklaffKOM keeps track of three articles for you at all times: the last
+article you read, the "latest" article and the "followed-up" article.
+If you want to read the last article again, use "again".
+
+The "latest" article is the article most recently read with
+"next article" or "next follow-up". It can be referred to as "latest"
+in all commands that work with articles, such as "Read", "Follow-up"
+and "Display".
+
+The "followed-up" article is the article that the "latest" article is
+a follow-up to. It can be referred to in the same way as the "latest"
+article, for example with "Display followed-up". This can also be
+abbreviated as "-". If you have read too far, use "Back" to step back
+a chosen number of articles.
+
+Articles are written in conferences with "Post" or "Write". Follow-ups
+to articles or mail are written with "Follow-up". Personal replies,
+which end up in the original author's mailbox, are written with
+"Reply".
+
+Private mail to other users is written with "Mail" and the user's
+name. If you have the copy flag for sent mail turned on, you will also
+receive a copy of the message in your own mailbox. If the name contains
+an @ character, SklaffKOM assumes that you want to send email to
+someone on the Internet.
+
+Articles are normally read by pressing <RETURN>. If you want to read a
+specific article, use "Read" or "Display", or enter the article number
+as a command by itself. Articles are deleted with "Delete article",
+which can only be used by the author of the article.
+
+Editor
+------
+SklaffKOM uses a simple line editor. There is no way to do something
+like "!other" and continue writing a text later. If you are thrown out
+of the system because the modem connection drops, however, you may
+continue entering the interrupted text the next time you log in.
+
+The editor wraps lines automatically, and you can move back to the
+previous line, even back up to the subject line. Tell and Shout
+messages can be sent and received from inside the editor.
+
+The text you are editing can be read with "!read". "!whole" or Ctrl-L
+shows the whole text, including the header. "!change" lets you change a
+specific line in the text. Ctrl-X or Ctrl-U deletes the whole current
+line, and Ctrl-W deletes one word backwards.
+
+You can also delete and insert lines with "!delete" and "!insert".
+A text is saved with "!save"/"!enter", or with Ctrl-Z/Ctrl-D. The text
+you are following up can be displayed again with "!display". If you
+want to throw your text away, type "!abort" or press Ctrl-C. Help in
+the editor is available with "!help".
+
+Moving From The Editor
+----------------------
+The command "!move" is now available in the editor. It takes a
+conference name as its argument and moves the text you are writing
+there when it is saved. You can only move texts to conferences where
+you are a subscriber. The command only works while writing a follow-up
+in a conference, not for mail, new articles or personal replies.
+
+The article being followed up does not know that it has been followed
+up elsewhere. In other words, there is no note below the original
+article saying that a follow-up exists in another conference. There are
+two reasons for this:
+
+1. Technically, it is hard to make this work well.
+2. It keeps stray chatter from one conference out of another. In other
+   systems, commands like !move have often been used to add a silly
+   comment to a serious article and move it into a junk conference.
+
+When you read the moved follow-up, you can still display the article it
+follows up with "Display followed-up" or "-" as usual, even if you are
+not a subscriber to the conference where that article lives. You must,
+however, have permission to become a subscriber in order to see it. If
+a follow-up has been moved from a conference you are not allowed to
+enter, you will never be told that it is a follow-up at all.
+
+Skipping And Unreading
+----------------------
+SklaffKOM has a few commands for choosing which articles you want to
+keep unread. They fall into three groups: commands for skipping
+articles, commands for making articles unread, and the command "Only".
+
+If you want to mark all articles in the current branch as read, so that
+you do not have to read them, use "Skip branch". If you want to mark
+the whole tree as read, use "Skip tree".
+
+To mark one article as unread, use "Unread article". You will then get
+to read the article again the next time you log in to SklaffKOM. If you
+want to mark every article in the current tree as unread, use
+"Unread tree".
+
+If you want to mark part of a tree as unread, meaning one article and
+all of its follow-ups, their follow-ups, and so on, use
+"Unread branch" and say which article you want to start from. This is
+handy when you have used "Display followed-up" several times and then
+want to reread the discussion from the point where it started, without
+having to use "Only".
+
+"Only" is used to set the number of unread articles in a conference,
+working backwards in time. For example, "Only 10" marks the 10 most
+recently written articles in the conference as unread.
+
+Search Functions
+----------------
+SklaffKOM has two commands for searching for strings in articles:
+"Find" and "Globalfind". They work the same way, except that
+"Globalfind" searches all conferences in the system while "Find" only
+searches the conference you are currently in. Both commands take a text
+string as their argument and then show every article number where the
+string occurs, together with the full line that contains it.
+
+If you want to list the subject lines in the current conference, use
+"List subjects". The newest article is shown first. If you give a text
+string as an argument, only subject lines containing that string are
+shown.
+
+Tell And Shout
+--------------
+To talk directly to other logged-in users without writing articles in
+the system, there are two commands: "Tell" and "Shout"/"Yell". They
+work the same way, except that "Shout"/"Yell" sends the message to
+everyone who is logged in, while "Tell" sends it only to one specific
+person.
+
+The syntax for "Tell" is "Tell <user>, <message>". If you only type
+"Tell <user>", SklaffKOM will ask for message lines to send to that
+person until you enter an empty message. "Shout"/"Yell" takes no user
+name, but otherwise works the same way.
+
+You never have to do anything special to receive a message. It appears
+automatically when the system is waiting for input. The same thing
+happens when a new article is written in one of your conferences: your
+prompt is redrawn automatically.
+
+User Profile
+------------
+There are several things you can set for your user. They are described
+below:
+
+Flags: These can be either off or on. Use "List flags" to see which
+flags exist and what their current status is. To change a flag, type
+either "Turn off <flag>" or "Turn on <flag>".
+
+Note: A text that is shown every time someone writes mail or a personal
+reply to you. It is changed with "Change note".
+
+Password: You should change this the first time you log in. Use
+"Change password".
+
+Personal information: Details such as address, phone number and the
+like can be changed with "Change personal information". These details
+are later visible if someone uses "Status" on your user.
+
+Timeout: The time before you are logged out if you do not press any
+key. It is normally 0 minutes, which means never. Change it with
+"Change timeout". One minute before you are logged out, you will get a
+warning.
+
+Login script: A text containing all commands you want SklaffKOM to run
+each time you log in, for example "Who" and "List news". Use
+"Change loginscript" and enter the commands in the editor, one command
+per line, then save as usual.
+
+Information
+-----------
+SklaffKOM has several commands for getting information. "List users"
+shows all users, sorted by last name. "Last" shows when each user last
+logged in. "List news" shows where you have unread articles.
+"List commands"/"?" shows which commands are available, and "Help"
+gives help for a specific command.
+
+"Who" shows who is using SklaffKOM right now. "Where" shows which
+conference you are currently in. "Time" shows the system clock.
+
+"Status" shows detailed information about a user or a conference, and
+"Information" gives general information about the system.
+
+File Handling
+-------------
+The SklaffKOM file system is built so that every conference
+automatically has its own file area. Everyone who subscribes to the
+conference may do everything with the files in that conference: upload
+files with "Upload", download files with "Download", list files with
+"List files", describe files with "Describe", and delete files with
+"Delete file".
+
+Leaving
+-------
+You leave SklaffKOM with "Logout", and restart it with "Restart".
+
+>>> This text was auto translated using ChatGPT. Apologies. <<<

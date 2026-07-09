@@ -89,3 +89,7 @@ void display_logout(void)
     display_langfile(LOGOUT_FILE, LOGOUT_FILE_ENG, LOGOUT_FILE_SWE);
 }
 
+void display_info(void)
+{
+	display_langfile(INFO_FILE, INFO_FILE_ENG, INFO_FILE_SWE);
+}

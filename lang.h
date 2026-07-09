@@ -114,7 +114,7 @@
 #define MSG_BBSLINK01 "BBSLink {r en slags 'door server' dit ett hundratal BBS'er {r anslutna."
 #define MSG_BBSLINK02 "Varje spel har en unik 'spelkod' som man anger f|r att spela."
 #define MSG_BBSLINK03 "Exempel : 'spela usrp' starar spelet Usurper."
-#define MSG_BBSLINK_OFF "Sysop har inte konfigurerat BBSLink på detta system"
+#define MSG_BBSLINK_OFF "Sysop har inte konfigurerat BBSLink p{ detta system"
 
 /* commands.c */
 
@@ -307,16 +307,16 @@
 #define MSG_NO_ZORK	"No z3-file found, sorry"  					/*Zork */
 #define MSG_BADARG      "\nF|ljande infocom-spel finns f|r n{rvarande :\n\nZork 1\nZork 2\nZork 3\n\nF|r att spela, ge kommandot Zork <nr>.\n\n"	/* Zork */
 #define MSG_SUCCESSUL   "Tackar f|r det! \nBeskriv nu g{rna filen genom att ge kommandot 'Beskriv <filnamn>'."
-#define MSG_NETHACKER01	"Fel: Kan inte starta Nethack - har SysOp glömt att installera den?"
+#define MSG_NETHACKER01	"Fel: Kan inte starta Nethack - har SysOp gl|mt att installera den?"
 #define MSG_FILE_DB_ER	"Strul med filkatalogen. Meddela SysOp."
 #define MSG_ULPRGMERROR "Uploadprogrammet saknas eller kan inte k|ras. Kontakta SysOp."
-#define MSG_FILES_OFF 	"Fil|verf|ringar är inte konfigurerade på detta system."
+#define MSG_FILES_OFF 	"Fil|verf|ringar }r inte konfigurerade p{ detta system."
 #define MSG_OPEN_C_E	"Fel : kunde inte |ppna confxtra. Meddela SysOp!"
 #define MSG_READ_C_E	"Fel : kunde inte l{sa confxtra. Meddela SysOp!"
 #define MSG_WRITE_C_E	"Fel : kunde inte skriva till confxtra. Meddela SysOp!"
 #define MSG_BLOCKINTRO1	"Redigera blockerade avs{ndare, en per rad."
-#define MSG_BLOCKINTRO2	"Tomma rader och rader som börjar med # ignoreras."
-#define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avsändare)"
+#define MSG_BLOCKINTRO2	"Tomma rader och rader som b|rjar med # ignoreras."
+#define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avs}ndare)"
 
 /* Nytt (Se) tiden-kommando */
 #define MSG_DISPTIME    "Klockan {r nu"
@@ -328,7 +328,7 @@
 /* Fotnot */
 #define MSG_FOOTNOTE	"Fotnot"
 #define MSG_USEFOOT     "Syntax: fotnot <textnummer>"
-#define MSG_FOOTINLOCAL "Du kan bara l{gga in fotnötter i lokala möten."
+#define MSG_FOOTINLOCAL "Du kan bara l{gga in fotn|tter i lokala m|ten."
 #define MSG_NOREADFILE  "Kunde inte l}sa textfilen. Kontakta SysOp"
 #define MSG_NOPARSEFILE "Kunde inte tolka textfilen. Kontakta SysOp."
 #define MSG_FNERROR01   "Du kan bara anv}nda detta kommando p} dina egna texter."
@@ -354,7 +354,7 @@
 /* Mötesbeskrivningar */
 #define MSG_CURRDESC    "Nuvarande beskrivning:"
 #define MSG_NODESCYET   "(Ingen beskrivning finns {nnu)"
-#define MSG_GIVENEWDESC "Ange ny beskrivning (max 80 tecken), eller l{mna tomt för att ta bort:"
+#define MSG_GIVENEWDESC "Ange ny beskrivning (max 80 tecken), eller l{mna tomt f|r att ta bort:"
 #define MSG_DESCDEL     "Beskrivningen togs bort."
 #define MSG_DESCERROR01 "Ingen beskrivning att ta bort, eller fel vid radering."
 #define MSG_DESCCONFIRM "Beskrivningen {r nu uppdaterad."
@@ -1428,7 +1428,7 @@
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSTELE	"\nTelephone: "
 #define MSG_INSPOST     "\nE-mail : "
-#define MSG_APPLIED	"We have now received your application and will get back to you shortly!\nWelcome!\n\n"
+#define MSG_APPLIED	"We have now received your application and will get back to you shortly!\nWelcome back soon!\n\n"
 #define MSG_UIDINUSE	"login-name in use by another user."
 
 /* mailtoss.c */
