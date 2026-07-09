@@ -27,12 +27,179 @@
 
 #include <sys/stat.h>
 
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <signal.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "sklaff.h"
 #include "ext_globals.h"
+
+
+/*
+ * sklaff_storage_ok_for_prompt - cheap airbag before unread scans.
+ *
+ * The prompt code calls more_comment(), more_text() and more_conf().  Those
+ * functions walk the SklaffKOM database.  If an external tosser/importer has
+ * created root-owned or otherwise unreadable files under SKLAFF_DB/CONF_FILE,
+ * old SklaffKOM code may continue after failed open/read and crash.
+ *
+ * This guard does not fix the bad files.  It detects the common damage once
+ * per login, writes a useful debug message and lets the user reach a prompt
+ * instead of segfaulting.
+ *
+ * modified on 2026-07-09, PL
+ */
+
+static int Prompt_storage_checked = 0;
+static int Prompt_storage_ok = 1;
+static int Prompt_storage_warned = 0;
+static LONG_LINE Prompt_storage_path;
+static LINE Prompt_storage_error;
+
+static int
+set_prompt_storage_error(const char *path, const char *op)
+{
+    int e = errno;
+
+    if (path == NULL)
+        path = "(null)";
+    if (op == NULL)
+        op = "open";
+
+    snprintf(Prompt_storage_path, sizeof(Prompt_storage_path), "%s", path);
+    snprintf(Prompt_storage_error, sizeof(Prompt_storage_error),
+        "%s: %s", op, strerror(e));
+
+    return -1;
+}
+
+static int
+check_prompt_open_file(const char *path, int flags, const char *op)
+{
+    int fd;
+
+    fd = open(path, flags);
+    if (fd == -1)
+        return set_prompt_storage_error(path, op);
+
+    close(fd);
+    return 0;
+}
+
+static int
+check_prompt_readable_file(const char *path)
+{
+    return check_prompt_open_file(path, O_RDONLY, "open");
+}
+
+static int
+check_prompt_writable_file(const char *path)
+{
+    return check_prompt_open_file(path, O_RDWR, "open rw");
+}
+
+static int
+check_prompt_db_tree(const char *dir)
+{
+    DIR *dp;
+    struct dirent *de;
+    struct stat st;
+    LONG_LINE path;
+
+    dp = opendir(dir);
+    if (dp == NULL)
+        return set_prompt_storage_error(dir, "opendir");
+
+    while ((de = readdir(dp)) != NULL) {
+        if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+            continue;
+
+        if (snprintf(path, sizeof(path), "%s/%s", dir, de->d_name) >=
+            (int)sizeof(path)) {
+            closedir(dp);
+            errno = ENAMETOOLONG;
+            return set_prompt_storage_error(dir, "path too long");
+        }
+
+        if (lstat(path, &st) == -1) {
+            closedir(dp);
+            return set_prompt_storage_error(path, "lstat");
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (check_prompt_db_tree(path) == -1) {
+                closedir(dp);
+                return -1;
+            }
+        } else if (S_ISREG(st.st_mode)) {
+            if (check_prompt_readable_file(path) == -1) {
+                closedir(dp);
+                return -1;
+            }
+        }
+    }
+
+    closedir(dp);
+    return 0;
+}
+
+static int
+sklaff_storage_ok_for_prompt(void)
+{
+    if (Prompt_storage_checked)
+        return Prompt_storage_ok;
+
+    Prompt_storage_checked = 1;
+    Prompt_storage_ok = 0;
+    Prompt_storage_path[0] = '\0';
+    Prompt_storage_error[0] = '\0';
+
+    /*
+     * Many old SklaffKOM callers open CONF_FILE read/write even when they
+     * mainly read it.  Check O_RDWR here so the guard matches real use.
+     */
+    if (check_prompt_writable_file(CONF_FILE) == -1)
+        return 0;
+
+    if (check_prompt_db_tree(SKLAFF_DB) == -1)
+        return 0;
+
+    Prompt_storage_ok = 1;
+    return 1;
+}
+
+static void
+warn_prompt_storage_problem(void)
+{
+    if (Prompt_storage_warned)
+        return;
+
+    Prompt_storage_warned = 1;
+
+    if (Prompt_storage_path[0] == '\0')
+        snprintf(Prompt_storage_path, sizeof(Prompt_storage_path), "%s", CONF_FILE);
+    if (Prompt_storage_error[0] == '\0')
+        snprintf(Prompt_storage_error, sizeof(Prompt_storage_error),
+            "open: %s", strerror(errno));
+
+    /*
+     * Keep these as separate log entries.  Building one long formatted
+     * string can trigger -Wformat-truncation with -Werror on fortified
+     * builds, even though the user-facing message below is fine.
+     */
+    debuglog("storage check before prompt failed", 1);
+    debuglog(Prompt_storage_path, 1);
+    debuglog(Prompt_storage_error, 1);
+
+    output("\n\nInternt lagringsfel: SklaffKOM kan inte läsa databasen.\n");
+    output("Kontakta SysOP. Teknisk detalj: %s (%s)\n\n",
+        Prompt_storage_path, Prompt_storage_error);
+}
+
 
 /*
  * display_prompt - displays default prompt
@@ -48,7 +215,15 @@ display_prompt(char *p, char *oldp, int type)
     if (Change_prompt) {
         Nextconf = -1;
         Nexttext = -1;
-        if (more_comment())
+        if (!sklaff_storage_ok_for_prompt()) {
+            warn_prompt_storage_problem();
+            Change_prompt = 0;
+            if (End_default) {
+                strcpy(p, MSG_ENDPROMPT);
+            } else {
+                strcpy(p, MSG_TIMEPROMPT);
+            }
+        } else if (more_comment())
             strcpy(p, MSG_REPLYPROMPT);
         else if (more_text())
             strcpy(p, MSG_TEXTPROMPT);
@@ -224,6 +399,20 @@ display_welcome(void)
         down_string(name);
         output_ansi_fmt("\n%s" CYAN " %s\n"DOT, "\n%s %s\n", MSG_LASTHERE, name);
     }
+
+    /*
+     * Several setup paths after the welcome text may touch CONF_FILE before
+     * display_prompt() gets a chance to run its storage guard.  If an external
+     * importer has replaced CONF_FILE with a root-owned file, fail here with
+     * a useful error instead of letting old code segfault later.
+     */
+    if (check_prompt_writable_file(CONF_FILE) == -1) {
+        warn_prompt_storage_problem();
+        sig_reset();
+        tty_reset();
+        exit(1);
+    }
+
     cstack = NULL;
     ustack = NULL;
     ustack2 = NULL;
