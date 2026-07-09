@@ -2,6 +2,7 @@
 
 #include "sklaff.h"
 #include "ftnmsg.h"
+#include "ftnnetmail.h" /* modified on 2026-07-09, PL */
 #include "ext_globals.h"
 
 #include <ctype.h>
@@ -90,6 +91,10 @@ struct import_area_args {
 struct import_all_areas_args {
     int include_unsafe;
 };
+
+struct import_netmail_args {
+    const char *spooldir;
+}; /* modified on 2026-07-09, PL */
 
 struct export_one_args {
     const char *area;
@@ -183,6 +188,7 @@ static int run_with_lock(int (*fn)(void *), void *arg);
 static int run_import_one_locked(void *arg);
 static int run_import_area_locked(void *arg);
 static int run_import_all_areas_locked(void *arg);
+static int run_import_netmail_locked(void *arg); /* modified on 2026-07-09, PL */
 
 static int run_export_one_locked(void *arg); /* modified on 2026-06-14, PL */
 static void make_skom_from_name(long uid, char *out, size_t outsz); /* modified on 2026-06-14, PL */
@@ -3862,6 +3868,17 @@ run_import_all_areas_locked(void *arg)
     return import_all_areas_ftn(a->include_unsafe);
 }
 
+static int
+run_import_netmail_locked(void *arg)
+{
+    struct import_netmail_args *a = arg;
+
+    if (a == NULL)
+        return -1;
+
+    return import_ftn_netmail_spool(a->spooldir);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -3956,6 +3973,14 @@ main(int argc, char **argv)
     	return run_with_lock(run_import_all_areas_locked, &a) == 0 ? 0 : 1;
 	}
 
+	if (argc == 2 && strcmp(argv[1], "--import-netmail") == 0) {
+    struct import_netmail_args a;
+
+    a.spooldir = FTN_NETMAIL_SPOOL;
+
+    return run_with_lock(run_import_netmail_locked, &a) == 0 ? 0 : 1;
+}
+
     if (argc != 2) {
         fprintf(stderr, "\nUsage: %s <FTN-area / SklaffKOM conference>\n", argv[0]);
         fprintf(stderr, "       %s --dump-import <FTN-area / SklaffKOM conference> <file.msg>\n", argv[0]);
@@ -3967,8 +3992,9 @@ main(int argc, char **argv)
         fprintf(stderr, "       %s --import-all-areas\n", argv[0]);
         fprintf(stderr, "       %s --import-all-areas --include-unsafe\n", argv[0]);
         fprintf(stderr, "       %s --export-test <FTN-area>\n", argv[0]);
-        fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n\n", argv[0]);
-        fprintf(stderr, "Examples:\n");
+        fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n", argv[0]);
+        fprintf(stderr, "       %s --import-netmail\n\n", argv[0]);
+		fprintf(stderr, "Examples:\n");
         fprintf(stderr, "  %s FSX_GEN\n", argv[0]);
         fprintf(stderr, "  %s --dump-import FSX_BBS 32.msg\n\n", argv[0]);
         return 1;

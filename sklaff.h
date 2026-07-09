@@ -83,6 +83,7 @@
 #define NEWS_SPOOL	"/usr/local/news/spool/articles"
 #define NEWS_GROUPS	"/usr/local/news/db/active"
 #define FTN_SPOOL 	"/usr/local/ftn/echomail"    /* modified on 2026-06-09, PL */
+#define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail" /* modified on 2026-07-06, PL */
 
 /* Programs used by SklaffKOM */
 
