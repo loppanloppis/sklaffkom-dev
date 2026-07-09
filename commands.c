@@ -3931,13 +3931,24 @@ cmd_delete_text(char *args)
     if (close_file(fd) == -1) {
         return 0;
     }
-    buf = get_text_entry(buf, &te);
-    free_text_entry(&te);
+	buf = get_text_entry(buf, &te);
+    if (buf == NULL) {
+        free(oldbuf);
+        output("\n%s\n\n", MSG_NOREAD);
+        return 0;
+    }
 
     th = &te.th;
-
-    if (th->author != Uid) {
+     /*
+     * In the private mailbox, the logged-in user owns the mailbox even when
+     * imported mail/netmail has author 0.  In ordinary conferences, keep the
+     * old author check.
+     *
+     * modified on 2026-07-09, PL
+     */
+    if (Current_conf > 0 && th->author != Uid) {
         output("\n%s\n\n", MSG_NOTALLOW);
+        free(oldbuf);
         return 0;
     }
     unlink(fname);
