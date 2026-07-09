@@ -103,6 +103,22 @@ check_prompt_writable_file(const char *path)
 }
 
 static int
+check_prompt_optional_writable_file(const char *path)
+{
+    int fd;
+
+    fd = open(path, O_RDWR);
+    if (fd == -1) {
+        if (errno == ENOENT)
+            return 0;
+        return set_prompt_storage_error(path, "open rw");
+    }
+
+    close(fd);
+    return 0;
+}
+
+static int
 check_prompt_db_tree(const char *dir)
 {
     DIR *dp;
@@ -163,6 +179,9 @@ sklaff_storage_ok_for_prompt(void)
      * mainly read it.  Check O_RDWR here so the guard matches real use.
      */
     if (check_prompt_writable_file(CONF_FILE) == -1)
+        return 0;
+
+    if (check_prompt_optional_writable_file(ACTIVE_FILE) == -1)
         return 0;
 
     if (check_prompt_db_tree(SKLAFF_DB) == -1)
