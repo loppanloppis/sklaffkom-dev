@@ -202,6 +202,7 @@ static void ftntoss_notify_all_processes(int sig); /* modified on 2026-07-05, PL
 static int ftntoss_get_sklaff_ids(uid_t *uid, gid_t *gid); /* modified on 2026-07-09, PL */
 static int ftntoss_fix_fd_to_sklaff(FILE *fp, const char *path, mode_t mode); /* modified on 2026-07-09, PL */
 static int ftntoss_fix_fd_like_stat(FILE *fp, const char *path, const struct stat *st); /* modified on 2026-07-09, PL */
+static int ftntoss_fix_control_file(const char *path, mode_t mode); /* modified on 2026-07-09, PL */
 
 static void
 sklaff_version_no_build(char *out, size_t outsz)
@@ -2046,6 +2047,68 @@ ftntoss_fix_fd_like_stat(FILE *fp, const char *path, const struct stat *st)
     return 0;
 }
 
+static int
+ftntoss_fix_control_file(const char *path, mode_t mode)
+{
+    struct stat st;
+    uid_t uid;
+    gid_t gid;
+
+    if (path == NULL)
+        return -1;
+
+    if (stat(path, &st) == -1) {
+        if (errno == ENOENT)
+            return 0;
+        fprintf(stderr,
+            "[ERROR] ftntoss: stat(%s) failed: %s\n",
+            path, strerror(errno));
+        return -1;
+    }
+
+    if (!S_ISREG(st.st_mode))
+        return 0;
+
+    if (ftntoss_get_sklaff_ids(&uid, &gid) != 0)
+        return -1;
+
+    /*
+     * ACTIVE_FILE is normally a SklaffKOM control file owned by sklaff,
+     * often with group root and mode 0600.  ftntoss only reads it, but after
+     * an import it wakes already active SklaffKOM sessions.  Those sessions
+     * may then open ACTIVE_FILE while rebuilding their prompt, so repair the
+     * same ownership class here before signalling them.
+     *
+     * Preserve the existing group when running as root, just like the
+     * CONF_FILE rewrite helper does.
+     *
+     * modified on 2026-07-09, PL
+     */
+    if (geteuid() == 0) {
+        if (chown(path, uid, st.st_gid) == -1) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: chown(%s, sklaff:%ld) failed: %s\n",
+                path, (long)st.st_gid, strerror(errno));
+            return -1;
+        }
+    } else if (geteuid() != uid) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: cannot safely fix %s as uid %ld; "
+            "expected root or sklaff\n",
+            path, (long)geteuid());
+        return -1;
+    }
+
+    if (chmod(path, mode) == -1) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: chmod(%s, %04o) failed: %s\n",
+            path, (unsigned)mode, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 static void
 ftntoss_notify_all_processes(int sig)
 {
@@ -2066,6 +2129,9 @@ ftntoss_notify_all_processes(int sig)
      *
      * modified on 2026-07-05, PL
      */
+    if (ftntoss_fix_control_file(ACTIVE_FILE, 0600) != 0)
+        return;
+
     fp = fopen(ACTIVE_FILE, "r");
     if (fp == NULL)
         return;
