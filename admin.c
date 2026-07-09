@@ -78,16 +78,28 @@ set_prompt_storage_error(const char *path, const char *op)
 }
 
 static int
-check_prompt_readable_file(const char *path)
+check_prompt_open_file(const char *path, int flags, const char *op)
 {
     int fd;
 
-    fd = open(path, O_RDONLY);
+    fd = open(path, flags);
     if (fd == -1)
-        return set_prompt_storage_error(path, "open");
+        return set_prompt_storage_error(path, op);
 
     close(fd);
     return 0;
+}
+
+static int
+check_prompt_readable_file(const char *path)
+{
+    return check_prompt_open_file(path, O_RDONLY, "open");
+}
+
+static int
+check_prompt_writable_file(const char *path)
+{
+    return check_prompt_open_file(path, O_RDWR, "open rw");
 }
 
 static int
@@ -146,7 +158,11 @@ sklaff_storage_ok_for_prompt(void)
     Prompt_storage_path[0] = '\0';
     Prompt_storage_error[0] = '\0';
 
-    if (check_prompt_readable_file(CONF_FILE) == -1)
+    /*
+     * Many old SklaffKOM callers open CONF_FILE read/write even when they
+     * mainly read it.  Check O_RDWR here so the guard matches real use.
+     */
+    if (check_prompt_writable_file(CONF_FILE) == -1)
         return 0;
 
     if (check_prompt_db_tree(SKLAFF_DB) == -1)
@@ -159,8 +175,6 @@ sklaff_storage_ok_for_prompt(void)
 static void
 warn_prompt_storage_problem(void)
 {
-    LONG_LINE logmsg;
-
     if (Prompt_storage_warned)
         return;
 
@@ -172,15 +186,20 @@ warn_prompt_storage_problem(void)
         snprintf(Prompt_storage_error, sizeof(Prompt_storage_error),
             "open: %s", strerror(errno));
 
-    snprintf(logmsg, sizeof(logmsg),
-        "storage check before prompt failed: %s (%s)",
-        Prompt_storage_path, Prompt_storage_error);
-    debuglog(logmsg, 1);
+    /*
+     * Keep these as separate log entries.  Building one long formatted
+     * string can trigger -Wformat-truncation with -Werror on fortified
+     * builds, even though the user-facing message below is fine.
+     */
+    debuglog("storage check before prompt failed", 1);
+    debuglog(Prompt_storage_path, 1);
+    debuglog(Prompt_storage_error, 1);
 
     output("\n\nInternt lagringsfel: SklaffKOM kan inte läsa databasen.\n");
     output("Kontakta SysOP. Teknisk detalj: %s (%s)\n\n",
         Prompt_storage_path, Prompt_storage_error);
 }
+
 
 /*
  * display_prompt - displays default prompt
@@ -380,6 +399,20 @@ display_welcome(void)
         down_string(name);
         output_ansi_fmt("\n%s" CYAN " %s\n"DOT, "\n%s %s\n", MSG_LASTHERE, name);
     }
+
+    /*
+     * Several setup paths after the welcome text may touch CONF_FILE before
+     * display_prompt() gets a chance to run its storage guard.  If an external
+     * importer has replaced CONF_FILE with a root-owned file, fail here with
+     * a useful error instead of letting old code segfault later.
+     */
+    if (check_prompt_writable_file(CONF_FILE) == -1) {
+        warn_prompt_storage_problem();
+        sig_reset();
+        tty_reset();
+        exit(1);
+    }
+
     cstack = NULL;
     ustack = NULL;
     ustack2 = NULL;
