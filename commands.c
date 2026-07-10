@@ -2225,8 +2225,8 @@ cmd_only(char *args)
 
 /* New helper because we won't be sending sf7 in outgoing e-mail anymore (makes no sense 2026) PL 2026-05-26 */
 static void
-write_mail_utf8(FILE *pipe, const char *return_path, const char *subject_sf7,
-                const char *body_sf7)
+write_mail_utf8(FILE *pipe, const char *from_addr, const char *to_addr,
+                const char *subject_sf7, const char *body_sf7)
 {
     char *utf8_subject;
     char *utf8_body;
@@ -2240,7 +2240,8 @@ write_mail_utf8(FILE *pipe, const char *return_path, const char *subject_sf7,
         return;
     }
 
-    fprintf(pipe, "%s%s\n", MSG_EMRETURN, return_path);
+	fprintf(pipe, "%s%s\n", MSG_EMRETURN, from_addr);
+    fprintf(pipe, "To: %s\n", to_addr);
     fprintf(pipe, "MIME-Version: 1.0\n");
     fprintf(pipe, "Content-Type: text/plain; charset=UTF-8\n");
     fprintf(pipe, "Content-Transfer-Encoding: 8bit\n");
@@ -2345,7 +2346,7 @@ cmd_mail(char *args)
 			pw = getpwuid(Uid);
 			snprintf(tmpstr, sizeof(tmpstr), "<%s@%s>", pw->pw_name, MACHINE_NAME);
 
-			write_mail_utf8(pipe, tmpstr, th.subject, inbuf);
+			write_mail_utf8(pipe, tmpstr, mailrec, th.subject, inbuf);
 
 			pclose(pipe);
 
@@ -2356,7 +2357,7 @@ cmd_mail(char *args)
     		(void) save_mailcopy(mailrec, th.subject, inbuf);
 			}
 
-free(inbuf);       
+			free(inbuf);
             unlink(fname);
             output("%s\n\n", MSG_MAILED);
         }
@@ -2533,7 +2534,7 @@ cmd_personal(char *args)
        	pw = getpwuid(Uid);
 	   	snprintf(tmpstr, sizeof(tmpstr), "<%s@%s>", pw->pw_name, MACHINE_NAME);
 
-	   	write_mail_utf8(pipe, tmpstr, th.subject, inbuf);
+		write_mail_utf8(pipe, tmpstr, mailrec, th.subject, inbuf);
 
 	   	pclose(pipe);
 
@@ -3123,7 +3124,7 @@ cmd_comment(char *args)
        	pw = getpwuid(Uid);
 		snprintf(tmpstr, sizeof(tmpstr), "<%s@%s>", pw->pw_name, MACHINE_NAME);
 
-		write_mail_utf8(pipe, tmpstr, th.subject, inbuf);
+		write_mail_utf8(pipe, tmpstr, mailrec, th.subject, inbuf);
 
 		pclose(pipe);
 
@@ -4511,28 +4512,12 @@ cmd_off_flag(char *args)
 int
 cmd_info(char *args)
 {
-    int fd;
-    char *buf;
+    (void)args;
 
     output("\n");
-    if (file_exists(INFO_FILE)) {
-        output("%s\n", MSG_NOINFO);
-    } else {
-        if ((fd = open_file(INFO_FILE, 0)) == -1) {
-            sys_error("cmd_info", 1, "open_file");
-            return -1;
-        }
-        if ((buf = read_file(fd)) == NULL) {
-            sys_error("cmd_info", 2, "read_file");
-            return -1;
-        }
-        if (close_file(fd) == -1) {
-            sys_error("cmd_info", 3, "close_file");
-            return -1;
-        }
-        output(buf);
-    }
+    display_info();
     output("\n");
+
     return 0;
 }
 
