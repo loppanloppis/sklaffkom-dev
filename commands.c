@@ -2262,7 +2262,9 @@ cmd_mail(char *args)
 {
     LINE fname, tmpstr;
     LONG_LINE cmdline, tmp;
-	char *username, *mailrec, *inbuf;
+    LINE ftn_to_name, ftn_to_addr; /* modified on 2026-07-10, PL */
+    char *username, *mailrec, *inbuf;
+    int is_ftn_netmail; /* modified on 2026-07-10, PL */
     struct TEXT_HEADER th;
    	int conf, mailuid, uid, fd;
     FILE *pipe;
@@ -2270,6 +2272,7 @@ cmd_mail(char *args)
 
     Change_prompt = 1;
     mailrec = NULL;
+    is_ftn_netmail = 0; /* modified on 2026-07-10, PL */
     if (args && *args) {
         /* if (strchr(args, '@') || strchr(args, '!')) { */
 
@@ -2277,7 +2280,19 @@ cmd_mail(char *args)
          * news-thing which only causes potential security problems. OR
          * 00-01-02 */
 
-        if (strchr(args, '@')) {
+        /*
+         * FTN netmail also uses '@', but the address part is zone:net/node,
+         * so it must be detected before the ordinary Internet mail branch.
+         *
+         * modified on 2026-07-10, PL
+         */
+        if (parse_ftn_netmail_recipient(args, ftn_to_name,
+                sizeof(ftn_to_name), ftn_to_addr,
+                sizeof(ftn_to_addr)) == 0) {
+            mailrec = ftn_to_name;
+            mailuid = 0;
+            is_ftn_netmail = 1;
+        } else if (strchr(args, '@')) {
 
             strcpy(tmp, args);
             /* Only allow a minimum of nonalphanum chars in mail address */
@@ -2328,6 +2343,34 @@ cmd_mail(char *args)
                 return -1;
             }
             output("%s\n\n", MSG_SAVED);
+        } else if (is_ftn_netmail) {
+            if ((fd = open_file(fname, 0)) == -1) {
+                return -1;
+            }
+            if ((inbuf = read_file(fd)) == NULL) {
+                return -1;
+            }
+            if (close_file(fd) == -1) {
+                return -1;
+            }
+
+            if (queue_ftn_netmail(Uid, ftn_to_name, ftn_to_addr,
+                    th.subject, inbuf) != 0) {
+                free(inbuf);
+                output("%s\n\n", MSG_NOMAIL);
+                return -1;
+            }
+
+            if (Copy) {
+                /*
+                 * Keep local copy in SklaffKOM's internal SF7 form.
+                 */
+                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+            }
+
+            free(inbuf);
+            unlink(fname);
+            output("%s\n\n", MSG_MAILED);
         } else {
             snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
             if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {

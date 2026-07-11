@@ -57,6 +57,95 @@ is_safe_ftn_queue_header_value(const char *s)
     return 1;
 }
 
+int
+parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
+    char *addr, size_t addrsz)
+{
+    const char *at;
+    const char *p;
+    char *end;
+    char addrbuf[128];
+    long zone, net, node, point;
+
+    if (s == NULL || name == NULL || namesz == 0 ||
+        addr == NULL || addrsz == 0)
+        return -1;
+
+    name[0] = '\0';
+    addr[0] = '\0';
+
+    /*
+     * FTN netmail recipient format:
+     *
+     *   Name@zone:net/node[.point]
+     *
+     * Use the last '@' so display names can contain odd old-world stuff
+     * without confusing the address parser.
+     *
+     * modified on 2026-07-10, PL
+     */
+    at = strrchr(s, '@');
+    if (at == NULL || at == s || at[1] == '\0')
+        return -1;
+
+    if ((size_t)(at - s) >= namesz)
+        return -1;
+
+    memcpy(name, s, (size_t)(at - s));
+    name[at - s] = '\0';
+
+    while (name[0] == ' ' || name[0] == '\t')
+        memmove(name, name + 1, strlen(name));
+
+    while (strlen(name) > 0 &&
+        (name[strlen(name) - 1] == ' ' || name[strlen(name) - 1] == '\t'))
+        name[strlen(name) - 1] = '\0';
+
+    if (name[0] == '\0')
+        return -1;
+
+    if (strlen(at + 1) >= sizeof(addrbuf))
+        return -1;
+
+    strcpy(addrbuf, at + 1);
+    p = addrbuf;
+
+    zone = strtol(p, &end, 10);
+    if (p == end || *end != ':' || zone < 0 || zone > 65535)
+        return -1;
+
+    p = end + 1;
+    net = strtol(p, &end, 10);
+    if (p == end || *end != '/' || net < 0 || net > 65535)
+        return -1;
+
+    p = end + 1;
+    node = strtol(p, &end, 10);
+    if (p == end || node < 0 || node > 65535)
+        return -1;
+
+    point = 0;
+    if (*end == '.') {
+        p = end + 1;
+        point = strtol(p, &end, 10);
+        if (p == end || point < 0 || point > 65535)
+            return -1;
+    }
+
+    if (*end != '\0')
+        return -1;
+
+    if (point == 0)
+        snprintf(addr, addrsz, "%ld:%ld/%ld", zone, net, node);
+    else
+        snprintf(addr, addrsz, "%ld:%ld/%ld.%ld", zone, net, node, point);
+
+    if (addr[0] == '\0')
+        return -1;
+
+    return 0;
+}
+
 static int
 queue_ftn_export(const char *area, long textnum)
 {
