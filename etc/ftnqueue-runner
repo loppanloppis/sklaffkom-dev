@@ -36,4 +36,14 @@ for job in "$PENDING"/*; do
     fi
 done
 
+NETMAIL_PENDING="$QUEUE/netmail/pending"
+
+for job in "$NETMAIL_PENDING"/*; do
+    [ -f "$job" ] || continue
+
+    if "$SKLAFFBIN/ftntoss" --export-netmail-job "$job" >/dev/null 2>&1; then
+        rm -f "$job"
+    fi
+done
+
 exit 0
