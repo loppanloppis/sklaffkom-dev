@@ -2370,7 +2370,7 @@ cmd_mail(char *args)
 
             free(inbuf);
             unlink(fname);
-            output("%s\n\n", MSG_MAILED);
+            output("%s\n\n", MSG_NETMAILED);
         } else {
             snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
             if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
