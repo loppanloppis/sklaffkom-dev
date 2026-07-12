@@ -1263,8 +1263,22 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
             fputc((unsigned char)*body, fp);
         body++;
     }
+    /*
+     * Add a tearline and origin line to netmail too.  Netmail routing does
+     * not depend on this, but some FTN tools expect it and report *NO ORIGIN*
+     * otherwise.
+     *
+     * modified on 2026-07-13, PL
+     */
+    {
+        char version[64];
 
-    fprintf(fp, "\r");
+        sklaff_version_no_build(version, sizeof(version));
+
+        fprintf(fp, "\r--- SklaffKOM v%s\r", version);
+        fprintf(fp, " * Origin: %s, %s (%s)\r",
+            SKLAFF_ID, SKLAFF_LOC, orig_addr);
+    }
     fputc('\0', fp);
 
     if (fclose(fp) != 0) {
