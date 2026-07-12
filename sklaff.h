@@ -412,6 +412,8 @@ void display_info(void);
 /* lib/ftn.c */
 void export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum); /* modified on 2026-06-14, PL */
 int queue_ftn_netmail(int, const char *, const char *, const char *, const char *); /* modified on 2026-07-10, PL */
+int queue_ftn_netmail_reply(int, const char *, const char *, const char *,
+    const char *, const char *); /* modified on 2026-07-13, PL */
 int parse_ftn_netmail_recipient(const char *, char *, size_t, char *, size_t); /* modified on 2026-07-10, PL */
     
 /* lib/misc.c */

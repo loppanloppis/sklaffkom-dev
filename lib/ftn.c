@@ -225,6 +225,14 @@ int
 queue_ftn_netmail(int fromuid, const char *toname, const char *toaddr,
     const char *subject, const char *body)
 {
+    return queue_ftn_netmail_reply(fromuid, toname, toaddr, subject, body,
+        NULL);
+}
+
+int
+queue_ftn_netmail_reply(int fromuid, const char *toname, const char *toaddr,
+    const char *subject, const char *body, const char *reply)
+{
     char tmpfile[4096];
     char pendingfile[4096];
     long now;
@@ -238,9 +246,13 @@ queue_ftn_netmail(int fromuid, const char *toname, const char *toaddr,
     if (subject == NULL)
         subject = "";
 
+    if (reply == NULL)
+        reply = "";
+
     if (!is_safe_ftn_queue_header_value(toname) ||
         !is_safe_ftn_queue_header_value(toaddr) ||
-        !is_safe_ftn_queue_header_value(subject)) {
+        !is_safe_ftn_queue_header_value(subject) ||
+        !is_safe_ftn_queue_header_value(reply)) {
         dlog(2, "queue_ftn_netmail: unsafe header value");
         return -1;
     }
@@ -255,6 +267,7 @@ queue_ftn_netmail(int fromuid, const char *toname, const char *toaddr,
      *   TONAME: <FTN recipient name>
      *   TOADDR: <zone:net/node[.point]>
      *   SUBJECT: <subject>
+     *   REPLY: <original FTN MSGID, if any>
      *   CREATED: <timestamp>
      *
      *   <message body>
@@ -293,9 +306,10 @@ queue_ftn_netmail(int fromuid, const char *toname, const char *toaddr,
             "TONAME: %s\n"
             "TOADDR: %s\n"
             "SUBJECT: %s\n"
+            "REPLY: %s\n"
             "CREATED: %ld\n"
             "\n",
-            fromuid, toname, toaddr, subject, now) < 0) {
+            fromuid, toname, toaddr, subject, reply, now) < 0) {
         dlog(2, "queue_ftn_netmail: fprintf header failed for uid %d, errno=%d",
             fromuid, errno);
         fclose(fp);

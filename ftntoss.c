@@ -113,6 +113,7 @@ struct netmail_job {
     char toname[128];
     char toaddr[64];
     char subject[128];
+    char reply[128];
     long created;
     char *body;
 }; /* modified on 2026-07-11, PL */
@@ -913,7 +914,7 @@ write_fido_msg_out(const char *path, const char *area,
     memset(hdr, 0, sizeof(hdr));
 
     make_fido_date(datebuf, sizeof(datebuf));
-	make_tzutc(tzbuf, sizeof(tzbuf));
+    make_tzutc(tzbuf, sizeof(tzbuf));
 
     /*
      * Fido .MSG header:
@@ -1121,13 +1122,17 @@ read_netmail_job(const char *path, struct netmail_job *job)
                 while (*v == ' ' || *v == '\t')
                     v++;
                 strlcpy(job->subject, v, sizeof(job->subject));
+            } else if (strncmp(line, "REPLY:", 6) == 0) {
+                char *v = line + 6;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                strlcpy(job->reply, v, sizeof(job->reply));
             } else if (strncmp(line, "CREATED:", 8) == 0) {
                 char *v = line + 8;
                 while (*v == ' ' || *v == '\t')
                     v++;
                 job->created = atol(v);
             }
-
             continue;
         }
 
@@ -1212,7 +1217,7 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
 
     memset(hdr, 0, sizeof(hdr));
     make_fido_date(datebuf, sizeof(datebuf));
-	make_tzutc(tzbuf, sizeof(tzbuf));
+    make_tzutc(tzbuf, sizeof(tzbuf));
 
     make_ftn_addr(dest_addr, sizeof(dest_addr), dz, dn, dnode, dp);
     make_ftn_addr(orig_addr, sizeof(orig_addr), FTN_OUR_ZONE, FTN_OUR_NET,
@@ -1251,6 +1256,9 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
 
     fprintf(fp, "\001INTL %s %s\r", dest_addr, orig_addr);
     fprintf(fp, "\001MSGID: %s\r", msgid);
+
+    if (job->reply[0] != '\0')
+        fprintf(fp, "\001REPLY: %s\r", job->reply);
     fprintf(fp, "\001PID: SklaffKOM ftntoss\r");
     fprintf(fp, "\001CHRS: UTF-8 4\r");
     fprintf(fp, "\001TZUTC: %s\r", tzbuf);
