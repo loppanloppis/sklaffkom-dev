@@ -289,6 +289,31 @@ write_u16_le(unsigned char *dst, unsigned int val)
 }
 
 static void
+make_tzutc(char *out, size_t outsz)
+{
+    time_t now;
+    struct tm *tm;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    strlcpy(out, "+0000", outsz);
+
+    now = time(NULL);
+    tm = localtime(&now);
+    if (tm == NULL)
+        return;
+
+    /*
+     * FTN TZUTC kludge: local UTC offset as +/-HHMM.
+     *
+     * modified on 2026-07-12, PL
+     */
+    if (strftime(out, outsz, "%z", tm) == 0)
+        strlcpy(out, "+0000", outsz);
+}
+
+static void
 make_fido_date(char *out, size_t outsz)
 {
     time_t now;
@@ -878,6 +903,7 @@ write_fido_msg_out(const char *path, const char *area,
     unsigned char hdr[190];
     char datebuf[32];
 	char version[64];
+    char tzbuf[16];
 
     if (path == NULL || area == NULL || from == NULL || to == NULL ||
             subject == NULL || body == NULL || msgid == NULL ||
@@ -887,6 +913,7 @@ write_fido_msg_out(const char *path, const char *area,
     memset(hdr, 0, sizeof(hdr));
 
     make_fido_date(datebuf, sizeof(datebuf));
+	make_tzutc(tzbuf, sizeof(tzbuf));
 
     /*
      * Fido .MSG header:
@@ -938,7 +965,8 @@ write_fido_msg_out(const char *path, const char *area,
 
     fprintf(fp, "\001PID: SklaffKOM ftntoss\r");
     fprintf(fp, "\001CHRS: UTF-8 4\r");
-    fprintf(fp, "\r");
+    fprintf(fp, "\001TZUTC: %s\r", tzbuf);
+	fprintf(fp, "\r");
 
     while (*body != '\0') {
         if (*body == '\n')
@@ -1174,6 +1202,7 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
     char dest_addr[64];
     char orig_addr[64];
     const char *body;
+    char tzbuf[16];
 
     if (path == NULL || job == NULL || from == NULL ||
         msgid == NULL || *msgid == '\0')
@@ -1183,6 +1212,7 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
 
     memset(hdr, 0, sizeof(hdr));
     make_fido_date(datebuf, sizeof(datebuf));
+	make_tzutc(tzbuf, sizeof(tzbuf));
 
     make_ftn_addr(dest_addr, sizeof(dest_addr), dz, dn, dnode, dp);
     make_ftn_addr(orig_addr, sizeof(orig_addr), FTN_OUR_ZONE, FTN_OUR_NET,
@@ -1223,6 +1253,7 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
     fprintf(fp, "\001MSGID: %s\r", msgid);
     fprintf(fp, "\001PID: SklaffKOM ftntoss\r");
     fprintf(fp, "\001CHRS: UTF-8 4\r");
+    fprintf(fp, "\001TZUTC: %s\r", tzbuf);
     fprintf(fp, "\r");
 
     while (*body != '\0') {
