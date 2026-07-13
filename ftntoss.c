@@ -2,6 +2,7 @@
 
 #include "sklaff.h"
 #include "ftnmsg.h"
+#include "ftnnetmail.h" /* modified on 2026-07-09, PL */
 #include "ext_globals.h"
 
 #include <ctype.h>
@@ -35,6 +36,9 @@
 
 #define FTN_LOCAL_ATTR 0x0100 /* modified on 2026-06-12, PL */
 #define FTN_ORIGIN "Twilight Node" /* modified on 2026-06-12, PL */
+
+#define FTN_PRIVATE_ATTR 0x0001 /* modified on 2026-07-11, PL */
+#define FTN_NETMAIL_ATTR (FTN_PRIVATE_ATTR | FTN_LOCAL_ATTR) /* modified on 2026-07-11, PL */
 
 struct ftn_conf_info {
     int num;
@@ -95,6 +99,36 @@ struct export_one_args {
     const char *area;
     long textnum;
 }; /* modified on 2026-06-14, PL */
+
+struct import_netmail_args {
+    const char *spooldir;
+}; /* modified on 2026-07-09, PL */
+
+struct export_netmail_job_args {
+    const char *jobfile;
+}; /* modified on 2026-07-11, PL */
+
+struct netmail_job {
+    int fromuid;
+    char toname[128];
+    char toaddr[64];
+    char subject[128];
+    char reply[128];
+    long created;
+    char *body;
+}; /* modified on 2026-07-11, PL */
+
+static int run_export_netmail_job_locked(void *arg); /* modified on 2026-07-11, PL */
+static int export_netmail_job(const char *jobfile); /* modified on 2026-07-11, PL */
+static int read_netmail_job(const char *path, struct netmail_job *job); /* modified on 2026-07-11, PL */
+static void free_netmail_job(struct netmail_job *job); /* modified on 2026-07-11, PL */
+static int parse_ftn_addr_4d(const char *addr, int *zone, int *net,
+    int *node, int *point); /* modified on 2026-07-11, PL */
+static int make_next_netmail_msg_path(char *out, size_t outsz,
+    long *outnum); /* modified on 2026-07-11, PL */
+static int write_fido_netmail_out(const char *path,
+    const struct netmail_job *job, const char *from,
+    int dz, int dn, int dnode, int dp, const char *msgid); /* modified on 2026-07-11, PL */
 
 static int export_test_ftn(const char *area);
 
@@ -183,6 +217,7 @@ static int run_with_lock(int (*fn)(void *), void *arg);
 static int run_import_one_locked(void *arg);
 static int run_import_area_locked(void *arg);
 static int run_import_all_areas_locked(void *arg);
+static int run_import_netmail_locked(void *arg); /* modified on 2026-07-09, PL */
 
 static int run_export_one_locked(void *arg); /* modified on 2026-06-14, PL */
 static void make_skom_from_name(long uid, char *out, size_t outsz); /* modified on 2026-06-14, PL */
@@ -252,6 +287,31 @@ write_u16_le(unsigned char *dst, unsigned int val)
 
     dst[0] = (unsigned char)(val & 0xff);
     dst[1] = (unsigned char)((val >> 8) & 0xff);
+}
+
+static void
+make_tzutc(char *out, size_t outsz)
+{
+    time_t now;
+    struct tm *tm;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    strlcpy(out, "+0000", outsz);
+
+    now = time(NULL);
+    tm = localtime(&now);
+    if (tm == NULL)
+        return;
+
+    /*
+     * FTN TZUTC kludge: local UTC offset as +/-HHMM.
+     *
+     * modified on 2026-07-12, PL
+     */
+    if (strftime(out, outsz, "%z", tm) == 0)
+        strlcpy(out, "+0000", outsz);
 }
 
 static void
@@ -844,6 +904,7 @@ write_fido_msg_out(const char *path, const char *area,
     unsigned char hdr[190];
     char datebuf[32];
 	char version[64];
+    char tzbuf[16];
 
     if (path == NULL || area == NULL || from == NULL || to == NULL ||
             subject == NULL || body == NULL || msgid == NULL ||
@@ -853,6 +914,7 @@ write_fido_msg_out(const char *path, const char *area,
     memset(hdr, 0, sizeof(hdr));
 
     make_fido_date(datebuf, sizeof(datebuf));
+    make_tzutc(tzbuf, sizeof(tzbuf));
 
     /*
      * Fido .MSG header:
@@ -904,7 +966,8 @@ write_fido_msg_out(const char *path, const char *area,
 
     fprintf(fp, "\001PID: SklaffKOM ftntoss\r");
     fprintf(fp, "\001CHRS: UTF-8 4\r");
-    fprintf(fp, "\r");
+    fprintf(fp, "\001TZUTC: %s\r", tzbuf);
+	fprintf(fp, "\r");
 
     while (*body != '\0') {
         if (*body == '\n')
@@ -938,6 +1001,368 @@ write_fido_msg_out(const char *path, const char *area,
     printf("MSGID: %s\n", msgid);
 
     return 0;
+}
+
+static int
+parse_ftn_addr_4d(const char *addr, int *zone, int *net, int *node, int *point)
+{
+    const char *p;
+    char *end;
+    long z, n, nd, pt;
+
+    if (addr == NULL || zone == NULL || net == NULL ||
+        node == NULL || point == NULL)
+        return -1;
+
+    p = addr;
+
+    z = strtol(p, &end, 10);
+    if (p == end || *end != ':' || z < 0 || z > 65535)
+        return -1;
+
+    p = end + 1;
+    n = strtol(p, &end, 10);
+    if (p == end || *end != '/' || n < 0 || n > 65535)
+        return -1;
+
+    p = end + 1;
+    nd = strtol(p, &end, 10);
+    if (p == end || nd < 0 || nd > 65535)
+        return -1;
+
+    pt = 0;
+    if (*end == '.') {
+        p = end + 1;
+        pt = strtol(p, &end, 10);
+        if (p == end || pt < 0 || pt > 65535)
+            return -1;
+    }
+
+    if (*end != '\0')
+        return -1;
+
+    *zone = (int)z;
+    *net = (int)n;
+    *node = (int)nd;
+    *point = (int)pt;
+
+    return 0;
+}
+
+static void
+free_netmail_job(struct netmail_job *job)
+{
+    if (job == NULL)
+        return;
+
+    free(job->body);
+    job->body = NULL;
+}
+
+static int
+read_netmail_job(const char *path, struct netmail_job *job)
+{
+    FILE *fp;
+    char line[1024];
+    int in_body;
+    size_t cap, len;
+    char *body;
+
+    if (path == NULL || job == NULL)
+        return -1;
+
+    memset(job, 0, sizeof(*job));
+
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        perror(path);
+        return -1;
+    }
+
+    in_body = 0;
+    cap = 0;
+    len = 0;
+    body = NULL;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (!in_body) {
+            strip_eol(line);
+
+            if (line[0] == '\0') {
+                in_body = 1;
+                continue;
+            }
+
+            if (strncmp(line, "TYPE:", 5) == 0) {
+                char *v = line + 5;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                if (strcmp(v, "NETMAIL") != 0) {
+                    fclose(fp);
+                    free(body);
+                    return -1;
+                }
+            } else if (strncmp(line, "FROMUID:", 8) == 0) {
+                char *v = line + 8;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                job->fromuid = atoi(v);
+            } else if (strncmp(line, "TONAME:", 7) == 0) {
+                char *v = line + 7;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                strlcpy(job->toname, v, sizeof(job->toname));
+            } else if (strncmp(line, "TOADDR:", 7) == 0) {
+                char *v = line + 7;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                strlcpy(job->toaddr, v, sizeof(job->toaddr));
+            } else if (strncmp(line, "SUBJECT:", 8) == 0) {
+                char *v = line + 8;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                strlcpy(job->subject, v, sizeof(job->subject));
+            } else if (strncmp(line, "REPLY:", 6) == 0) {
+                char *v = line + 6;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                strlcpy(job->reply, v, sizeof(job->reply));
+            } else if (strncmp(line, "CREATED:", 8) == 0) {
+                char *v = line + 8;
+                while (*v == ' ' || *v == '\t')
+                    v++;
+                job->created = atol(v);
+            }
+            continue;
+        }
+
+        append_to_dynbuf(&body, &cap, &len, line);
+    }
+
+    fclose(fp);
+
+    if (job->fromuid <= 0 || job->toname[0] == '\0' ||
+        job->toaddr[0] == '\0') {
+        free(body);
+        return -1;
+    }
+
+    if (body == NULL)
+        body = strdup("");
+
+    if (body == NULL)
+        return -1;
+
+    job->body = body;
+    return 0;
+}
+
+static int
+make_next_netmail_msg_path(char *out, size_t outsz, long *outnum)
+{
+    DIR *dir;
+    struct dirent *de;
+    long maxnum;
+    long n;
+    char *end;
+
+    if (out == NULL || outsz == 0 || outnum == NULL)
+        return -1;
+
+    dir = opendir(FTN_NETMAIL_SPOOL);
+    if (dir == NULL) {
+        perror(FTN_NETMAIL_SPOOL);
+        return -1;
+    }
+
+    maxnum = 0;
+
+    while ((de = readdir(dir)) != NULL) {
+        n = strtol(de->d_name, &end, 10);
+        if (end == de->d_name || strcmp(end, ".msg") != 0)
+            continue;
+
+        if (n > maxnum)
+            maxnum = n;
+    }
+
+    closedir(dir);
+
+    n = maxnum + 1;
+    if (snprintf(out, outsz, "%s/%ld.msg", FTN_NETMAIL_SPOOL, n) >=
+        (int)outsz)
+        return -1;
+
+    *outnum = n;
+    return 0;
+}
+
+static int
+write_fido_netmail_out(const char *path, const struct netmail_job *job,
+    const char *from, int dz, int dn, int dnode, int dp, const char *msgid)
+{
+    FILE *fp;
+    unsigned char hdr[190];
+    char datebuf[32];
+    char dest_addr[64];
+    char orig_addr[64];
+    const char *body;
+    char tzbuf[16];
+
+    if (path == NULL || job == NULL || from == NULL ||
+        msgid == NULL || *msgid == '\0')
+        return -1;
+
+    body = job->body ? job->body : "";
+
+    memset(hdr, 0, sizeof(hdr));
+    make_fido_date(datebuf, sizeof(datebuf));
+    make_tzutc(tzbuf, sizeof(tzbuf));
+
+    make_ftn_addr(dest_addr, sizeof(dest_addr), dz, dn, dnode, dp);
+    make_ftn_addr(orig_addr, sizeof(orig_addr), FTN_OUR_ZONE, FTN_OUR_NET,
+        FTN_OUR_NODE, FTN_OUR_POINT);
+
+    write_fixed_field(hdr + 0,   36, from);
+    write_fixed_field(hdr + 36,  36, job->toname);
+    write_fixed_field(hdr + 72,  72, job->subject);
+    write_fixed_field(hdr + 144, 20, datebuf);
+
+    write_u16_le(hdr + 164, 0);                 /* times read */
+    write_u16_le(hdr + 166, dnode);             /* dest node */
+    write_u16_le(hdr + 168, FTN_OUR_NODE);      /* orig node */
+    write_u16_le(hdr + 170, 0);                 /* cost */
+    write_u16_le(hdr + 172, FTN_OUR_NET);       /* orig net */
+    write_u16_le(hdr + 174, dn);                /* dest net */
+    write_u16_le(hdr + 176, dz);                /* dest zone */
+    write_u16_le(hdr + 178, FTN_OUR_ZONE);      /* orig zone */
+    write_u16_le(hdr + 180, dp);                /* dest point */
+    write_u16_le(hdr + 182, FTN_OUR_POINT);     /* orig point */
+    write_u16_le(hdr + 184, 0);                 /* reply to */
+    write_u16_le(hdr + 186, FTN_NETMAIL_ATTR);  /* private + local */
+    write_u16_le(hdr + 188, 0);                 /* next reply */
+
+    fp = fopen(path, "wb");
+    if (fp == NULL) {
+        perror(path);
+        return -1;
+    }
+
+    if (fwrite(hdr, 1, sizeof(hdr), fp) != sizeof(hdr)) {
+        perror("write netmail .MSG header");
+        fclose(fp);
+        return -1;
+    }
+
+    fprintf(fp, "\001INTL %s %s\r", dest_addr, orig_addr);
+    fprintf(fp, "\001MSGID: %s\r", msgid);
+
+    if (job->reply[0] != '\0')
+        fprintf(fp, "\001REPLY: %s\r", job->reply);
+    fprintf(fp, "\001PID: SklaffKOM ftntoss\r");
+    fprintf(fp, "\001CHRS: UTF-8 4\r");
+    fprintf(fp, "\001TZUTC: %s\r", tzbuf);
+    fprintf(fp, "\r");
+
+    while (*body != '\0') {
+        if (*body == '\n')
+            fputc('\r', fp);
+        else
+            fputc((unsigned char)*body, fp);
+        body++;
+    }
+    /*
+     * Add a tearline and origin line to netmail too.  Netmail routing does
+     * not depend on this, but some FTN tools expect it and report *NO ORIGIN*
+     * otherwise.
+     *
+     * modified on 2026-07-13, PL
+     */
+    {
+        char version[64];
+
+        sklaff_version_no_build(version, sizeof(version));
+
+        fprintf(fp, "\r--- SklaffKOM v%s\r", version);
+        fprintf(fp, " * Origin: %s, %s (%s)\r",
+            SKLAFF_ID, SKLAFF_LOC, orig_addr);
+    }
+    fputc('\0', fp);
+
+    if (fclose(fp) != 0) {
+        perror(path);
+        return -1;
+    }
+
+    chmod(path, 0600);
+
+    printf("Wrote FTN netmail .MSG: %s\n", path);
+    printf("To: %s (%s)\n", job->toname, dest_addr);
+    printf("MSGID: %s\n", msgid);
+
+    return 0;
+}
+
+static int
+export_netmail_job(const char *jobfile)
+{
+    struct netmail_job job;
+    struct passwd *pw;
+    char path[4096];
+    char msgid[128];
+    char from[128];
+    long msgnum;
+    unsigned long serial;
+    int dz, dn, dnode, dp;
+    int rc;
+
+    if (jobfile == NULL)
+        return -1;
+
+    if (read_netmail_job(jobfile, &job) != 0) {
+        fprintf(stderr, "[ERROR] Could not read netmail job: %s\n", jobfile);
+        return -1;
+    }
+
+    if (parse_ftn_addr_4d(job.toaddr, &dz, &dn, &dnode, &dp) != 0) {
+        fprintf(stderr, "[ERROR] Invalid FTN netmail address: %s\n",
+            job.toaddr);
+        free_netmail_job(&job);
+        return -1;
+    }
+
+    pw = getpwuid((uid_t)job.fromuid);
+    if (pw != NULL && pw->pw_gecos != NULL && pw->pw_gecos[0] != '\0') {
+        strlcpy(from, pw->pw_gecos, sizeof(from));
+        if (strchr(from, ',') != NULL)
+            *strchr(from, ',') = '\0';
+    } else if (pw != NULL) {
+        strlcpy(from, pw->pw_name, sizeof(from));
+    } else {
+        snprintf(from, sizeof(from), "User %d", job.fromuid);
+    }
+
+    if (make_next_netmail_msg_path(path, sizeof(path), &msgnum) != 0) {
+        free_netmail_job(&job);
+        return -1;
+    }
+
+    /*
+     * Netmail MSGID serial: keep it stable for this queued job using the
+     * queue timestamp plus the local .MSG number.  This is simple, unique
+     * enough for normal queue operation, and follows the existing MSGID
+     * address format.
+     *
+     * modified on 2026-07-11, PL
+     */
+    serial = (((unsigned long)job.created & 0xffffUL) << 16) |
+        ((unsigned long)msgnum & 0xffffUL);
+    make_ftn_msgid(msgid, sizeof(msgid), serial);
+
+    rc = write_fido_netmail_out(path, &job, from, dz, dn, dnode, dp, msgid);
+
+    free_netmail_job(&job);
+    return rc;
 }
 
 static void
@@ -3862,6 +4287,28 @@ run_import_all_areas_locked(void *arg)
     return import_all_areas_ftn(a->include_unsafe);
 }
 
+static int
+run_import_netmail_locked(void *arg)
+{
+    struct import_netmail_args *a = arg;
+
+    if (a == NULL)
+        return -1;
+
+    return import_ftn_netmail_spool(a->spooldir);
+}
+
+static int
+run_export_netmail_job_locked(void *arg)
+{
+    struct export_netmail_job_args *a = arg;
+
+    if (a == NULL || a->jobfile == NULL)
+        return -1;
+
+    return export_netmail_job(a->jobfile);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -3956,6 +4403,22 @@ main(int argc, char **argv)
     	return run_with_lock(run_import_all_areas_locked, &a) == 0 ? 0 : 1;
 	}
 
+	if (argc == 2 && strcmp(argv[1], "--import-netmail") == 0) {
+    struct import_netmail_args a;
+
+    a.spooldir = FTN_NETMAIL_SPOOL;
+
+    return run_with_lock(run_import_netmail_locked, &a) == 0 ? 0 : 1;
+}
+
+    if (argc == 3 && strcmp(argv[1], "--export-netmail-job") == 0) {
+        struct export_netmail_job_args a;
+
+        a.jobfile = argv[2];
+
+        return run_with_lock(run_export_netmail_job_locked, &a) == 0 ? 0 : 1;
+    }
+
     if (argc != 2) {
         fprintf(stderr, "\nUsage: %s <FTN-area / SklaffKOM conference>\n", argv[0]);
         fprintf(stderr, "       %s --dump-import <FTN-area / SklaffKOM conference> <file.msg>\n", argv[0]);
@@ -3967,10 +4430,12 @@ main(int argc, char **argv)
         fprintf(stderr, "       %s --import-all-areas\n", argv[0]);
         fprintf(stderr, "       %s --import-all-areas --include-unsafe\n", argv[0]);
         fprintf(stderr, "       %s --export-test <FTN-area>\n", argv[0]);
-        fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n\n", argv[0]);
-        fprintf(stderr, "Examples:\n");
+        fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n", argv[0]);
+        fprintf(stderr, "       %s --import-netmail\n\n", argv[0]);
+		fprintf(stderr, "Examples:\n");
         fprintf(stderr, "  %s FSX_GEN\n", argv[0]);
         fprintf(stderr, "  %s --dump-import FSX_BBS 32.msg\n\n", argv[0]);
+        fprintf(stderr, "       %s --export-netmail-job <jobfile>\n", argv[0]);
         return 1;
     }
 

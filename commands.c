@@ -2262,7 +2262,9 @@ cmd_mail(char *args)
 {
     LINE fname, tmpstr;
     LONG_LINE cmdline, tmp;
-	char *username, *mailrec, *inbuf;
+    LINE ftn_to_name, ftn_to_addr; /* modified on 2026-07-10, PL */
+    char *username, *mailrec, *inbuf;
+    int is_ftn_netmail; /* modified on 2026-07-10, PL */
     struct TEXT_HEADER th;
    	int conf, mailuid, uid, fd;
     FILE *pipe;
@@ -2270,6 +2272,7 @@ cmd_mail(char *args)
 
     Change_prompt = 1;
     mailrec = NULL;
+    is_ftn_netmail = 0; /* modified on 2026-07-10, PL */
     if (args && *args) {
         /* if (strchr(args, '@') || strchr(args, '!')) { */
 
@@ -2277,7 +2280,19 @@ cmd_mail(char *args)
          * news-thing which only causes potential security problems. OR
          * 00-01-02 */
 
-        if (strchr(args, '@')) {
+        /*
+         * FTN netmail also uses '@', but the address part is zone:net/node,
+         * so it must be detected before the ordinary Internet mail branch.
+         *
+         * modified on 2026-07-10, PL
+         */
+        if (parse_ftn_netmail_recipient(args, ftn_to_name,
+                sizeof(ftn_to_name), ftn_to_addr,
+                sizeof(ftn_to_addr)) == 0) {
+            mailrec = ftn_to_name;
+            mailuid = 0;
+            is_ftn_netmail = 1;
+        } else if (strchr(args, '@')) {
 
             strcpy(tmp, args);
             /* Only allow a minimum of nonalphanum chars in mail address */
@@ -2328,6 +2343,34 @@ cmd_mail(char *args)
                 return -1;
             }
             output("%s\n\n", MSG_SAVED);
+        } else if (is_ftn_netmail) {
+            if ((fd = open_file(fname, 0)) == -1) {
+                return -1;
+            }
+            if ((inbuf = read_file(fd)) == NULL) {
+                return -1;
+            }
+            if (close_file(fd) == -1) {
+                return -1;
+            }
+
+            if (queue_ftn_netmail(Uid, ftn_to_name, ftn_to_addr,
+                    th.subject, inbuf) != 0) {
+                free(inbuf);
+                output("%s\n\n", MSG_NOMAIL);
+                return -1;
+            }
+
+            if (Copy) {
+                /*
+                 * Keep local copy in SklaffKOM's internal SF7 form.
+                 */
+                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+            }
+
+            free(inbuf);
+            unlink(fname);
+            output("%s\n\n", MSG_NETMAILED);
         } else {
             snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
             if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
@@ -2841,6 +2884,84 @@ cmd_post_text(char *args)
     return 0;
 }
 
+static int
+text_body_header_value(struct TEXT_BODY *tb, const char *key,
+    char *out, size_t outsz)
+{
+    size_t keylen;
+    char *v;
+
+    if (key == NULL || out == NULL || outsz == 0)
+        return -1;
+
+    out[0] = '\0';
+    keylen = strlen(key);
+
+    while (tb != NULL) {
+        if (strncmp(tb->line, key, keylen) == 0) {
+            v = tb->line + keylen;
+
+            while (*v == ' ' || *v == '\t')
+                v++;
+
+            strlcpy(out, v, outsz);
+            out[strcspn(out, "\r\n")] = '\0';
+
+            while (strlen(out) > 0 &&
+                (out[strlen(out) - 1] == ' ' ||
+                 out[strlen(out) - 1] == '\t'))
+                out[strlen(out) - 1] = '\0';
+
+            return 0;
+        }
+
+        tb = tb->next;
+    }
+
+    return -1;
+}
+
+static void
+netmail_reply_name_from_fromline(const char *fromline, const char *addr,
+    char *out, size_t outsz)
+{
+    char *p;
+    char *q;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (fromline == NULL || *fromline == '\0')
+        return;
+
+    strlcpy(out, fromline, outsz);
+
+    /*
+     * Imported netmail is stored as "Name (zone:net/node)".  For a reply,
+     * the FTN recipient name should be only the name part.
+     *
+     * modified on 2026-07-13, PL
+     */
+    if (addr != NULL && *addr != '\0') {
+        p = strstr(out, addr);
+        if (p != NULL) {
+            q = p;
+
+            while (q > out && (q[-1] == ' ' || q[-1] == '('))
+                q--;
+
+            *q = '\0';
+        }
+    }
+
+    while (strlen(out) > 0 &&
+        (out[strlen(out) - 1] == ' ' ||
+         out[strlen(out) - 1] == '\t'))
+        out[strlen(out) - 1] = '\0';
+}
+
 /*
  * cmd_comment - post a comment to a text/mail
  * args: user arguments (args)
@@ -2851,10 +2972,13 @@ int
 cmd_comment(char *args)
 {
     LINE fname, newline, mr, cmdline, uname, refname, reference, tmpstr;
+    LINE ftn_to_name, ftn_to_addr;
     LONG_LINE group, tmp, cname;
+    LONG_LINE ftn_reply_msgid, ftn_fromline;
     char *buf, *oldbuf, *nbuf, *ptr2, *mailrec, *inbuf, *ptr3, *ptr4, sav;
     int conf, fd, commentuid, allow, nc, *ptr, i, right;
     int is_news_reply, is_ftn_reply; /* 2026-06-20 PL */
+    int is_netmail_reply; /* modified on 2026-07-13, PL */
     long textnum, last, commenttext, savednum;
     struct TEXT_HEADER th, *thtmp;
     struct TEXT_BODY *tb;
@@ -2933,13 +3057,50 @@ cmd_comment(char *args)
          commenttext, commentuid, thtmp->subject);
 
     mailrec = NULL;
-		/*
-		* Only mail and Usenet replies need an email address extracted from From:.
-		* Imported FTN texts also have author 0, but use an FTN address instead.
-		*
-		* modified on 2026-06-20, PL
-		*/
-		if (!commentuid && !is_ftn_reply) {
+    is_netmail_reply = 0;
+    ftn_to_name[0] = '\0';
+    ftn_to_addr[0] = '\0';
+    ftn_reply_msgid[0] = '\0';
+    ftn_fromline[0] = '\0';
+
+    /*
+     * Imported FTN netmail lives in the private mailbox with author 0,
+     * just like imported Internet mail.  Detect it before the ordinary
+     * mail-reply parser, since FTN addresses are not Internet addresses.
+     *
+     * modified on 2026-07-13, PL
+     */
+    if (!Current_conf && !commentuid) {
+        text_body_header_value(te.body, "FTN-FromAddr:",
+            ftn_to_addr, sizeof(ftn_to_addr));
+        text_body_header_value(te.body, "FTN-MSGID:",
+            ftn_reply_msgid, sizeof(ftn_reply_msgid));
+        text_body_header_value(te.body, "From:",
+            ftn_fromline, sizeof(ftn_fromline));
+
+        if (ftn_to_addr[0] != '\0') {
+            netmail_reply_name_from_fromline(ftn_fromline, ftn_to_addr,
+                ftn_to_name, sizeof(ftn_to_name));
+
+            if (ftn_to_name[0] == '\0')
+                strlcpy(ftn_to_name, ftn_to_addr, sizeof(ftn_to_name));
+
+            mailrec = ftn_to_name;
+            is_netmail_reply = 1;
+
+            dlog(6, "cmd_comment: FTN netmail reply to=[%s] addr=[%s] reply=[%s]",
+                ftn_to_name, ftn_to_addr,
+                ftn_reply_msgid[0] ? ftn_reply_msgid : "(none)");
+        }
+    }
+
+            /*
+            * Only mail and Usenet replies need an email address extracted from From:.
+            * Imported FTN texts also have author 0, but use an FTN address instead.
+            *
+            * modified on 2026-06-20, PL
+            */
+            if (!commentuid && !is_ftn_reply && !is_netmail_reply) {
         /* Extract mail recipient from From: lines in body for mail replies */
         tb = te.body;
         while (tb) {
@@ -3100,15 +3261,7 @@ cmd_comment(char *args)
         }
         dlog(6, "cmd_comment: saved local comment num=%ld in conf=%d", savednum, nc);
     } else if (!nc) {
-        /* Mail reply branch */
-        snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
-        dlog(6, "cmd_comment: MAIL start cmd=[%s]", cmdline);
-
-        if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
-            dlog(2, "cmd_comment: popen MAIL failed");
-            output("%s\n\n", MSG_NOMAIL);
-            return -1;
-        }
+        /* Mail / FTN netmail reply branch */
         if ((fd = open_file(fname, 0)) == -1) {
             dlog(2, "cmd_comment: open_file edit file failed: %s", fname);
             return -1;
@@ -3119,22 +3272,57 @@ cmd_comment(char *args)
         }
         if (close_file(fd) == -1) {
             dlog(3, "cmd_comment: close_file edit file failed: %s", fname);
+            free(inbuf);
             return -1;
         }
-       	pw = getpwuid(Uid);
-		snprintf(tmpstr, sizeof(tmpstr), "<%s@%s>", pw->pw_name, MACHINE_NAME);
 
-		write_mail_utf8(pipe, tmpstr, mailrec, th.subject, inbuf);
+        if (is_netmail_reply) {
+            if (queue_ftn_netmail_reply(Uid, ftn_to_name, ftn_to_addr,
+                    th.subject, inbuf, ftn_reply_msgid) != 0) {
+                free(inbuf);
+                output("%s\n\n", MSG_NOMAIL);
+                return -1;
+            }
 
-		pclose(pipe);
+            if (Copy) {
+                /*
+                 * Keep local mail copy in SklaffKOM's internal SF7 format.
+                 */
+                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+            }
 
-		if (Copy) {
-    		/*
-     		* Keep local mail copy in SklaffKOM's internal SF7 format.
-     		*/
-    		(void) save_mailcopy(mailrec, th.subject, inbuf);
-		}
-		free(inbuf);
+            free(inbuf);
+            unlink(fname);
+            output("%s\n\n", MSG_NETMAILED);
+            dlog(6, "cmd_comment: leave (queued FTN netmail reply to %s)",
+                ftn_to_addr);
+            return 0;
+        }
+
+        snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
+        dlog(6, "cmd_comment: MAIL start cmd=[%s]", cmdline);
+
+        if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
+            dlog(2, "cmd_comment: popen MAIL failed");
+            free(inbuf);
+            output("%s\n\n", MSG_NOMAIL);
+            return -1;
+        }
+
+        pw = getpwuid(Uid);
+        snprintf(tmpstr, sizeof(tmpstr), "<%s@%s>", pw->pw_name, MACHINE_NAME);
+
+        write_mail_utf8(pipe, tmpstr, mailrec, th.subject, inbuf);
+
+        pclose(pipe);
+
+        if (Copy) {
+            /*
+             * Keep local mail copy in SklaffKOM's internal SF7 format.
+             */
+            (void) save_mailcopy(mailrec, th.subject, inbuf);
+        }
+        free(inbuf);
         unlink(fname);
         output("%s\n\n", MSG_MAILED);
         dlog(6, "cmd_comment: leave (mailed reply to %s)", mailrec);
@@ -3931,13 +4119,24 @@ cmd_delete_text(char *args)
     if (close_file(fd) == -1) {
         return 0;
     }
-    buf = get_text_entry(buf, &te);
-    free_text_entry(&te);
+	buf = get_text_entry(buf, &te);
+    if (buf == NULL) {
+        free(oldbuf);
+        output("\n%s\n\n", MSG_NOREAD);
+        return 0;
+    }
 
     th = &te.th;
-
-    if (th->author != Uid) {
+     /*
+     * In the private mailbox, the logged-in user owns the mailbox even when
+     * imported mail/netmail has author 0.  In ordinary conferences, keep the
+     * old author check.
+     *
+     * modified on 2026-07-09, PL
+     */
+    if (Current_conf > 0 && th->author != Uid) {
         output("\n%s\n\n", MSG_NOTALLOW);
+        free(oldbuf);
         return 0;
     }
     unlink(fname);

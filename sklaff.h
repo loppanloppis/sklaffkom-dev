@@ -83,6 +83,7 @@
 #define NEWS_SPOOL	"/usr/local/news/spool/articles"
 #define NEWS_GROUPS	"/usr/local/news/db/active"
 #define FTN_SPOOL 	"/usr/local/ftn/echomail"    /* modified on 2026-06-09, PL */
+#define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail" /* modified on 2026-07-06, PL */
 
 /* Programs used by SklaffKOM */
 
@@ -410,7 +411,11 @@ void display_info(void);
 
 /* lib/ftn.c */
 void export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum); /* modified on 2026-06-14, PL */
-
+int queue_ftn_netmail(int, const char *, const char *, const char *, const char *); /* modified on 2026-07-10, PL */
+int queue_ftn_netmail_reply(int, const char *, const char *, const char *,
+    const char *, const char *); /* modified on 2026-07-13, PL */
+int parse_ftn_netmail_recipient(const char *, char *, size_t, char *, size_t); /* modified on 2026-07-10, PL */
+    
 /* lib/misc.c */
 int quote_depth(const char *s);                                                         /* Usenet quotes in colors 2025-08-31 PL */
 void normalize_label(const char *raw, char *norm, size_t nlen);                              /* Normalize a label to ensure exactly one trailing ": " */

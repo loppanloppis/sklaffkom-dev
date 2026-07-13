@@ -58,13 +58,33 @@ display_header(struct TEXT_HEADER * th, int edit_subject, int type, int dtype, c
         user_name(th->author, username);
         Current_author = th->author;
     }
-  /* Humanized headers PL 2025-08-09 */
+    /* Humanized headers PL 2025-08-09 */
 {
     LINE from_dec, disp;
+
     rfc2047_decode(username, from_dec, sizeof(from_dec));
-    extract_display_name(from_dec, disp, sizeof(disp));
-    snprintf(username, sizeof(username), "%.*s", (int)sizeof(username)-1, disp);
+
+    /*
+     * Imported FTN netmail may use "Name (zone:net/node)" as the visible
+     * sender.  Do not run that through extract_display_name(), since it
+     * treats parenthesized text as the display name for old-style e-mail
+     * addresses and would reduce "Chad Smith (21:3/219)" to "21:3/219".
+     *
+     * modified on 2026-07-10, PL
+     */
+    if (mailrec && type && th->author == 0 &&
+        strchr(from_dec, '@') == NULL &&
+        strstr(from_dec, ":") != NULL &&
+        strstr(from_dec, "/") != NULL) {
+        snprintf(username, sizeof(username), "%.*s",
+            (int)sizeof(username)-1, from_dec);
+    } else {
+        extract_display_name(from_dec, disp, sizeof(disp));
+        snprintf(username, sizeof(username), "%.*s",
+            (int)sizeof(username)-1, disp);
+    }
 }
+
 /* 2025-08-10, PL: strip surrounding quotes from display name */
 {
     size_t L__ = strlen(username);
