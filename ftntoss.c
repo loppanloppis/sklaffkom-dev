@@ -4431,11 +4431,11 @@ main(int argc, char **argv)
         fprintf(stderr, "       %s --import-all-areas --include-unsafe\n", argv[0]);
         fprintf(stderr, "       %s --export-test <FTN-area>\n", argv[0]);
         fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n", argv[0]);
+        fprintf(stderr, "       %s --export-netmail-job <jobfile>\n", argv[0]);
         fprintf(stderr, "       %s --import-netmail\n\n", argv[0]);
 		fprintf(stderr, "Examples:\n");
         fprintf(stderr, "  %s FSX_GEN\n", argv[0]);
         fprintf(stderr, "  %s --dump-import FSX_BBS 32.msg\n\n", argv[0]);
-        fprintf(stderr, "       %s --export-netmail-job <jobfile>\n", argv[0]);
         return 1;
     }
 
