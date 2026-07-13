@@ -572,7 +572,7 @@
 
 #define MSG_FROMSUB	"Fr}n: "
 #define MSG_TOSUB	"Till: "
-#define MSG_TEXTNAME	"Inl{gg"
+#define MSG_TEXTNAME	"Text"
 #define MSG_SURVEYNAME	"Enk{t"
 #define MSG_WRITTENBY	"Skriven av"
 #define MSG_TOFROM	"Till/Fr}n"
