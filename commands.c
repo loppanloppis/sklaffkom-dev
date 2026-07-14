@@ -2410,6 +2410,13 @@ cmd_mail(char *args)
     return 0;
 }
 
+static int text_body_header_value(struct TEXT_BODY *, const char *, char *,
+    size_t); /* modified on 2026-07-13, PL */
+static void netmail_reply_name_from_fromline(const char *, const char *, char *,
+    size_t); /* modified on 2026-07-13, PL */
+static void ftn_addr_from_msgid(const char *, char *, size_t); /* modified on 2026-07-13, PL */
+static void ftn_addr_from_fromline(const char *, char *, size_t); /* modified on 2026-07-13, PL */
+
 /*
  * cmd_personal - make a personal comment to a text
  * args: user arguments (args)
@@ -2420,14 +2427,16 @@ int
 cmd_personal(char *args)
 {
     LINE fname, mr, cmdline, tmpstr;
-    LONG_LINE tmp;
+    LINE ftn_to_name, ftn_to_addr;
+    LONG_LINE tmp, ftn_reply_msgid, ftn_fromline;
     char *buf, *oldbuf, *mailrec, *ptr2, *ptr3, *inbuf, *ptr4;
-	char sav;
-	int conf, fd, commentuid, uid;
+    char sav;
+    int conf, fd, commentuid, uid, is_ftn_personal, is_ftn_conf;
     long textnum, last, commenttext;
     struct TEXT_HEADER th, *thtmp;
     struct TEXT_BODY *tb;
     struct TEXT_ENTRY te;
+    struct CONF_ENTRY *ce;
     struct passwd *pw;
     FILE *pipe;
 
@@ -2479,7 +2488,84 @@ cmd_personal(char *args)
     commenttext = thtmp->num;
     commentuid = thtmp->author;
     mailrec = NULL;
-    if (!commentuid) {
+    is_ftn_personal = 0;
+    is_ftn_conf = 0;
+    ftn_to_name[0] = '\0';
+    ftn_to_addr[0] = '\0';
+    ftn_reply_msgid[0] = '\0';
+    ftn_fromline[0] = '\0';
+
+    ce = get_conf_struct(Current_conf);
+    if (ce != NULL && ce->type == FTN_CONF)
+        is_ftn_conf = 1;
+
+    if (is_ftn_conf) {
+        /*
+         * Personal comment to an imported FTN conference text.  Imported FTN
+         * texts may not always look like local user texts in the header, so
+         * detect the external sender from the FTN metadata in the body instead
+         * of relying only on th.author.
+         *
+         * modified on 2026-07-13, PL
+         */
+        if (text_body_header_value(te.body, "FTN-FromAddr:",
+                ftn_to_addr, sizeof(ftn_to_addr)) != 0)
+            text_body_header_value(te.body, "FTN-FROMADDR:",
+                ftn_to_addr, sizeof(ftn_to_addr));
+
+        if (text_body_header_value(te.body, "FTN-MSGID:",
+                ftn_reply_msgid, sizeof(ftn_reply_msgid)) != 0) {
+            if (text_body_header_value(te.body, "MSGID:",
+                    ftn_reply_msgid, sizeof(ftn_reply_msgid)) != 0)
+                text_body_header_value(te.body, "\001MSGID:",
+                    ftn_reply_msgid, sizeof(ftn_reply_msgid));
+        }
+
+        text_body_header_value(te.body, "From:",
+            ftn_fromline, sizeof(ftn_fromline));
+
+        if (ftn_to_addr[0] == '\0')
+            ftn_addr_from_msgid(ftn_reply_msgid, ftn_to_addr,
+                sizeof(ftn_to_addr));
+
+        if (ftn_to_addr[0] == '\0')
+            ftn_addr_from_fromline(ftn_fromline, ftn_to_addr,
+                sizeof(ftn_to_addr));
+
+        dlog(7, "cmd_personal: FTN personal probe author=%d from=[%s] addr=[%s] msgid=[%s]",
+            commentuid, ftn_fromline[0] ? ftn_fromline : "(none)",
+            ftn_to_addr[0] ? ftn_to_addr : "(none)",
+            ftn_reply_msgid[0] ? ftn_reply_msgid : "(none)");
+
+        if (ftn_to_addr[0] != '\0') {
+            netmail_reply_name_from_fromline(ftn_fromline, ftn_to_addr,
+                ftn_to_name, sizeof(ftn_to_name));
+
+            if (ftn_to_name[0] == '\0')
+                strlcpy(ftn_to_name, ftn_to_addr, sizeof(ftn_to_name));
+
+            mailrec = ftn_to_name;
+            is_ftn_personal = 1;
+
+            /*
+             * Force the rest of cmd_personal down the external-recipient path.
+             * Otherwise a non-zero imported author value can make this look
+             * like an ordinary local/FTN conference comment.
+             *
+             * modified on 2026-07-13, PL
+             */
+            commentuid = 0;
+
+            dlog(6, "cmd_personal: FTN personal reply to=[%s] addr=[%s] reply=[%s]",
+                ftn_to_name, ftn_to_addr, ftn_reply_msgid);
+        } else if (!commentuid) {
+            output("\n%s\n\n", MSG_BADAD);
+            free_text_entry(&te);
+            return 0;
+        }
+    }
+
+    if (!commentuid && !is_ftn_personal) {
         tb = te.body;
         while (tb) {
             if ((ptr2 = strstr(tb->line, MSG_EMFROM)) != NULL)
@@ -2525,10 +2611,12 @@ cmd_personal(char *args)
         /* Only allow a minimum of nonalphanum chars in mail address */
         if (strip_string(tmp, "@+.-_%") != 0 || tmp[0] == '-') {
             output("\n%s\n\n", MSG_BADAD);
+            free_text_entry(&te);
             return 0;
         }
         mailrec = mr;
     }
+    strlcpy(th.subject, thtmp->subject, sizeof(th.subject));
     free_text_entry(&te);
 
     conf = commentuid - (commentuid * 2);
@@ -2540,7 +2628,6 @@ cmd_personal(char *args)
     th.time = 0;
     th.size = 0;
     th.type = TYPE_TEXT;
-    strcpy(th.subject, thtmp->subject);
     strcpy(fname, Home);
     strcat(fname, EDIT_FILE);
     if (!commentuid) {
@@ -2554,7 +2641,38 @@ cmd_personal(char *args)
         output("\n%s\n\n", MSG_TEXTREM);
         return 0;
     }
-    if (commentuid || (th.author && conf)) {
+    if (is_ftn_personal) {
+        if ((fd = open_file(fname, 0)) == -1) {
+            return -1;
+        }
+        if ((inbuf = read_file(fd)) == NULL) {
+            return -1;
+        }
+        if (close_file(fd) == -1) {
+            return -1;
+        }
+
+        if (queue_ftn_netmail_reply(Uid, ftn_to_name, ftn_to_addr,
+                th.subject, inbuf, ftn_reply_msgid) != 0) {
+            free(inbuf);
+            output("%s\n\n", MSG_NOMAIL);
+            return -1;
+        }
+
+        if (Copy) {
+            /*
+             * Keep local copy in SklaffKOM's internal SF7 form.
+             *
+             * modified on 2026-07-13, PL
+             */
+            (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+        }
+
+        free(inbuf);
+        unlink(fname);
+        output("%s\n\n", MSG_MAILED);
+        return 0;
+    } else if (commentuid || (th.author && conf)) {
         if (save_text(fname, &th, conf) == -1) {
             output("\n%s\n\n", MSG_CONFMISSING);
             return -1;
@@ -2960,6 +3078,84 @@ netmail_reply_name_from_fromline(const char *fromline, const char *addr,
         (out[strlen(out) - 1] == ' ' ||
          out[strlen(out) - 1] == '\t'))
         out[strlen(out) - 1] = '\0';
+}
+
+
+static void
+ftn_addr_from_msgid(const char *msgid, char *out, size_t outsz)
+{
+    const char *p;
+    size_t len;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (msgid == NULL)
+        return;
+
+    p = msgid;
+    while (*p == ' ' || *p == '\t')
+        p++;
+
+    len = 0;
+    while (p[len] != '\0' && p[len] != ' ' && p[len] != '\t' &&
+        p[len] != '\r' && p[len] != '\n')
+        len++;
+
+    if (len == 0 || len >= outsz)
+        return;
+
+    memcpy(out, p, len);
+    out[len] = '\0';
+
+    if (strchr(out, ':') == NULL || strchr(out, '/') == NULL)
+        out[0] = '\0';
+}
+
+static void
+ftn_addr_from_fromline(const char *fromline, char *out, size_t outsz)
+{
+    const char *p, *end;
+    size_t len;
+
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (fromline == NULL)
+        return;
+
+    /*
+     * FTN conference imports usually show external senders as
+     * "Name (zone:net/node[.point])".  Personal replies need the FTN
+     * address, so fall back to extracting the address from that From line
+     * if no explicit FTN-FromAddr header was stored.
+     *
+     * modified on 2026-07-13, PL
+     */
+    p = strchr(fromline, '(');
+    while (p != NULL) {
+        p++;
+        end = strchr(p, ')');
+        if (end == NULL)
+            break;
+
+        len = (size_t)(end - p);
+        if (len > 0 && len < outsz) {
+            memcpy(out, p, len);
+            out[len] = '\0';
+
+            if (strchr(out, ':') != NULL && strchr(out, '/') != NULL)
+                return;
+
+            out[0] = '\0';
+        }
+
+        p = strchr(end + 1, '(');
+    }
 }
 
 /*
