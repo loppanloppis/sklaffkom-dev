@@ -42,9 +42,15 @@ static int parse_mailbox_conf_line(const char *line, struct mailbox_conf_entry *
 static int read_mailbox_last_text(int uid, long *last_text);
 static int rewrite_mailbox_last_text(int uid, long *new_textnum);
 static long count_lines(const char *s);
-static int netmail_already_imported(int uid, const char *msgid);
+static int netmail_already_imported(int uid, const char *domain,
+    const char *msgid);
 static void ftn_msgid_origin(const char *msgid, char *out, size_t outsz);
-static char *build_netmail_mbuf(const struct fido_msg *msg);
+static void make_ftn_5d_addr(const char *addr, const char *domain,
+    char *out, size_t outsz);
+static char *build_netmail_mbuf(const struct fido_msg *msg,
+    const char *domain, const char *local_addr);
+static int send_netmail_with_context(int uid, const struct fido_msg *msg,
+    const char *domain, const char *local_addr);
 static void notify_netmail_user(int uid, int sig);
 
 static int
@@ -253,6 +259,8 @@ rewrite_mailbox_last_text(int uid, long *new_textnum)
     char path[PATH_MAX];
     char tmpfile[PATH_MAX];
     char line[1024];
+    struct stat mailbox_st;
+    int outfd;
     int found = 0;
 
     if (new_textnum == NULL)
@@ -261,7 +269,11 @@ rewrite_mailbox_last_text(int uid, long *new_textnum)
     if (mailbox_file_for_uid(uid, path, sizeof(path)) != 0)
         return -1;
 
-    if (snprintf(tmpfile, sizeof(tmpfile), "%s.ftnnetmail.tmp", path) >= (int)sizeof(tmpfile))
+    if (stat(path, &mailbox_st) != 0)
+        return -1;
+
+    if (snprintf(tmpfile, sizeof(tmpfile), "%s.ftnnetmail.tmp", path) >=
+            (int)sizeof(tmpfile))
         return -1;
 
     in = fopen(path, "r");
@@ -271,6 +283,45 @@ rewrite_mailbox_last_text(int uid, long *new_textnum)
     out = fopen(tmpfile, "w");
     if (out == NULL) {
         fclose(in);
+        return -1;
+    }
+
+    /*
+     * The mailbox control file is replaced through rename().  Preserve its
+     * ownership and mode so a sudo/root import cannot leave a root-owned
+     * mailbox file behind.
+     *
+     * modified on 2026-07-16, PL
+     */
+    outfd = fileno(out);
+    if (outfd == -1) {
+        fclose(in);
+        fclose(out);
+        unlink(tmpfile);
+        return -1;
+    }
+
+    if (geteuid() == 0) {
+        if (fchown(outfd, mailbox_st.st_uid, mailbox_st.st_gid) != 0) {
+            fclose(in);
+            fclose(out);
+            unlink(tmpfile);
+            return -1;
+        }
+    } else if (geteuid() != mailbox_st.st_uid) {
+        fprintf(stderr,
+            "[ERROR] Cannot safely rewrite mailbox %s as uid %ld\n",
+            path, (long)geteuid());
+        fclose(in);
+        fclose(out);
+        unlink(tmpfile);
+        return -1;
+    }
+
+    if (fchmod(outfd, mailbox_st.st_mode & 07777) != 0) {
+        fclose(in);
+        fclose(out);
+        unlink(tmpfile);
         return -1;
     }
 
@@ -338,12 +389,12 @@ count_lines(const char *s)
 }
 
 static int
-netmail_already_imported(int uid, const char *msgid)
+netmail_already_imported(int uid, const char *domain, const char *msgid)
 {
     char dir[PATH_MAX];
     char path[PATH_MAX];
     char line[1024];
-    char needle[512];
+    char msgid_needle[512];
     long last_text = 0;
     long i;
 
@@ -356,27 +407,63 @@ netmail_already_imported(int uid, const char *msgid)
     if (mailbox_dir_for_uid(uid, dir, sizeof(dir)) != 0)
         return 0;
 
-    snprintf(needle, sizeof(needle), "FTN-MSGID: %s", msgid);
+    snprintf(msgid_needle, sizeof(msgid_needle), "FTN-MSGID: %s", msgid);
 
     for (i = 1; i <= last_text; i++) {
         FILE *fp;
+        int msgid_match;
+        int domain_seen;
+        int domain_match;
 
-        if (snprintf(path, sizeof(path), "%s%ld", dir, i) >= (int)sizeof(path))
+        if (snprintf(path, sizeof(path), "%s%ld", dir, i) >=
+                (int)sizeof(path))
             continue;
 
         fp = fopen(path, "r");
         if (fp == NULL)
             continue;
 
+        msgid_match = 0;
+        domain_seen = 0;
+        domain_match = 0;
+
         while (fgets(line, sizeof(line), fp) != NULL) {
+            char *value;
+
             line[strcspn(line, "\r\n")] = '\0';
-            if (strcmp(line, needle) == 0) {
-                fclose(fp);
-                return 1;
+
+            if (strcmp(line, msgid_needle) == 0) {
+                msgid_match = 1;
+                continue;
             }
+
+            if (strncmp(line, "FTN-Domain:", 11) != 0)
+                continue;
+
+            value = line + 11;
+            while (*value == ' ' || *value == '\t')
+                value++;
+
+            domain_seen = 1;
+            if (domain != NULL && *domain != '\0' &&
+                strcasecmp(value, domain) == 0)
+                domain_match = 1;
         }
 
         fclose(fp);
+
+        /*
+         * Old imported netmail has no FTN-Domain line.  Treat a matching
+         * old MSGID as a duplicate for upgrade compatibility.  New mail is
+         * compared as domain + MSGID so overlapping private FTN addresses
+         * do not collide.
+         *
+         * modified on 2026-07-16, PL
+         */
+        if (msgid_match &&
+            (domain == NULL || *domain == '\0' ||
+             !domain_seen || domain_match))
+            return 1;
     }
 
     return 0;
@@ -408,14 +495,37 @@ ftn_msgid_origin(const char *msgid, char *out, size_t outsz)
     out[len] = '\0';
 }
 
-static char *
-build_netmail_mbuf(const struct fido_msg *msg)
+static void
+make_ftn_5d_addr(const char *addr, const char *domain,
+    char *out, size_t outsz)
 {
-    char fromaddr[128];
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (addr == NULL || *addr == '\0')
+        return;
+
+    if (strchr(addr, '@') != NULL || domain == NULL || *domain == '\0') {
+        strlcpy(out, addr, outsz);
+        return;
+    }
+
+    snprintf(out, outsz, "%s@%s", addr, domain);
+}
+
+static char *
+build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
+    const char *local_addr)
+{
+    char fromaddr4d[128];
+    char fromaddr[192];
+    char toaddr[192];
     char fromline[512];
-	const char *body;
-    char *mbuf;
+    const char *body;
     size_t need;
+    char *mbuf;
 
     if (msg == NULL)
         return NULL;
@@ -426,14 +536,17 @@ build_netmail_mbuf(const struct fido_msg *msg)
     if (body == NULL)
         body = "";
 
-    ftn_msgid_origin(msg->msgid, fromaddr, sizeof(fromaddr));
+    ftn_msgid_origin(msg->msgid, fromaddr4d, sizeof(fromaddr4d));
+    make_ftn_5d_addr(fromaddr4d, domain, fromaddr, sizeof(fromaddr));
+    make_ftn_5d_addr(local_addr, domain, toaddr, sizeof(toaddr));
 
-		/*
-	     * Store the FTN origin address in the visible From: header too, so
-	     * SklaffKOM's normal mailbox header shows where netmail came from.
-	     *
-	     * modified on 2026-07-09, PL
-	     */
+    /*
+     * Store a canonical 5D origin address in the visible From: line and in
+     * hidden FTN metadata.  A later personal comment can then route a reply
+     * through the same FTN domain instead of guessing from a 4D address.
+     *
+     * modified on 2026-07-16, PL
+     */
     if (fromaddr[0] != '\0') {
         snprintf(fromline, sizeof(fromline), "%s (%s)",
             msg->from[0] ? msg->from : "(unknown)", fromaddr);
@@ -441,6 +554,7 @@ build_netmail_mbuf(const struct fido_msg *msg)
         snprintf(fromline, sizeof(fromline), "%s",
             msg->from[0] ? msg->from : "(unknown)");
     }
+
     need = 1024;
     need += strlen(msg->from);
     need += strlen(msg->to);
@@ -450,7 +564,10 @@ build_netmail_mbuf(const struct fido_msg *msg)
     need += strlen(msg->reply);
     need += strlen(msg->chrs);
     need += strlen(fromaddr);
+    need += strlen(toaddr);
     need += strlen(body);
+    if (domain != NULL)
+        need += strlen(domain);
 
     mbuf = calloc(1, need);
     if (mbuf == NULL)
@@ -467,9 +584,21 @@ build_netmail_mbuf(const struct fido_msg *msg)
         msg->subject,
         msg->date);
 
+    if (domain != NULL && *domain != '\0') {
+        strlcat(mbuf, "FTN-Domain: ", need);
+        strlcat(mbuf, domain, need);
+        strlcat(mbuf, "\n", need);
+    }
+
     if (fromaddr[0] != '\0') {
         strlcat(mbuf, "FTN-FromAddr: ", need);
         strlcat(mbuf, fromaddr, need);
+        strlcat(mbuf, "\n", need);
+    }
+
+    if (toaddr[0] != '\0') {
+        strlcat(mbuf, "FTN-ToAddr: ", need);
+        strlcat(mbuf, toaddr, need);
         strlcat(mbuf, "\n", need);
     }
 
@@ -497,8 +626,9 @@ build_netmail_mbuf(const struct fido_msg *msg)
     return mbuf;
 }
 
-int
-send_netmail(int uid, const struct fido_msg *msg)
+static int
+send_netmail_with_context(int uid, const struct fido_msg *msg,
+    const char *domain, const char *local_addr)
 {
     FILE *fp;
     char dir[PATH_MAX];
@@ -513,7 +643,7 @@ send_netmail(int uid, const struct fido_msg *msg)
     if (uid <= 0 || msg == NULL)
         return -1;
 
-    mbuf = build_netmail_mbuf(msg);
+    mbuf = build_netmail_mbuf(msg, domain, local_addr);
     if (mbuf == NULL)
         return -1;
 
@@ -588,6 +718,14 @@ send_netmail(int uid, const struct fido_msg *msg)
     return 0;
 }
 
+
+int
+send_netmail(int uid, const struct fido_msg *msg)
+{
+    /* Backward-compatible local helper without FTN domain context. */
+    return send_netmail_with_context(uid, msg, NULL, NULL);
+}
+
 static void
 notify_netmail_user(int uid, int sig)
 {
@@ -623,7 +761,8 @@ notify_netmail_user(int uid, int sig)
 }
 
 int
-import_ftn_netmail_spool(const char *spooldir)
+import_ftn_netmail_spool_5d(const char *spooldir, const char *domain,
+    const char *local_addr)
 {
     DIR *dir;
     struct dirent *de;
@@ -636,7 +775,7 @@ import_ftn_netmail_spool(const char *spooldir)
     long failed = 0;
 
     if (spooldir == NULL || *spooldir == '\0') {
-        printf("FTN netmail import disabled: FTN_NETMAIL_SPOOL is empty\n");
+        printf("FTN netmail import disabled: netmail spool is empty\n");
         return 0;
     }
 
@@ -649,7 +788,11 @@ import_ftn_netmail_spool(const char *spooldir)
     printf("\n");
     printf("FTN netmail import\n");
     printf("------------------\n");
-    printf("Spool: %s\n", spooldir);
+    printf("Domain:    %s\n",
+        domain != NULL && *domain != '\0' ? domain : "(unknown)");
+    printf("Local AKA: %s\n",
+        local_addr != NULL && *local_addr != '\0' ? local_addr : "(unknown)");
+    printf("Spool:     %s\n", spooldir);
 
     while ((de = readdir(dir)) != NULL) {
         char path[PATH_MAX];
@@ -696,14 +839,15 @@ import_ftn_netmail_spool(const char *spooldir)
             continue;
         }
 
-        if (netmail_already_imported(uid, msg.msgid)) {
+        if (netmail_already_imported(uid, domain, msg.msgid)) {
             printf("[SKIP] %s: duplicate FTN-MSGID %s\n", de->d_name, msg.msgid);
             skipped_duplicate++;
             free_fido_msg(&msg);
             continue;
         }
 
-        if (send_netmail(uid, &msg) != 0) {
+        if (send_netmail_with_context(uid, &msg, domain,
+                local_addr) != 0) {
             fprintf(stderr, "[ERROR] Could not import netmail %s for uid %d\n", de->d_name, uid);
             failed++;
             free_fido_msg(&msg);
@@ -735,4 +879,12 @@ import_ftn_netmail_spool(const char *spooldir)
     printf("Failed:           %ld\n", failed);
 
     return failed ? -1 : 0;
+}
+
+
+int
+import_ftn_netmail_spool(const char *spooldir)
+{
+    /* Backward-compatible single-spool import without 5D metadata. */
+    return import_ftn_netmail_spool_5d(spooldir, NULL, NULL);
 }

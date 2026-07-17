@@ -4,6 +4,7 @@
 #include "ftnmsg.h"
 #include "ftnnetmail.h" /* modified on 2026-07-09, PL */
 #include "ext_globals.h"
+#include "ftnconfig.h" /* modified on 2026-07-14, PL */
 
 #include <ctype.h>
 #include <dirent.h>
@@ -24,21 +25,20 @@
 #define FTNTOSS_LOCKFILE "/tmp/ftntoss.lock" /* modified on 2026-06-11, PL */
 #define FTN_WRAP_COL 78 /* modified on 2026-06-13, PL */
 
-#define FTN_OUR_ZONE  21   /* modified on 2026-06-12, PL */
-#define FTN_OUR_NET   3    /* modified on 2026-06-12, PL */
-#define FTN_OUR_NODE  242  /* modified on 2026-06-12, PL */
-#define FTN_OUR_POINT 0    /* modified on 2026-06-12, PL */
-
-#define FTN_HUB_ZONE  21   /* modified on 2026-06-12, PL */
-#define FTN_HUB_NET   3    /* modified on 2026-06-12, PL */
-#define FTN_HUB_NODE  100  /* modified on 2026-06-12, PL */
-#define FTN_HUB_POINT 0    /* modified on 2026-06-12, PL */
-
+/*
+ * FTN addresses and messagebase paths are read from crashmail.prefs.
+ * No network-specific AKA, hub or spool path belongs in ftntoss.c.
+ *
+ * modified on 2026-07-16, PL
+ */
 #define FTN_LOCAL_ATTR 0x0100 /* modified on 2026-06-12, PL */
-#define FTN_ORIGIN "Twilight Node" /* modified on 2026-06-12, PL */
 
 #define FTN_PRIVATE_ATTR 0x0001 /* modified on 2026-07-11, PL */
 #define FTN_NETMAIL_ATTR (FTN_PRIVATE_ATTR | FTN_LOCAL_ATTR) /* modified on 2026-07-11, PL */
+
+#ifndef CRASHMAIL_PREFS_FILE
+#define CRASHMAIL_PREFS_FILE "/ftn/etc/crashmail.prefs"
+#endif
 
 struct ftn_conf_info {
     int num;
@@ -50,6 +50,13 @@ struct ftn_conf_info {
     int comconf;
     char name[LINE_LEN];
 };
+
+struct meeting_ftn_config {
+    int version;
+    char type[32];
+    char domain[FTN_DOMAIN_LEN];
+    char tag[FTN_TAG_LEN];
+}; /* modified on 2026-07-15, PL */
 
 struct msgref {
     char msgid[256];
@@ -101,8 +108,8 @@ struct export_one_args {
 }; /* modified on 2026-06-14, PL */
 
 struct import_netmail_args {
-    const char *spooldir;
-}; /* modified on 2026-07-09, PL */
+    const char *prefsfile;
+}; /* modified on 2026-07-16, PL */
 
 struct export_netmail_job_args {
     const char *jobfile;
@@ -118,17 +125,26 @@ struct netmail_job {
     char *body;
 }; /* modified on 2026-07-11, PL */
 
+struct netmail_destination {
+    struct ftn_address address;
+    char domain[FTN_DOMAIN_LEN];
+    int has_domain;
+}; /* modified on 2026-07-16, PL */
+
 static int run_export_netmail_job_locked(void *arg); /* modified on 2026-07-11, PL */
 static int export_netmail_job(const char *jobfile); /* modified on 2026-07-11, PL */
 static int read_netmail_job(const char *path, struct netmail_job *job); /* modified on 2026-07-11, PL */
 static void free_netmail_job(struct netmail_job *job); /* modified on 2026-07-11, PL */
-static int parse_ftn_addr_4d(const char *addr, int *zone, int *net,
-    int *node, int *point); /* modified on 2026-07-11, PL */
-static int make_next_netmail_msg_path(char *out, size_t outsz,
-    long *outnum); /* modified on 2026-07-11, PL */
+static int parse_ftn_addr_5d(const char *addr,
+    struct netmail_destination *destination); /* modified on 2026-07-16, PL */
+static int load_netmail_area_for_destination(
+    const struct netmail_destination *destination,
+    struct ftn_config *config, const struct ftn_area **out_area); /* modified on 2026-07-16, PL */
+static int import_all_netmail_spools(const char *prefsfile); /* modified on 2026-07-16, PL */
 static int write_fido_netmail_out(const char *path,
     const struct netmail_job *job, const char *from,
-    int dz, int dn, int dnode, int dp, const char *msgid); /* modified on 2026-07-11, PL */
+    const struct ftn_address *orig, const struct ftn_address *dest,
+    const char *msgid); /* modified on 2026-07-16, PL */
 
 static int export_test_ftn(const char *area);
 
@@ -141,16 +157,28 @@ static int read_skom_ftn_msgid(int confnum, long textnum,
     char *out, size_t outsz); /* modified on 2026-06-14, PL */
 static void strip_eol(char *s); /* modified on 2026-06-14, PL */
 
-static int next_msg_path(const char *area, char *out, size_t outsz, long *out_num);
-static int write_fido_msg_out(const char *path, const char *area,
+static int next_msg_path(const char *spooldir, char *out, size_t outsz,
+    long *out_num);
+static int write_fido_msg_out(const char *path,
+    const struct ftn_area *ftn_area, const struct ftn_link *feed,
     const char *from, const char *to, const char *subject,
     const char *body, const char *reply, const char *msgid);
 static void write_fixed_field(unsigned char *dst, size_t len, const char *src);
 static void write_u16_le(unsigned char *dst, unsigned int val);
 static void make_fido_date(char *out, size_t outsz);
 static int parse_fido_msg_date(const char *s, time_t *out); /* modified on 2026-06-15, PL */
-static void make_ftn_msgid(char *out, size_t outsz, unsigned long serial);
+static void make_ftn_msgid_for_aka(char *out, size_t outsz,
+    const struct ftn_address *aka, unsigned long serial);
 static unsigned long make_export_test_serial(const char *area, long msgnum);
+static int load_meeting_ftnconf(const struct ftn_conf_info *ce,
+    struct meeting_ftn_config *meeting, int *out_found);
+static int load_echomail_area_config(const char *fallback_tag,
+    const struct ftn_conf_info *ce, struct ftn_config *config,
+    const struct ftn_area **out_area); /* modified on 2026-07-15, PL */
+static int load_echomail_area(const char *fallback_tag,
+    const struct ftn_conf_info *ce, struct ftn_config *config,
+    const struct ftn_area **out_area,
+    const struct ftn_link **out_feed); /* modified on 2026-07-15, PL */
 
 static int find_ftn_conf(const char *name, struct ftn_conf_info *out_ce);
 static int is_msg_file(const char *name);
@@ -180,7 +208,8 @@ static long msgitem_filename_number(const char *filename); /* modified on 2026-0
 static struct msgitem *sort_msgitems_by_number(struct msgitem *list); /* modified on 2026-06-15, PL */
 
 static int scan_existing_skl_msgids(const struct ftn_conf_info *ce,
-    struct skref **out_refs, long *out_indexed);
+    const struct ftn_address *aka, struct skref **out_refs,
+    long *out_indexed);
 static int extract_ftn_msgid_from_line(const char *line, char *out, size_t outsz);
 static int build_spool_index(const char *spooldir, struct msgref **out_refs,
     struct msgitem **out_items, long *out_seen, long *out_indexed, long *out_failed);
@@ -238,6 +267,8 @@ static int ftntoss_get_sklaff_ids(uid_t *uid, gid_t *gid); /* modified on 2026-0
 static int ftntoss_fix_fd_to_sklaff(FILE *fp, const char *path, mode_t mode); /* modified on 2026-07-09, PL */
 static int ftntoss_fix_fd_like_stat(FILE *fp, const char *path, const struct stat *st); /* modified on 2026-07-09, PL */
 static int ftntoss_fix_control_file(const char *path, mode_t mode); /* modified on 2026-07-09, PL */
+
+static int dump_ftn_config_file(const char *path); /* modified on 2026-07-14, PL */
 
 static void
 sklaff_version_no_build(char *out, size_t outsz)
@@ -433,15 +464,21 @@ make_ftn_addr(char *out, size_t outsz, int zone, int net, int node, int point)
 }
 
 static void
-make_ftn_msgid(char *out, size_t outsz, unsigned long serial)
+make_ftn_msgid_for_aka(char *out, size_t outsz,
+    const struct ftn_address *aka, unsigned long serial)
 {
     char addr[64];
 
     if (out == NULL || outsz == 0)
         return;
 
-    make_ftn_addr(addr, sizeof(addr), FTN_OUR_ZONE, FTN_OUR_NET,
-        FTN_OUR_NODE, FTN_OUR_POINT);
+    out[0] = '\0';
+
+    if (aka == NULL)
+        return;
+
+    make_ftn_addr(addr, sizeof(addr), aka->zone, aka->net,
+        aka->node, aka->point);
 
     /*
      * FTS-0009 MSGID format is:
@@ -450,7 +487,7 @@ make_ftn_msgid(char *out, size_t outsz, unsigned long serial)
      *
      * Keep the serial field at exactly eight hexadecimal digits.
      *
-     * modified on 2026-06-14, PL
+     * modified on 2026-07-15, PL
      */
     snprintf(out, outsz, "%s %08lx", addr, serial & 0xffffffffUL);
 }
@@ -839,25 +876,19 @@ wrap_ftn_body_for_skom(const char *body)
 }
 
 static int
-next_msg_path(const char *area, char *out, size_t outsz, long *out_num)
+next_msg_path(const char *spooldir, char *out, size_t outsz, long *out_num)
 {
-    char dirpath[PATH_MAX];
     DIR *dir;
     struct dirent *de;
-    long maxnum = 0;
+    long maxnum = 1;
 
-    if (area == NULL || out == NULL || outsz == 0)
+    if (spooldir == NULL || *spooldir == '\0' ||
+        out == NULL || outsz == 0)
         return -1;
 
-    if (snprintf(dirpath, sizeof(dirpath), "%s/%s", FTN_SPOOL, area) >=
-            (int)sizeof(dirpath)) {
-        fprintf(stderr, "[ERROR] FTN area path too long: %s/%s\n", FTN_SPOOL, area);
-        return -1;
-    }
-
-    dir = opendir(dirpath);
+    dir = opendir(spooldir);
     if (dir == NULL) {
-        perror(dirpath);
+        perror(spooldir);
         return -1;
     }
 
@@ -881,10 +912,10 @@ next_msg_path(const char *area, char *out, size_t outsz, long *out_num)
     }
 
     closedir(dir);
-
     maxnum++;
 
-    if (snprintf(out, outsz, "%s/%ld.msg", dirpath, maxnum) >= (int)outsz) {
+    if (snprintf(out, outsz, "%s/%ld.msg", spooldir, maxnum) >=
+            (int)outsz) {
         fprintf(stderr, "[ERROR] Output .MSG path too long\n");
         return -1;
     }
@@ -896,20 +927,26 @@ next_msg_path(const char *area, char *out, size_t outsz, long *out_num)
 }
 
 static int
-write_fido_msg_out(const char *path, const char *area,
-    const char *from, const char *to, const char *subject,
-    const char *body, const char *reply, const char *msgid)
+write_fido_msg_out(const char *path, const struct ftn_area *ftn_area,
+    const struct ftn_link *feed, const char *from, const char *to,
+    const char *subject, const char *body, const char *reply,
+    const char *msgid)
 {
     FILE *fp;
     unsigned char hdr[190];
     char datebuf[32];
-	char version[64];
+    char version[64];
     char tzbuf[16];
+    const struct ftn_address *orig;
+    const struct ftn_address *dest;
 
-    if (path == NULL || area == NULL || from == NULL || to == NULL ||
-            subject == NULL || body == NULL || msgid == NULL ||
-            *msgid == '\0')
+    if (path == NULL || ftn_area == NULL || feed == NULL ||
+            from == NULL || to == NULL || subject == NULL || body == NULL ||
+            msgid == NULL || *msgid == '\0')
         return -1;
+
+    orig = &ftn_area->aka;
+    dest = &feed->address;
 
     memset(hdr, 0, sizeof(hdr));
 
@@ -928,19 +965,19 @@ write_fido_msg_out(const char *path, const char *area,
     write_fixed_field(hdr + 72,  72, subject);
     write_fixed_field(hdr + 144, 20, datebuf);
 
-    write_u16_le(hdr + 164, 0);                  /* times read */
-    write_u16_le(hdr + 166, FTN_HUB_NODE);       /* dest node */
-    write_u16_le(hdr + 168, FTN_OUR_NODE);       /* orig node */
-    write_u16_le(hdr + 170, 0);                  /* cost */
-    write_u16_le(hdr + 172, FTN_OUR_NET);        /* orig net */
-    write_u16_le(hdr + 174, FTN_HUB_NET);        /* dest net */
-    write_u16_le(hdr + 176, FTN_HUB_ZONE);       /* dest zone */
-    write_u16_le(hdr + 178, FTN_OUR_ZONE);       /* orig zone */
-    write_u16_le(hdr + 180, FTN_HUB_POINT);      /* dest point */
-    write_u16_le(hdr + 182, FTN_OUR_POINT);      /* orig point */
-    write_u16_le(hdr + 184, 0);                  /* reply to */
-    write_u16_le(hdr + 186, FTN_LOCAL_ATTR);     /* attr: local */
-    write_u16_le(hdr + 188, 0);                  /* next reply */
+    write_u16_le(hdr + 164, 0);              /* times read */
+    write_u16_le(hdr + 166, dest->node);     /* dest node */
+    write_u16_le(hdr + 168, orig->node);     /* orig node */
+    write_u16_le(hdr + 170, 0);              /* cost */
+    write_u16_le(hdr + 172, orig->net);      /* orig net */
+    write_u16_le(hdr + 174, dest->net);      /* dest net */
+    write_u16_le(hdr + 176, dest->zone);     /* dest zone */
+    write_u16_le(hdr + 178, orig->zone);     /* orig zone */
+    write_u16_le(hdr + 180, dest->point);    /* dest point */
+    write_u16_le(hdr + 182, orig->point);    /* orig point */
+    write_u16_le(hdr + 184, 0);              /* reply to */
+    write_u16_le(hdr + 186, FTN_LOCAL_ATTR); /* attr: local */
+    write_u16_le(hdr + 188, 0);              /* next reply */
 
     fp = fopen(path, "wb");
     if (fp == NULL) {
@@ -983,8 +1020,8 @@ write_fido_msg_out(const char *path, const char *area,
 
 		sklaff_version_no_build(version, sizeof(version));
 
-        make_ftn_addr(origin_addr, sizeof(origin_addr), FTN_OUR_ZONE,
-            FTN_OUR_NET, FTN_OUR_NODE, FTN_OUR_POINT);
+        make_ftn_addr(origin_addr, sizeof(origin_addr),
+            orig->zone, orig->net, orig->node, orig->point);
         fprintf(fp, "\r--- SklaffKOM v%s\r", version);
 		fprintf(fp, " * Origin: %s, %s (%s)\r",
     		SKLAFF_ID, SKLAFF_LOC, origin_addr);
@@ -1004,16 +1041,21 @@ write_fido_msg_out(const char *path, const char *area,
 }
 
 static int
-parse_ftn_addr_4d(const char *addr, int *zone, int *net, int *node, int *point)
+parse_ftn_addr_5d(const char *addr, struct netmail_destination *destination)
 {
     const char *p;
+    const char *domain;
     char *end;
-    long z, n, nd, pt;
+    long z;
+    long n;
+    long nd;
+    long pt;
+    size_t domain_len;
 
-    if (addr == NULL || zone == NULL || net == NULL ||
-        node == NULL || point == NULL)
+    if (addr == NULL || destination == NULL)
         return -1;
 
+    memset(destination, 0, sizeof(*destination));
     p = addr;
 
     z = strtol(p, &end, 10);
@@ -1038,14 +1080,184 @@ parse_ftn_addr_4d(const char *addr, int *zone, int *net, int *node, int *point)
             return -1;
     }
 
-    if (*end != '\0')
+    if (*end == '@') {
+        domain = end + 1;
+        domain_len = strlen(domain);
+
+        if (domain_len == 0 || domain_len >= sizeof(destination->domain))
+            return -1;
+
+        for (p = domain; *p != '\0'; p++) {
+            unsigned char ch;
+
+            ch = (unsigned char)*p;
+            if (!isalnum(ch) && ch != '-' && ch != '_' && ch != '.')
+                return -1;
+        }
+
+        strlcpy(destination->domain, domain,
+            sizeof(destination->domain));
+        destination->has_domain = 1;
+    } else if (*end != '\0') {
+        return -1;
+    }
+
+    destination->address.zone = (int)z;
+    destination->address.net = (int)n;
+    destination->address.node = (int)nd;
+    destination->address.point = (int)pt;
+
+    return 0;
+}
+
+/*
+ * load_netmail_area_for_destination - select outgoing netmail context
+ * args: parsed destination, loaded-config output, selected-area output
+ * ret: success (0) or error (-1)
+ *
+ * A 5D address selects its CrashMail NETMAIL area by domain.  A legacy 4D
+ * address is accepted when the destination zone maps to exactly one NETMAIL
+ * domain, or when only one NETMAIL area exists at all.
+ *
+ * modified on 2026-07-16, PL
+ */
+static int
+load_netmail_area_for_destination(
+    const struct netmail_destination *destination,
+    struct ftn_config *config, const struct ftn_area **out_area)
+{
+    const struct ftn_area *found;
+    const struct ftn_area *only_area;
+    char error[512];
+    size_t i;
+    size_t total;
+    size_t matches;
+
+    if (destination == NULL || config == NULL || out_area == NULL)
         return -1;
 
-    *zone = (int)z;
-    *net = (int)n;
-    *node = (int)nd;
-    *point = (int)pt;
+    *out_area = NULL;
+    found = NULL;
+    only_area = NULL;
+    total = 0;
+    matches = 0;
 
+    ftn_config_init(config);
+
+    if (ftn_config_load_crashmail(CRASHMAIL_PREFS_FILE, config,
+            error, sizeof(error)) != 0) {
+        fprintf(stderr, "[ERROR] ftntoss: %s\n", error);
+        return -1;
+    }
+
+    for (i = 0; i < config->area_count; i++) {
+        const struct ftn_area *candidate;
+
+        candidate = &config->areas[i];
+
+        if (candidate->type != FTN_AREA_NETMAIL)
+            continue;
+
+        total++;
+        only_area = candidate;
+
+        if (destination->has_domain) {
+            if (strcasecmp(candidate->domain, destination->domain) != 0)
+                continue;
+        } else {
+            if (candidate->aka.zone != destination->address.zone)
+                continue;
+        }
+
+        found = candidate;
+        matches++;
+    }
+
+    if (!destination->has_domain && matches == 0 && total == 1) {
+        found = only_area;
+        matches = 1;
+    }
+
+    if (total == 0) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: no NETMAIL areas were found in %s\n",
+            CRASHMAIL_PREFS_FILE);
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (matches == 0) {
+        if (destination->has_domain) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: no NETMAIL area for domain '%s' in %s\n",
+                destination->domain, CRASHMAIL_PREFS_FILE);
+        } else {
+            fprintf(stderr,
+                "[ERROR] ftntoss: 4D destination zone %d does not identify "
+                "a unique NETMAIL domain\n",
+                destination->address.zone);
+            fprintf(stderr,
+                "[ERROR] ftntoss: use a 5D address such as "
+                "%d:%d/%d@domain\n",
+                destination->address.zone,
+                destination->address.net,
+                destination->address.node);
+        }
+
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (matches > 1) {
+        if (destination->has_domain) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: more than one NETMAIL area uses domain "
+                "'%s' in %s\n",
+                destination->domain, CRASHMAIL_PREFS_FILE);
+        } else {
+            fprintf(stderr,
+                "[ERROR] ftntoss: destination zone %d matches more than one "
+                "NETMAIL area\n",
+                destination->address.zone);
+            fprintf(stderr,
+                "[ERROR] ftntoss: use a full 5D destination address with "
+                "@domain\n");
+        }
+
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (found->messagebase[0] == '\0' ||
+        strcasecmp(found->messagebase, "MSG") != 0) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: NETMAIL area '%s' uses unsupported "
+            "messagebase '%s'; only MSG is currently supported\n",
+            found->tag,
+            found->messagebase[0] ? found->messagebase : "(missing)");
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (found->path[0] == '\0') {
+        fprintf(stderr,
+            "[ERROR] ftntoss: NETMAIL area '%s' has no messagebase path "
+            "in %s\n",
+            found->tag, CRASHMAIL_PREFS_FILE);
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (found->domain[0] == '\0') {
+        fprintf(stderr,
+            "[ERROR] ftntoss: NETMAIL area '%s' has no resolved domain "
+            "in %s\n",
+            found->tag, CRASHMAIL_PREFS_FILE);
+        ftn_config_free(config);
+        return -1;
+    }
+
+    *out_area = found;
     return 0;
 }
 
@@ -1157,59 +1369,24 @@ read_netmail_job(const char *path, struct netmail_job *job)
     return 0;
 }
 
-static int
-make_next_netmail_msg_path(char *out, size_t outsz, long *outnum)
-{
-    DIR *dir;
-    struct dirent *de;
-    long maxnum;
-    long n;
-    char *end;
-
-    if (out == NULL || outsz == 0 || outnum == NULL)
-        return -1;
-
-    dir = opendir(FTN_NETMAIL_SPOOL);
-    if (dir == NULL) {
-        perror(FTN_NETMAIL_SPOOL);
-        return -1;
-    }
-
-    maxnum = 0;
-
-    while ((de = readdir(dir)) != NULL) {
-        n = strtol(de->d_name, &end, 10);
-        if (end == de->d_name || strcmp(end, ".msg") != 0)
-            continue;
-
-        if (n > maxnum)
-            maxnum = n;
-    }
-
-    closedir(dir);
-
-    n = maxnum + 1;
-    if (snprintf(out, outsz, "%s/%ld.msg", FTN_NETMAIL_SPOOL, n) >=
-        (int)outsz)
-        return -1;
-
-    *outnum = n;
-    return 0;
-}
 
 static int
 write_fido_netmail_out(const char *path, const struct netmail_job *job,
-    const char *from, int dz, int dn, int dnode, int dp, const char *msgid)
+    const char *from, const struct ftn_address *orig,
+    const struct ftn_address *dest, const char *msgid)
 {
     FILE *fp;
     unsigned char hdr[190];
     char datebuf[32];
     char dest_addr[64];
     char orig_addr[64];
+    char intl_dest[64];
+    char intl_orig[64];
     const char *body;
     char tzbuf[16];
 
     if (path == NULL || job == NULL || from == NULL ||
+        orig == NULL || dest == NULL ||
         msgid == NULL || *msgid == '\0')
         return -1;
 
@@ -1219,9 +1396,21 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
     make_fido_date(datebuf, sizeof(datebuf));
     make_tzutc(tzbuf, sizeof(tzbuf));
 
-    make_ftn_addr(dest_addr, sizeof(dest_addr), dz, dn, dnode, dp);
-    make_ftn_addr(orig_addr, sizeof(orig_addr), FTN_OUR_ZONE, FTN_OUR_NET,
-        FTN_OUR_NODE, FTN_OUR_POINT);
+    make_ftn_addr(dest_addr, sizeof(dest_addr),
+        dest->zone, dest->net, dest->node, dest->point);
+    make_ftn_addr(orig_addr, sizeof(orig_addr),
+        orig->zone, orig->net, orig->node, orig->point);
+
+    /*
+     * INTL carries zone:net/node boss addresses.  Point information is
+     * represented separately by TOPT/FMPT.
+     *
+     * modified on 2026-07-16, PL
+     */
+    snprintf(intl_dest, sizeof(intl_dest), "%d:%d/%d",
+        dest->zone, dest->net, dest->node);
+    snprintf(intl_orig, sizeof(intl_orig), "%d:%d/%d",
+        orig->zone, orig->net, orig->node);
 
     write_fixed_field(hdr + 0,   36, from);
     write_fixed_field(hdr + 36,  36, job->toname);
@@ -1229,15 +1418,15 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
     write_fixed_field(hdr + 144, 20, datebuf);
 
     write_u16_le(hdr + 164, 0);                 /* times read */
-    write_u16_le(hdr + 166, dnode);             /* dest node */
-    write_u16_le(hdr + 168, FTN_OUR_NODE);      /* orig node */
+    write_u16_le(hdr + 166, dest->node);        /* dest node */
+    write_u16_le(hdr + 168, orig->node);        /* orig node */
     write_u16_le(hdr + 170, 0);                 /* cost */
-    write_u16_le(hdr + 172, FTN_OUR_NET);       /* orig net */
-    write_u16_le(hdr + 174, dn);                /* dest net */
-    write_u16_le(hdr + 176, dz);                /* dest zone */
-    write_u16_le(hdr + 178, FTN_OUR_ZONE);      /* orig zone */
-    write_u16_le(hdr + 180, dp);                /* dest point */
-    write_u16_le(hdr + 182, FTN_OUR_POINT);     /* orig point */
+    write_u16_le(hdr + 172, orig->net);         /* orig net */
+    write_u16_le(hdr + 174, dest->net);         /* dest net */
+    write_u16_le(hdr + 176, dest->zone);        /* dest zone */
+    write_u16_le(hdr + 178, orig->zone);        /* orig zone */
+    write_u16_le(hdr + 180, dest->point);       /* dest point */
+    write_u16_le(hdr + 182, orig->point);       /* orig point */
     write_u16_le(hdr + 184, 0);                 /* reply to */
     write_u16_le(hdr + 186, FTN_NETMAIL_ATTR);  /* private + local */
     write_u16_le(hdr + 188, 0);                 /* next reply */
@@ -1254,7 +1443,13 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
         return -1;
     }
 
-    fprintf(fp, "\001INTL %s %s\r", dest_addr, orig_addr);
+    fprintf(fp, "\001INTL %s %s\r", intl_dest, intl_orig);
+
+    if (dest->point != 0)
+        fprintf(fp, "\001TOPT %d\r", dest->point);
+    if (orig->point != 0)
+        fprintf(fp, "\001FMPT %d\r", orig->point);
+
     fprintf(fp, "\001MSGID: %s\r", msgid);
 
     if (job->reply[0] != '\0')
@@ -1271,6 +1466,7 @@ write_fido_netmail_out(const char *path, const struct netmail_job *job,
             fputc((unsigned char)*body, fp);
         body++;
     }
+
     /*
      * Add a tearline and origin line to netmail too.  Netmail routing does
      * not depend on this, but some FTN tools expect it and report *NO ORIGIN*
@@ -1307,61 +1503,78 @@ static int
 export_netmail_job(const char *jobfile)
 {
     struct netmail_job job;
-    struct passwd *pw;
-    char path[4096];
+    struct netmail_destination destination;
+    struct ftn_config config;
+    const struct ftn_area *netmail_area;
+    char path[PATH_MAX];
     char msgid[128];
     char from[128];
+    char aka[64];
+    char dest_addr[64];
     long msgnum;
     unsigned long serial;
-    int dz, dn, dnode, dp;
     int rc;
 
     if (jobfile == NULL)
         return -1;
 
+    memset(&job, 0, sizeof(job));
+    memset(&destination, 0, sizeof(destination));
+    ftn_config_init(&config);
+    netmail_area = NULL;
+    rc = -1;
+
     if (read_netmail_job(jobfile, &job) != 0) {
         fprintf(stderr, "[ERROR] Could not read netmail job: %s\n", jobfile);
-        return -1;
+        goto cleanup;
     }
 
-    if (parse_ftn_addr_4d(job.toaddr, &dz, &dn, &dnode, &dp) != 0) {
+    if (parse_ftn_addr_5d(job.toaddr, &destination) != 0) {
         fprintf(stderr, "[ERROR] Invalid FTN netmail address: %s\n",
             job.toaddr);
-        free_netmail_job(&job);
-        return -1;
+        goto cleanup;
     }
 
-    pw = getpwuid((uid_t)job.fromuid);
-    if (pw != NULL && pw->pw_gecos != NULL && pw->pw_gecos[0] != '\0') {
-        strlcpy(from, pw->pw_gecos, sizeof(from));
-        if (strchr(from, ',') != NULL)
-            *strchr(from, ',') = '\0';
-    } else if (pw != NULL) {
-        strlcpy(from, pw->pw_name, sizeof(from));
-    } else {
-        snprintf(from, sizeof(from), "User %d", job.fromuid);
-    }
+    if (load_netmail_area_for_destination(&destination, &config,
+            &netmail_area) != 0)
+        goto cleanup;
 
-    if (make_next_netmail_msg_path(path, sizeof(path), &msgnum) != 0) {
-        free_netmail_job(&job);
-        return -1;
-    }
+    make_skom_from_name(job.fromuid, from, sizeof(from));
+
+    if (next_msg_path(netmail_area->path, path, sizeof(path), &msgnum) != 0)
+        goto cleanup;
 
     /*
      * Netmail MSGID serial: keep it stable for this queued job using the
-     * queue timestamp plus the local .MSG number.  This is simple, unique
-     * enough for normal queue operation, and follows the existing MSGID
-     * address format.
+     * queue timestamp plus the local .MSG number.  The origin address now
+     * comes from the selected CrashMail NETMAIL area's AKA.
      *
-     * modified on 2026-07-11, PL
+     * modified on 2026-07-16, PL
      */
     serial = (((unsigned long)job.created & 0xffffUL) << 16) |
         ((unsigned long)msgnum & 0xffffUL);
-    make_ftn_msgid(msgid, sizeof(msgid), serial);
+    make_ftn_msgid_for_aka(msgid, sizeof(msgid),
+        &netmail_area->aka, serial);
 
-    rc = write_fido_netmail_out(path, &job, from, dz, dn, dnode, dp, msgid);
+    ftn_address_format(&netmail_area->aka, aka, sizeof(aka));
+    ftn_address_format(&destination.address, dest_addr, sizeof(dest_addr));
 
+    printf("FTN netmail export setup\n");
+    printf("------------------------\n");
+    printf("Domain:      %s\n", netmail_area->domain);
+    printf("Netmail tag: %s\n", netmail_area->tag);
+    printf("Local AKA:   %s\n", aka);
+    printf("Destination: %s@%s\n", dest_addr, netmail_area->domain);
+    printf("Spool:       %s\n", netmail_area->path);
+    printf("Msg no:      %ld\n", msgnum);
+    printf("Output:      %s\n\n", path);
+
+    rc = write_fido_netmail_out(path, &job, from,
+        &netmail_area->aka, &destination.address, msgid);
+
+cleanup:
     free_netmail_job(&job);
+    ftn_config_free(&config);
     return rc;
 }
 
@@ -1860,13 +2073,15 @@ extract_ftn_msgid_from_line(const char *line, char *out, size_t outsz)
 
 static int
 scan_existing_skl_msgids(const struct ftn_conf_info *ce,
-    struct skref **out_refs, long *out_indexed)
+    const struct ftn_address *aka, struct skref **out_refs,
+    long *out_indexed)
 {
     long i;
     long indexed = 0;
     char path[PATH_MAX];
 
-    if (ce == NULL || out_refs == NULL || out_indexed == NULL)
+    if (ce == NULL || aka == NULL || out_refs == NULL ||
+        out_indexed == NULL)
         return -1;
 
     *out_refs = NULL;
@@ -1928,7 +2143,7 @@ scan_existing_skl_msgids(const struct ftn_conf_info *ce,
                 subject, sizeof(subject), &body) == 0) {
             if (uid > 0) {
                 serial = make_export_one_serial(ce->num, i);
-                make_ftn_msgid(msgid, sizeof(msgid), serial);
+                make_ftn_msgid_for_aka(msgid, sizeof(msgid), aka, serial);
                 add_skref(out_refs, msgid, i);
                 indexed++;
             }
@@ -2750,14 +2965,26 @@ static int
 export_test_ftn(const char *area)
 {
     struct ftn_conf_info ce;
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
+    const struct ftn_link *feed;
     char path[PATH_MAX];
-    long msgnum = 0;
     char body[1024];
     char msgid[128];
+    char aka[64];
+    char feedaddr[64];
+    long msgnum;
     unsigned long serial;
+    int rc;
 
     if (area == NULL || *area == '\0')
         return -1;
+
+    ftn_config_init(&config);
+    ftn_area = NULL;
+    feed = NULL;
+    msgnum = 0;
+    rc = -1;
 
     printf("ftntoss export-test starting\n");
     printf("============================\n\n");
@@ -2767,51 +2994,59 @@ export_test_ftn(const char *area)
 
     if (find_ftn_conf(area, &ce) != 0) {
         printf("FAILED\n");
-        fprintf(stderr, "[ERROR] Could not find FTN conference '%s'\n", area);
-        return -1;
+        fprintf(stderr,
+            "[ERROR] Could not find FTN conference '%s'\n", area);
+        goto cleanup;
     }
 
     printf("OK!\n");
 
     if (ce.type != FTN_CONF) {
-        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
-            area, ce.type);
-        return -1;
+        fprintf(stderr,
+            "[ERROR] Conference '%s' exists, but is not FTN_CONF "
+            "(type=%d)\n", area, ce.type);
+        goto cleanup;
     }
 
-    if (next_msg_path(area, path, sizeof(path), &msgnum) != 0)
-        return -1;
-        
-		serial = make_export_test_serial(area, msgnum);
-		make_ftn_msgid(msgid, sizeof(msgid), serial);
+    if (load_echomail_area(area, &ce, &config, &ftn_area, &feed) != 0)
+        goto cleanup;
+
+    if (next_msg_path(ftn_area->path, path, sizeof(path), &msgnum) != 0)
+        goto cleanup;
+
+    serial = make_export_test_serial(ftn_area->tag, msgnum);
+    make_ftn_msgid_for_aka(msgid, sizeof(msgid), &ftn_area->aka, serial);
 
     snprintf(body, sizeof(body),
         "This is a SklaffKOM/ftntoss echomail export test.\n"
         "\n"
         "\n"
-		"BBS name:      %s\n"
+        "BBS name:      %s\n"
         "Hostname:      %s\n"
         "Location:      %s\n"
         "Sysop:         %s\n"
         "\n"
+        "FTN domain:    %s\n"
         "FTN area:      %s\n"
         "Local conf:    %d\n"
         "Local msg no:  %ld\n"
         "FTN MSGID:     %s\n"
-
         "\n"
         "If you can read this message, outgoing FTN echomail from this\n"
         "SklaffKOM system appears to be working.\n"
-        "\n"
-        "Please reply if you can. Thanks!\n\n",
+        "\n",
         SKLAFF_ID,
         MACHINE_NAME,
         SKLAFF_LOC,
         SKLAFF_SYSOP,
-        area,
+        ftn_area->domain,
+        ftn_area->tag,
         ce.num,
         msgnum,
         msgid);
+
+    ftn_address_format(&ftn_area->aka, aka, sizeof(aka));
+    ftn_address_format(&feed->address, feedaddr, sizeof(feedaddr));
 
     printf("FTN export-test setup\n");
     printf("---------------------\n");
@@ -2819,20 +3054,28 @@ export_test_ftn(const char *area)
     printf("Hostname:   %s\n", MACHINE_NAME);
     printf("Location:   %s\n", SKLAFF_LOC);
     printf("Sysop:      %s\n", SKLAFF_SYSOP);
-    printf("Area:       %s\n", area);
+    printf("Domain:     %s\n", ftn_area->domain);
+    printf("Area:       %s\n", ftn_area->tag);
+    printf("AKA:        %s\n", aka);
+    printf("Feed:       %s\n", feedaddr);
+    printf("Spool:      %s\n", ftn_area->path);
     printf("Conf num:   %d\n", ce.num);
     printf("Conf type:  %d (FTN_CONF)\n", ce.type);
     printf("Msg no:     %ld\n", msgnum);
     printf("MSGID:      %s\n", msgid);
     printf("Output:     %s\n\n", path);
 
-	return write_fido_msg_out(path, area,
+    rc = write_fido_msg_out(path, ftn_area, feed,
         SKLAFF_SYSOP,
         "All",
         SKLAFF_ID " FTN export test",
         body,
         NULL,
         msgid);
+
+cleanup:
+    ftn_config_free(&config);
+    return rc;
 }
 
 static void
@@ -2888,22 +3131,37 @@ static int
 export_one_ftn(const char *area, long textnum)
 {
     struct ftn_conf_info ce;
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
+    const struct ftn_link *feed;
     char path[PATH_MAX];
     char subject[256];
     char msgid[128];
     char reply[256];
-    char from[128]; /* modified on 2026-06-14, PL */
-	char *body = NULL;
-    long msgnum = 0;
-    long uid = 0;
-    long when = 0;
-    long com = 0;
+    char from[128];
+    char aka[64];
+    char feedaddr[64];
+    char *body;
+    long msgnum;
+    long uid;
+    long when;
+    long com;
     unsigned long serial;
-    unsigned long reply_serial; /* modified on 2026-06-14, PL */
+    unsigned long reply_serial;
     int rc;
 
     if (area == NULL || *area == '\0' || textnum <= 0)
         return -1;
+
+    ftn_config_init(&config);
+    ftn_area = NULL;
+    feed = NULL;
+    body = NULL;
+    msgnum = 0;
+    uid = 0;
+    when = 0;
+    com = 0;
+    rc = -1;
 
     printf("ftntoss export-one starting\n");
     printf("===========================\n\n");
@@ -2913,49 +3171,53 @@ export_one_ftn(const char *area, long textnum)
 
     if (find_ftn_conf(area, &ce) != 0) {
         printf("FAILED\n");
-        fprintf(stderr, "[ERROR] Could not find FTN conference '%s'\n", area);
-        return -1;
+        fprintf(stderr,
+            "[ERROR] Could not find FTN conference '%s'\n", area);
+        goto cleanup;
     }
 
     printf("OK!\n");
 
     if (ce.type != FTN_CONF) {
-        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
-            area, ce.type);
-        return -1;
+        fprintf(stderr,
+            "[ERROR] Conference '%s' exists, but is not FTN_CONF "
+            "(type=%d)\n", area, ce.type);
+        goto cleanup;
     }
+
+    if (load_echomail_area(area, &ce, &config, &ftn_area, &feed) != 0)
+        goto cleanup;
 
     if (read_skom_export_text(ce.num, textnum, &uid, &when, &com,
             subject, sizeof(subject), &body) != 0)
-        return -1;
+        goto cleanup;
 
-    make_skom_from_name(uid, from, sizeof(from)); /* modified on 2026-06-14, PL */
+    make_skom_from_name(uid, from, sizeof(from));
 
-    if (next_msg_path(area, path, sizeof(path), &msgnum) != 0) {
-        free(body);
-        return -1;
-    }
+    if (next_msg_path(ftn_area->path, path, sizeof(path), &msgnum) != 0)
+        goto cleanup;
 
     serial = make_export_one_serial(ce.num, textnum);
-    make_ftn_msgid(msgid, sizeof(msgid), serial);
+    make_ftn_msgid_for_aka(msgid, sizeof(msgid), &ftn_area->aka, serial);
 
-     reply[0] = '\0';
+    reply[0] = '\0';
 
     if (com > 0) {
         if (read_skom_ftn_msgid(ce.num, com, reply, sizeof(reply)) != 0) {
             /*
-             * Parent text has no stored FTN-MSGID.  This normally means it
-             * was written locally in SklaffKOM and exported using our
-             * deterministic MSGID scheme.  Recreate that parent MSGID so
-             * replies to local SklaffKOM-originated FTN texts remain proper
-             * FTN replies instead of becoming new top-level messages.
+             * A locally written parent has no stored FTN-MSGID. Recreate
+             * its deterministic MSGID using this area's local AKA.
              *
-             * modified on 2026-06-14, PL
+             * modified on 2026-07-15, PL
              */
             reply_serial = make_export_one_serial(ce.num, com);
-            make_ftn_msgid(reply, sizeof(reply), reply_serial);
+            make_ftn_msgid_for_aka(reply, sizeof(reply), &ftn_area->aka,
+                reply_serial);
         }
-    };
+    }
+
+    ftn_address_format(&ftn_area->aka, aka, sizeof(aka));
+    ftn_address_format(&feed->address, feedaddr, sizeof(feedaddr));
 
     printf("FTN export-one setup\n");
     printf("--------------------\n");
@@ -2963,7 +3225,11 @@ export_one_ftn(const char *area, long textnum)
     printf("Hostname:   %s\n", MACHINE_NAME);
     printf("Location:   %s\n", SKLAFF_LOC);
     printf("Sysop:      %s\n", SKLAFF_SYSOP);
-    printf("Area:       %s\n", area);
+    printf("Domain:     %s\n", ftn_area->domain);
+    printf("Area:       %s\n", ftn_area->tag);
+    printf("AKA:        %s\n", aka);
+    printf("Feed:       %s\n", feedaddr);
+    printf("Spool:      %s\n", ftn_area->path);
     printf("Conf num:   %d\n", ce.num);
     printf("Conf type:  %d (FTN_CONF)\n", ce.type);
     printf("Text num:   %ld\n", textnum);
@@ -2976,22 +3242,17 @@ export_one_ftn(const char *area, long textnum)
         printf("REPLY:      %s\n", reply);
     printf("Output:     %s\n\n", path);
 
-	/*
-	* Use the local SklaffKOM text author uid as the FTN From name.
-	* make_skom_from_name() keeps ftntoss standalone by resolving the uid
-	* through the local passwd database.
-	*
-	* modified on 2026-06-14, PL
-	*/
-	
-	rc = write_fido_msg_out(path, area,
+    rc = write_fido_msg_out(path, ftn_area, feed,
         from,
         "All",
         subject,
         body,
         reply[0] != '\0' ? reply : NULL,
         msgid);
+
+cleanup:
     free(body);
+    ftn_config_free(&config);
     return rc;
 }
 
@@ -2999,13 +3260,14 @@ static int
 import_one_ftn(const char *area, const char *filename)
 {
     struct ftn_conf_info ce;
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
     struct msgref *refs = NULL;
     struct skref *skrefs = NULL;
     struct msgitem *items = NULL;
     struct msgitem *m = NULL;
     struct planref *plans = NULL;
     const struct planref *plan = NULL;
-    char spooldir[PATH_MAX];
     struct fido_msg msg;
     long indexed = 0;
     long existing_indexed = 0;
@@ -3024,37 +3286,41 @@ import_one_ftn(const char *area, const char *filename)
     if (area == NULL || filename == NULL)
         return -1;
 
+    ftn_config_init(&config);
+    ftn_area = NULL;
+
     printf("ftntoss import-one starting\n");
     printf("===========================\n\n");
 
     if (find_ftn_conf(area, &ce) != 0)
-        return -1;
+        goto cleanup;
 
     if (ce.type != FTN_CONF) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
-        return -1;
+        goto cleanup;
     }
 
-    if (snprintf(spooldir, sizeof(spooldir), "%s/%s", FTN_SPOOL, area) >= (int)sizeof(spooldir)) {
-        fprintf(stderr, "[ERROR] Spool path too long: %s/%s\n", FTN_SPOOL, area);
-        return -1;
-    }
+    if (load_echomail_area_config(area, &ce, &config, &ftn_area) != 0)
+        goto cleanup;
 
     printf("FTN import-one setup\n");
     printf("--------------------\n");
-    printf("Area:        %s\n", area);
-    printf("Spool:       %s\n", spooldir);
+    printf("Domain:      %s\n", ftn_area->domain);
+    printf("Area:        %s\n", ftn_area->tag);
+    printf("Spool:       %s\n", ftn_area->path);
     printf("Conf name:   %s\n", ce.name);
     printf("Conf num:    %d\n", ce.num);
     printf("Conf type:   %d (FTN_CONF)\n", ce.type);
     printf("Last text:   %ld\n", ce.last_text);
     printf("Target file: %s\n\n", filename);
 
-    if (scan_existing_skl_msgids(&ce, &skrefs, &existing_indexed) != 0)
+    if (scan_existing_skl_msgids(&ce, &ftn_area->aka, &skrefs,
+            &existing_indexed) != 0)
         goto cleanup;
 
-    if (build_spool_index(spooldir, &refs, &items, &seen, &indexed, &failed) != 0)
+    if (build_spool_index(ftn_area->path, &refs, &items, &seen,
+            &indexed, &failed) != 0)
         goto cleanup;
 
     if (build_import_plan(items, skrefs, ce.last_text + 1, 0,
@@ -3159,7 +3425,7 @@ import_one_ftn(const char *area, const char *filename)
     printf("Actual com:    %ld\n", com);
     printf("\n");
 
-	imported_text = send_ftn(ce.num, area, &msg, com, NULL);
+	imported_text = send_ftn(ce.num, ftn_area->tag, &msg, com, NULL);
     if (imported_text <= 0) {
         fprintf(stderr, "[ERROR] send_ftn() failed\n");
         free_fido_msg(&msg);
@@ -3185,6 +3451,7 @@ cleanup:
     free_skrefs(skrefs);
     free_msgitems(items);
     free_planrefs(plans);
+    ftn_config_free(&config);
 
     return rc;
 }
@@ -3193,11 +3460,12 @@ static int
 import_all_ftn(const char *area, int include_unsafe)
 {
     struct ftn_conf_info ce;
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
     struct msgref *refs = NULL;
     struct skref *skrefs = NULL;
     struct msgitem *items = NULL;
     struct msgitem *m;
-    char spooldir[PATH_MAX];
     long indexed = 0;
     long existing_indexed = 0;
     long failed = 0;
@@ -3215,37 +3483,41 @@ import_all_ftn(const char *area, int include_unsafe)
     if (area == NULL)
         return -1;
 
+    ftn_config_init(&config);
+    ftn_area = NULL;
+
     printf("ftntoss import-all starting\n");
     printf("===========================\n\n");
 
     if (find_ftn_conf(area, &ce) != 0)
-        return -1;
+        goto cleanup;
 
     if (ce.type != FTN_CONF) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
-        return -1;
+        goto cleanup;
     }
 
-    if (snprintf(spooldir, sizeof(spooldir), "%s/%s", FTN_SPOOL, area) >= (int)sizeof(spooldir)) {
-        fprintf(stderr, "[ERROR] Spool path too long: %s/%s\n", FTN_SPOOL, area);
-        return -1;
-    }
+    if (load_echomail_area_config(area, &ce, &config, &ftn_area) != 0)
+        goto cleanup;
 
     printf("FTN import-all setup\n");
     printf("--------------------\n");
-    printf("Area:        %s\n", area);
-    printf("Spool:       %s\n", spooldir);
+    printf("Domain:      %s\n", ftn_area->domain);
+    printf("Area:        %s\n", ftn_area->tag);
+    printf("Spool:       %s\n", ftn_area->path);
     printf("Conf name:   %s\n", ce.name);
     printf("Conf num:    %d\n", ce.num);
     printf("Conf type:   %d (FTN_CONF)\n", ce.type);
     printf("Last text:   %ld\n", ce.last_text);
     printf("Include unsafe: %s\n\n", include_unsafe ? "yes" : "no");
     
-    if (scan_existing_skl_msgids(&ce, &skrefs, &existing_indexed) != 0)
+    if (scan_existing_skl_msgids(&ce, &ftn_area->aka, &skrefs,
+            &existing_indexed) != 0)
         goto cleanup;
 
-    if (build_spool_index(spooldir, &refs, &items, &seen, &indexed, &failed) != 0)
+    if (build_spool_index(ftn_area->path, &refs, &items, &seen,
+            &indexed, &failed) != 0)
         goto cleanup;
 
     printf("Importing messages%s...\n\n",
@@ -3334,7 +3606,8 @@ import_all_ftn(const char *area, int include_unsafe)
 
             printf("Importing %-8s -> ", m->filename);
 
-			imported_text = send_ftn(ce.num, area, &msg, com, unsafe_reason);
+			imported_text = send_ftn(ce.num, ftn_area->tag, &msg, com,
+                unsafe_reason);
             if (imported_text <= 0) {
                 printf("FAILED\n");
                 fprintf(stderr, "[ERROR] send_ftn() failed for %s\n", m->filename);
@@ -3403,7 +3676,8 @@ import_all_ftn(const char *area, int include_unsafe)
 
     printf("FTN import-all summary\n");
     printf("----------------------\n");
-    printf("Area:             %s\n", area);
+    printf("Domain:           %s\n", ftn_area->domain);
+    printf("Area:             %s\n", ftn_area->tag);
     printf("Seen:             %ld .MSG file(s)\n", seen);
     printf("Indexed:          %ld MSGID value(s)\n", indexed);
     printf("Existing IDs:     %ld SklaffKOM MSGID value(s) at start\n", existing_indexed);
@@ -3429,6 +3703,7 @@ cleanup:
     free_msgrefs(refs);
     free_skrefs(skrefs);
     free_msgitems(items);
+    ftn_config_free(&config);
 
     return rc;
 }
@@ -3494,12 +3769,13 @@ static int
 diagnose_ftn(const char *area, int include_unsafe)
 {
     struct ftn_conf_info ce;
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
     struct msgref *refs = NULL;
     struct skref *skrefs = NULL;
     struct msgitem *items = NULL;
     struct msgitem *m;
     struct planref *plans = NULL;
-    char spooldir[PATH_MAX];
     long indexed = 0;
     long existing_indexed = 0;
     long failed = 0;
@@ -3520,37 +3796,41 @@ diagnose_ftn(const char *area, int include_unsafe)
     if (area == NULL)
         return -1;
 
+    ftn_config_init(&config);
+    ftn_area = NULL;
+
     printf("ftntoss diagnose starting\n");
     printf("=========================\n\n");
 
     if (find_ftn_conf(area, &ce) != 0)
-        return -1;
+        goto cleanup;
 
     if (ce.type != FTN_CONF) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
-        return -1;
+        goto cleanup;
     }
 
-    if (snprintf(spooldir, sizeof(spooldir), "%s/%s", FTN_SPOOL, area) >= (int)sizeof(spooldir)) {
-        fprintf(stderr, "[ERROR] Spool path too long: %s/%s\n", FTN_SPOOL, area);
-        return -1;
-    }
+    if (load_echomail_area_config(area, &ce, &config, &ftn_area) != 0)
+        goto cleanup;
 
     printf("FTN diagnose setup\n");
     printf("------------------\n");
-    printf("Area:        %s\n", area);
-    printf("Spool:       %s\n", spooldir);
+    printf("Domain:      %s\n", ftn_area->domain);
+    printf("Area:        %s\n", ftn_area->tag);
+    printf("Spool:       %s\n", ftn_area->path);
     printf("Conf name:   %s\n", ce.name);
     printf("Conf num:    %d\n", ce.num);
     printf("Conf type:   %d (FTN_CONF)\n", ce.type);
     printf("Last text:   %ld\n\n", ce.last_text);
 	printf("Include unsafe: %s\n\n", include_unsafe ? "yes" : "no");
 	
-    if (scan_existing_skl_msgids(&ce, &skrefs, &existing_indexed) != 0)
+    if (scan_existing_skl_msgids(&ce, &ftn_area->aka, &skrefs,
+            &existing_indexed) != 0)
         goto cleanup;
 
-    if (build_spool_index(spooldir, &refs, &items, &seen, &indexed, &failed) != 0)
+    if (build_spool_index(ftn_area->path, &refs, &items, &seen,
+            &indexed, &failed) != 0)
         goto cleanup;
     
     if (build_import_plan(items, skrefs, ce.last_text + 1, include_unsafe,
@@ -3617,7 +3897,8 @@ diagnose_ftn(const char *area, int include_unsafe)
     printf("\n");
     printf("FTN diagnose summary\n");
     printf("--------------------\n");
-    printf("Area:             %s\n", area);
+    printf("Domain:           %s\n", ftn_area->domain);
+    printf("Area:             %s\n", ftn_area->tag);
     printf("Seen:             %ld .MSG file(s)\n", seen);
     printf("Indexed:          %ld MSGID value(s)\n", indexed);
     printf("Existing IDs:     %ld SklaffKOM MSGID value(s)\n", existing_indexed);
@@ -3637,17 +3918,19 @@ cleanup:
     free_skrefs(skrefs);
     free_msgitems(items);
     free_planrefs(plans);
+    ftn_config_free(&config);
     return rc;
 }
 static int
 dump_one_import(const char *area, const struct ftn_conf_info *ce,
     const char *filename)
 {
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
     struct skref *skrefs = NULL;
     struct msgref *refs = NULL;
     struct msgitem *items = NULL;
     struct planref *plans = NULL;
-    char spooldir[PATH_MAX];
     long existing_indexed = 0;
     long seen = 0;
     long failed = 0;
@@ -3660,16 +3943,27 @@ dump_one_import(const char *area, const struct ftn_conf_info *ce,
     long planned = 0;
     int rc = -1;
 
-    if (snprintf(spooldir, sizeof(spooldir), "%s/%s", FTN_SPOOL, area) >= (int)sizeof(spooldir)) {
-        fprintf(stderr, "[ERROR] Spool path too long: %s/%s\n", FTN_SPOOL, area);
-        return -1;
+    ftn_config_init(&config);
+    ftn_area = NULL;
+
+    if (area == NULL || ce == NULL || filename == NULL)
+        goto cleanup;
+
+    if (ce->type != FTN_CONF) {
+        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
+            ce->name, ce->type);
+        goto cleanup;
     }
+
+    if (load_echomail_area_config(area, ce, &config, &ftn_area) != 0)
+        goto cleanup;
 
     printf("\n");
     printf("FTN dump-import setup\n");
     printf("---------------------\n");
-    printf("Area:        %s\n", area);
-    printf("Spool:       %s\n", spooldir);
+    printf("Domain:      %s\n", ftn_area->domain);
+    printf("Area:        %s\n", ftn_area->tag);
+    printf("Spool:       %s\n", ftn_area->path);
     printf("Conf name:   %s\n", ce->name);
     printf("Conf num:    %d\n", ce->num);
     printf("Conf type:   %d", ce->type);
@@ -3680,16 +3974,12 @@ dump_one_import(const char *area, const struct ftn_conf_info *ce,
     printf("Target file: %s\n", filename);
     printf("\n");
 
-    if (ce->type != FTN_CONF) {
-        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
-            ce->name, ce->type);
-        return -1;
-    }
-
-    if (scan_existing_skl_msgids(ce, &skrefs, &existing_indexed) != 0)
+    if (scan_existing_skl_msgids(ce, &ftn_area->aka, &skrefs,
+            &existing_indexed) != 0)
         goto cleanup;
 
-    if (build_spool_index(spooldir, &refs, &items, &seen, &indexed, &failed) != 0)
+    if (build_spool_index(ftn_area->path, &refs, &items, &seen,
+            &indexed, &failed) != 0)
         goto cleanup;
 
     next_textnum = ce->last_text + 1;
@@ -3712,13 +4002,14 @@ dump_one_import(const char *area, const struct ftn_conf_info *ce,
     printf("Planned:       %ld simulated import(s)\n", planned);
     printf("Next text no:  %ld\n", next_textnum);
 
-    rc = dump_import_text(area, ce, filename, items, plans);
+    rc = dump_import_text(ftn_area->tag, ce, filename, items, plans);
 
 cleanup:
     free_msgrefs(refs);
     free_skrefs(skrefs);
     free_msgitems(items);
     free_planrefs(plans);
+    ftn_config_free(&config);
 
     return rc;
 }
@@ -4059,12 +4350,13 @@ send_ftn(int confid, const char *area, const struct fido_msg *msg, long com,
 static int
 scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
 {
+    struct ftn_config config;
+    const struct ftn_area *ftn_area;
     struct skref *skrefs = NULL;
     struct msgref *refs = NULL;
     struct msgitem *items = NULL;
     struct msgitem *m;
     struct planref *plans = NULL;
-    char spooldir[PATH_MAX];
     long existing_indexed = 0;
     long seen = 0;
     long parsed = 0;
@@ -4077,16 +4369,28 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     long next_textnum;
     long planned = 0;
 
-    if (snprintf(spooldir, sizeof(spooldir), "%s/%s", FTN_SPOOL, area) >= (int)sizeof(spooldir)) {
-        fprintf(stderr, "[ERROR] Spool path too long: %s/%s\n", FTN_SPOOL, area);
+    ftn_config_init(&config);
+    ftn_area = NULL;
+
+    if (area == NULL || ce == NULL)
+        return -1;
+
+    if (ce->type != FTN_CONF) {
+        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
+            ce->name, ce->type);
+        ftn_config_free(&config);
         return -1;
     }
+
+    if (load_echomail_area_config(area, ce, &config, &ftn_area) != 0)
+        return -1;
 
     printf("\n");
     printf("FTN dry-run setup\n");
     printf("-----------------\n");
-    printf("Area:        %s\n", area);
-    printf("Spool:       %s\n", spooldir);
+    printf("Domain:      %s\n", ftn_area->domain);
+    printf("Area:        %s\n", ftn_area->tag);
+    printf("Spool:       %s\n", ftn_area->path);
     printf("Conf name:   %s\n", ce->name);
     printf("Conf num:    %d\n", ce->num);
     printf("Conf type:   %d", ce->type);
@@ -4096,19 +4400,18 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     printf("Last text:   %ld\n", ce->last_text);
     printf("\n");
 
-    if (ce->type != FTN_CONF) {
-        fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
-            ce->name, ce->type);
+    if (scan_existing_skl_msgids(ce, &ftn_area->aka, &skrefs,
+            &existing_indexed) != 0) {
+        ftn_config_free(&config);
         return -1;
     }
 
-    if (scan_existing_skl_msgids(ce, &skrefs, &existing_indexed) != 0)
-        return -1;
-
-    if (build_spool_index(spooldir, &refs, &items, &seen, &indexed, &failed) != 0) {
+    if (build_spool_index(ftn_area->path, &refs, &items, &seen,
+            &indexed, &failed) != 0) {
         free_skrefs(skrefs);
         free_msgrefs(refs);
         free_msgitems(items);
+        ftn_config_free(&config);
         return -1;
     }
 
@@ -4121,6 +4424,7 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
         free_msgrefs(refs);
         free_msgitems(items);
         free_planrefs(plans);
+        ftn_config_free(&config);
         return -1;
     }
 
@@ -4221,7 +4525,8 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     printf("============================================================\n");
     printf("FTN dry-run summary\n");
     printf("-------------------\n");
-    printf("Area:          %s\n", area);
+    printf("Domain:        %s\n", ftn_area->domain);
+    printf("Area:          %s\n", ftn_area->tag);
     printf("Seen:          %ld .MSG file(s)\n", seen);
     printf("Indexed:       %ld MSGID value(s)\n", indexed);
     printf("Existing IDs:  %ld SklaffKOM MSGID value(s)\n", existing_indexed);
@@ -4239,7 +4544,176 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     free_skrefs(skrefs);
     free_msgitems(items);
     free_planrefs(plans);
+    ftn_config_free(&config);
 
+    return failed ? -1 : 0;
+}
+
+/*
+ * import_all_netmail_spools - import every CrashMail NETMAIL messagebase
+ * args: CrashMail preferences file
+ * ret: success (0) or error (-1)
+ *
+ * Distinct NETMAIL areas may belong to different FTN domains and use
+ * different MSG directories.  A shared path is only safe for aliases with
+ * the same domain and local AKA; otherwise the imported message would have
+ * ambiguous 5D routing metadata.
+ *
+ * modified on 2026-07-16, PL
+ */
+static int
+import_all_netmail_spools(const char *prefsfile)
+{
+    struct ftn_config config;
+    char error[512];
+    size_t i;
+    long found;
+    long imported_ok;
+    long failed;
+    long duplicate_paths;
+
+    if (prefsfile == NULL || *prefsfile == '\0')
+        return -1;
+
+    ftn_config_init(&config);
+    found = 0;
+    imported_ok = 0;
+    failed = 0;
+    duplicate_paths = 0;
+
+    if (ftn_config_load_crashmail(prefsfile, &config,
+            error, sizeof(error)) != 0) {
+        fprintf(stderr, "[ERROR] ftntoss: %s\n", error);
+        ftn_config_free(&config);
+        return -1;
+    }
+
+    printf("ftntoss import-netmail starting\n");
+    printf("===============================\n\n");
+    printf("CrashMail prefs: %s\n\n", prefsfile);
+
+    for (i = 0; i < config.area_count; i++) {
+        const struct ftn_area *area;
+        char aka[64];
+        const struct ftn_area *same_path_area;
+        size_t j;
+
+        area = &config.areas[i];
+
+        if (area->type != FTN_AREA_NETMAIL)
+            continue;
+
+        found++;
+        same_path_area = NULL;
+
+        for (j = 0; j < i; j++) {
+            const struct ftn_area *previous;
+
+            previous = &config.areas[j];
+
+            if (previous->type != FTN_AREA_NETMAIL)
+                continue;
+
+            if (area->path[0] != '\0' &&
+                strcmp(previous->path, area->path) == 0) {
+                same_path_area = previous;
+                break;
+            }
+        }
+
+        ftn_address_format(&area->aka, aka, sizeof(aka));
+
+        printf("NETMAIL area\n");
+        printf("------------\n");
+        printf("Tag:         %s\n", area->tag);
+        printf("Domain:      %s\n",
+            area->domain[0] ? area->domain : "(missing)");
+        printf("Local AKA:   %s\n", aka);
+        printf("Messagebase: %s\n",
+            area->messagebase[0] ? area->messagebase : "(missing)");
+        printf("Spool:       %s\n",
+            area->path[0] ? area->path : "(missing)");
+
+        if (same_path_area != NULL) {
+            if (strcasecmp(same_path_area->domain, area->domain) == 0 &&
+                ftn_address_equal(&same_path_area->aka, &area->aka)) {
+                printf("Result:      skipped alias for same spool context\n\n");
+                duplicate_paths++;
+                continue;
+            }
+
+            fprintf(stderr,
+                "[ERROR] NETMAIL areas '%s@%s' and '%s@%s' share spool "
+                "path %s but use different FTN contexts\n",
+                same_path_area->tag, same_path_area->domain,
+                area->tag, area->domain, area->path);
+            fprintf(stderr,
+                "[ERROR] Use one NETMAIL MSG directory per FTN domain/AKA "
+                "so incoming 5D reply metadata is unambiguous\n");
+            printf("Result:      FAILED ambiguous shared spool\n\n");
+            failed++;
+            continue;
+        }
+
+        if (area->messagebase[0] == '\0' ||
+            strcasecmp(area->messagebase, "MSG") != 0) {
+            fprintf(stderr,
+                "[ERROR] NETMAIL area '%s' uses unsupported messagebase "
+                "'%s'; only MSG is currently supported\n",
+                area->tag,
+                area->messagebase[0] ? area->messagebase : "(missing)");
+            printf("Result:      FAILED\n\n");
+            failed++;
+            continue;
+        }
+
+        if (area->path[0] == '\0') {
+            fprintf(stderr,
+                "[ERROR] NETMAIL area '%s' has no messagebase path\n",
+                area->tag);
+            printf("Result:      FAILED\n\n");
+            failed++;
+            continue;
+        }
+
+        if (area->domain[0] == '\0') {
+            fprintf(stderr,
+                "[ERROR] NETMAIL area '%s' has no resolved FTN domain\n",
+                area->tag);
+            printf("Result:      FAILED\n\n");
+            failed++;
+            continue;
+        }
+
+        if (import_ftn_netmail_spool_5d(area->path, area->domain,
+                aka) != 0) {
+            fprintf(stderr,
+                "[ERROR] Netmail import failed for %s@%s (%s)\n",
+                area->tag, area->domain, area->path);
+            printf("Result:      FAILED\n\n");
+            failed++;
+            continue;
+        }
+
+        printf("Result:      OK\n\n");
+        imported_ok++;
+    }
+
+    printf("FTN import-netmail summary\n");
+    printf("--------------------------\n");
+    printf("NETMAIL areas:   %ld\n", found);
+    printf("Spools OK:       %ld\n", imported_ok);
+    printf("Alias paths:     %ld\n", duplicate_paths);
+    printf("Failed:          %ld\n", failed);
+
+    if (found == 0) {
+        fprintf(stderr,
+            "[ERROR] No NETMAIL areas were found in %s\n",
+            prefsfile);
+        failed++;
+    }
+
+    ftn_config_free(&config);
     return failed ? -1 : 0;
 }
 
@@ -4292,10 +4766,10 @@ run_import_netmail_locked(void *arg)
 {
     struct import_netmail_args *a = arg;
 
-    if (a == NULL)
+    if (a == NULL || a->prefsfile == NULL)
         return -1;
 
-    return import_ftn_netmail_spool(a->spooldir);
+    return import_all_netmail_spools(a->prefsfile);
 }
 
 static int
@@ -4309,10 +4783,412 @@ run_export_netmail_job_locked(void *arg)
     return export_netmail_job(a->jobfile);
 }
 
+static int
+load_meeting_ftnconf(const struct ftn_conf_info *ce,
+    struct meeting_ftn_config *meeting, int *out_found)
+{
+    FILE *fp;
+    char path[PATH_MAX];
+    char line[1024];
+    char section[32];
+    int seen_version;
+    int seen_type;
+    int seen_domain;
+    int seen_tag;
+
+    if (ce == NULL || meeting == NULL || out_found == NULL)
+        return -1;
+
+    memset(meeting, 0, sizeof(*meeting));
+    *out_found = 0;
+    section[0] = '\0';
+    seen_version = 0;
+    seen_type = 0;
+    seen_domain = 0;
+    seen_tag = 0;
+
+    if (snprintf(path, sizeof(path), "%s/%d/ftnconf",
+            SKLAFF_DB, ce->num) >= (int)sizeof(path)) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: ftnconf path is too long for conference %d\n",
+            ce->num);
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        if (errno == ENOENT)
+            return 0;
+
+        fprintf(stderr, "[ERROR] ftntoss: could not open %s: %s\n",
+            path, strerror(errno));
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        char *end;
+
+        strip_eol(line);
+        trim_left(line);
+
+        end = line + strlen(line);
+        while (end > line && isspace((unsigned char)end[-1]))
+            *--end = '\0';
+
+        if (line[0] == '\0' || line[0] == '#')
+            continue;
+
+        if (line[0] == '!' && line[1] == '[') {
+            size_t len;
+
+            end = strchr(line + 2, ']');
+            if (end == NULL || end[1] != '\0') {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: malformed section header in %s: %s\n",
+                    path, line);
+                fclose(fp);
+                return -1;
+            }
+
+            len = (size_t)(end - (line + 2));
+            if (len == 0 || len >= sizeof(section)) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: invalid section name in %s: %s\n",
+                    path, line);
+                fclose(fp);
+                return -1;
+            }
+
+            memcpy(section, line + 2, len);
+            section[len] = '\0';
+            continue;
+        }
+
+        if (section[0] == '\0') {
+            fprintf(stderr,
+                "[ERROR] ftntoss: value outside a ![section] in %s: %s\n",
+                path, line);
+            fclose(fp);
+            return -1;
+        }
+
+        if (strcasecmp(section, "version") == 0) {
+            char *endp;
+            long version;
+
+            if (seen_version) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: duplicate ![version] in %s\n", path);
+                fclose(fp);
+                return -1;
+            }
+
+            errno = 0;
+            version = strtol(line, &endp, 10);
+            if (errno != 0 || endp == line || *endp != '\0' ||
+                version < 0 || version > INT_MAX) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: invalid version in %s: %s\n",
+                    path, line);
+                fclose(fp);
+                return -1;
+            }
+
+            meeting->version = (int)version;
+            seen_version = 1;
+        } else if (strcasecmp(section, "type") == 0) {
+            if (seen_type) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: duplicate ![type] in %s\n", path);
+                fclose(fp);
+                return -1;
+            }
+            strlcpy(meeting->type, line, sizeof(meeting->type));
+            seen_type = 1;
+        } else if (strcasecmp(section, "domain") == 0) {
+            if (seen_domain) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: duplicate ![domain] in %s\n", path);
+                fclose(fp);
+                return -1;
+            }
+            strlcpy(meeting->domain, line, sizeof(meeting->domain));
+            seen_domain = 1;
+        } else if (strcasecmp(section, "tag") == 0) {
+            if (seen_tag) {
+                fprintf(stderr,
+                    "[ERROR] ftntoss: duplicate ![tag] in %s\n", path);
+                fclose(fp);
+                return -1;
+            }
+            strlcpy(meeting->tag, line, sizeof(meeting->tag));
+            seen_tag = 1;
+        } else {
+            fprintf(stderr,
+                "[ERROR] ftntoss: unknown section ![%s] in %s\n",
+                section, path);
+            fclose(fp);
+            return -1;
+        }
+
+        section[0] = '\0';
+    }
+
+    if (ferror(fp)) {
+        fprintf(stderr, "[ERROR] ftntoss: error while reading %s\n", path);
+        fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+
+    if (!seen_version || !seen_type || !seen_domain || !seen_tag) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: incomplete %s; required sections are "
+            "version, type, domain and tag\n",
+            path);
+        return -1;
+    }
+
+    if (meeting->version != 1) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: unsupported ftnconf version %d in %s "
+            "(supported: 1)\n",
+            meeting->version, path);
+        return -1;
+    }
+
+    if (strcasecmp(meeting->type, "echomail") != 0) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: unsupported ftnconf type '%s' in %s "
+            "(expected: echomail)\n",
+            meeting->type, path);
+        return -1;
+    }
+
+    if (meeting->domain[0] == '\0' || meeting->tag[0] == '\0') {
+        fprintf(stderr,
+            "[ERROR] ftntoss: domain and tag must not be empty in %s\n",
+            path);
+        return -1;
+    }
+
+    *out_found = 1;
+    return 0;
+}
+
+static int
+load_echomail_area_config(const char *fallback_tag,
+    const struct ftn_conf_info *ce, struct ftn_config *config,
+    const struct ftn_area **out_area)
+{
+    struct meeting_ftn_config meeting;
+    const struct ftn_area *found;
+    const char *wanted_domain;
+    const char *wanted_tag;
+    char error[512];
+    size_t i;
+    size_t matches;
+    int has_ftnconf;
+
+    if (fallback_tag == NULL || *fallback_tag == '\0' || ce == NULL ||
+        config == NULL || out_area == NULL)
+        return -1;
+
+    *out_area = NULL;
+    found = NULL;
+    matches = 0;
+    has_ftnconf = 0;
+
+    if (load_meeting_ftnconf(ce, &meeting, &has_ftnconf) != 0)
+        return -1;
+
+    wanted_domain = has_ftnconf ? meeting.domain : NULL;
+    wanted_tag = has_ftnconf ? meeting.tag : fallback_tag;
+
+    ftn_config_init(config);
+
+    if (ftn_config_load_crashmail(CRASHMAIL_PREFS_FILE, config,
+            error, sizeof(error)) != 0) {
+        fprintf(stderr, "[ERROR] ftntoss: %s\n", error);
+        return -1;
+    }
+
+    for (i = 0; i < config->area_count; i++) {
+        const struct ftn_area *candidate;
+
+        candidate = &config->areas[i];
+
+        if (candidate->type != FTN_AREA_ECHOMAIL)
+            continue;
+
+        if (strcasecmp(candidate->tag, wanted_tag) != 0)
+            continue;
+
+        if (wanted_domain != NULL &&
+            strcasecmp(candidate->domain, wanted_domain) != 0)
+            continue;
+
+        found = candidate;
+        matches++;
+    }
+
+    if (matches == 0) {
+        if (has_ftnconf) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: ftnconf for conference '%s' points to "
+                "echomail area %s@%s, but it was not found in %s\n",
+                ce->name, meeting.tag, meeting.domain,
+                CRASHMAIL_PREFS_FILE);
+        } else {
+            fprintf(stderr,
+                "[ERROR] ftntoss: echomail area '%s' was not found in %s\n",
+                fallback_tag, CRASHMAIL_PREFS_FILE);
+            fprintf(stderr,
+                "[ERROR] ftntoss: create %s/%d/ftnconf when the "
+                "SklaffKOM conference name differs from the FTN tag\n",
+                SKLAFF_DB, ce->num);
+        }
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (matches > 1) {
+        if (has_ftnconf) {
+            fprintf(stderr,
+                "[ERROR] ftntoss: %s contains more than one echomail area "
+                "matching %s@%s\n",
+                CRASHMAIL_PREFS_FILE, meeting.tag, meeting.domain);
+        } else {
+            fprintf(stderr,
+                "[ERROR] ftntoss: echomail tag '%s' occurs in more than one "
+                "FTN domain in %s\n",
+                fallback_tag, CRASHMAIL_PREFS_FILE);
+            fprintf(stderr,
+                "[ERROR] ftntoss: create %s/%d/ftnconf and specify domain\n",
+                SKLAFF_DB, ce->num);
+        }
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (found->messagebase[0] == '\0' ||
+        strcasecmp(found->messagebase, "MSG") != 0) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: area '%s' uses unsupported messagebase '%s'; "
+            "only MSG is currently supported\n",
+            found->tag,
+            found->messagebase[0] ? found->messagebase : "(missing)");
+        ftn_config_free(config);
+        return -1;
+    }
+
+    if (found->path[0] == '\0') {
+        fprintf(stderr,
+            "[ERROR] ftntoss: area '%s' has no messagebase path in %s\n",
+            found->tag, CRASHMAIL_PREFS_FILE);
+        ftn_config_free(config);
+        return -1;
+    }
+
+    *out_area = found;
+    return 0;
+}
+
+static int
+load_echomail_area(const char *fallback_tag,
+    const struct ftn_conf_info *ce, struct ftn_config *config,
+    const struct ftn_area **out_area, const struct ftn_link **out_feed)
+{
+    const struct ftn_area *found;
+    const struct ftn_link *feed;
+    size_t i;
+    size_t primary_feeds;
+
+    if (fallback_tag == NULL || *fallback_tag == '\0' || ce == NULL ||
+        config == NULL || out_area == NULL || out_feed == NULL)
+        return -1;
+
+    *out_area = NULL;
+    *out_feed = NULL;
+
+    if (load_echomail_area_config(fallback_tag, ce, config, out_area) != 0)
+        return -1;
+
+    found = *out_area;
+    feed = NULL;
+    primary_feeds = 0;
+
+    for (i = 0; i < found->link_count; i++) {
+        if (found->links[i].modifier != '%')
+            continue;
+
+        feed = &found->links[i];
+        primary_feeds++;
+    }
+
+    if (primary_feeds == 0 && found->link_count == 1)
+        feed = &found->links[0];
+
+    if (primary_feeds > 1) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: area '%s' has more than one %% feed in %s\n",
+            found->tag, CRASHMAIL_PREFS_FILE);
+        fprintf(stderr,
+            "[ERROR] ftntoss: mark exactly one EXPORT address with %%\n");
+        ftn_config_free(config);
+        *out_area = NULL;
+        return -1;
+    }
+
+    if (feed == NULL) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: area '%s' has no unique CrashMail feed\n",
+            found->tag);
+        fprintf(stderr,
+            "[ERROR] ftntoss: mark exactly one EXPORT address with %%\n");
+        ftn_config_free(config);
+        *out_area = NULL;
+        return -1;
+    }
+
+    *out_feed = feed;
+    return 0;
+}
+
+static int
+dump_ftn_config_file(const char *path)
+{
+    struct ftn_config config;
+    char error[512];
+
+    ftn_config_init(&config);
+
+    if (ftn_config_load_crashmail(path, &config,
+            error, sizeof(error)) != 0) {
+        fprintf(stderr, "[ERROR] ftntoss: %s\n", error);
+        ftn_config_free(&config);
+        return -1;
+    }
+
+    printf("CrashMail prefs: %s\n\n", path);
+    ftn_config_dump(stdout, &config);
+    ftn_config_free(&config);
+    return 0;
+}
+
 int
 main(int argc, char **argv)
 {
     struct ftn_conf_info ce;
+    
+    if (argc == 2 && strcmp(argv[1], "--dump-ftn-config") == 0) {
+        return dump_ftn_config_file(CRASHMAIL_PREFS_FILE) == 0 ? 0 : 1;
+    }
+
+    if (argc == 3 && strcmp(argv[1], "--dump-ftn-config") == 0) {
+        return dump_ftn_config_file(argv[2]) == 0 ? 0 : 1;
+    }
     
         if (argc == 4 && strcmp(argv[1], "--export-one") == 0) {
         struct export_one_args a;
@@ -4404,12 +5280,20 @@ main(int argc, char **argv)
 	}
 
 	if (argc == 2 && strcmp(argv[1], "--import-netmail") == 0) {
-    struct import_netmail_args a;
+        struct import_netmail_args a;
 
-    a.spooldir = FTN_NETMAIL_SPOOL;
+        a.prefsfile = CRASHMAIL_PREFS_FILE;
 
-    return run_with_lock(run_import_netmail_locked, &a) == 0 ? 0 : 1;
-}
+        return run_with_lock(run_import_netmail_locked, &a) == 0 ? 0 : 1;
+    }
+
+    if (argc == 3 && strcmp(argv[1], "--import-netmail") == 0) {
+        struct import_netmail_args a;
+
+        a.prefsfile = argv[2];
+
+        return run_with_lock(run_import_netmail_locked, &a) == 0 ? 0 : 1;
+    }
 
     if (argc == 3 && strcmp(argv[1], "--export-netmail-job") == 0) {
         struct export_netmail_job_args a;
@@ -4432,7 +5316,9 @@ main(int argc, char **argv)
         fprintf(stderr, "       %s --export-test <FTN-area>\n", argv[0]);
         fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n", argv[0]);
         fprintf(stderr, "       %s --export-netmail-job <jobfile>\n", argv[0]);
-        fprintf(stderr, "       %s --import-netmail\n\n", argv[0]);
+        fprintf(stderr, "       %s --import-netmail <crashmail.prefs>\n", argv[0]);
+        fprintf(stderr, "       %s --dump-ftn-config\n", argv[0]);
+        fprintf(stderr, "       %s --dump-ftn-config <crashmail.prefs>\n\n", argv[0]);
 		fprintf(stderr, "Examples:\n");
         fprintf(stderr, "  %s FSX_GEN\n", argv[0]);
         fprintf(stderr, "  %s --dump-import FSX_BBS 32.msg\n\n", argv[0]);
