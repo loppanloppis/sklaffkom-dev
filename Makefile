@@ -68,7 +68,7 @@ WHOOBJ=sklaffwho.o
 ACCTOBJ=sklaffacct.o
 MTOSSOBJ=mailtoss.o mailparse.o 
 NTOSSOBJ=newstoss.o
-FTNTOBJ=ftntoss.o ftnmsg.o ftnnetmail.o version.o
+FTNTOBJ=ftntoss.o ftnconfig.o ftnmsg.o ftnnetmail.o version.o
 SURVREPOBJ=survreport.o
 FTCOBJ=forwardtoconf.o
 FTYOBJ=forwardtoyell.o
@@ -187,6 +187,15 @@ installdb:
 	mkdir $(SKLAFFDIR)/ftnqueue/pending
 	chown $(SKLAFFUSER) $(SKLAFFDIR)/ftnqueue/pending
 	chmod og-rwx $(SKLAFFDIR)/ftnqueue/pending
+	mkdir $(SKLAFFDIR)/ftnqueue/netmail
+	chown $(SKLAFFUSER) $(SKLAFFDIR)/ftnqueue/netmail
+	chmod og-rwx $(SKLAFFDIR)/ftnqueue/netmail
+	mkdir $(SKLAFFDIR)/ftnqueue/netmail/tmp
+	chown $(SKLAFFUSER) $(SKLAFFDIR)/ftnqueue/netmail/tmp
+	chmod og-rwx $(SKLAFFDIR)/ftnqueue/netmail/tmp
+	mkdir $(SKLAFFDIR)/ftnqueue/netmail/pending
+	chown $(SKLAFFUSER) $(SKLAFFDIR)/ftnqueue/netmail/pending
+	chmod og-rwx $(SKLAFFDIR)/ftnqueue/netmail/pending
 	-rm -rf $(SKLAFFDIR)/user
 	mkdir $(SKLAFFDIR)/user
 	chown $(SKLAFFUSER) $(SKLAFFDIR)/user
