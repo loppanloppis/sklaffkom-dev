@@ -26,9 +26,43 @@
  */
 
 #include <signal.h>
+#include <errno.h> /* 2026-07-23 PL */
+#include <stdlib.h> /* 2026-07-23 PL */
 
 #include "sklaff.h"
 #include "ext_globals.h"
+
+/*
+ * read_input_char - read one byte from standard input safely
+ *
+ * getc() returns int so that EOF can be represented separately from all
+ * possible byte values.  Never store its result in an unsigned char before
+ * checking for EOF: EOF would then become 255 and could cause a busy loop.
+ */
+static int
+read_input_char(void)
+{
+    int c;
+
+    for (;;) {
+        errno = 0;
+        c = getc(stdin);
+
+        if (c != EOF)
+            return c;
+
+        /* Retry only when stdio was interrupted by a signal. */
+        if (ferror(stdin) && errno == EINTR) {
+            clearerr(stdin);
+            continue;
+        }
+
+        /* EOF or a permanent input error means the session is gone. */
+        alarm(0);
+        tty_reset();
+        exit(EXIT_SUCCESS);
+    }
+}
 
 /*
  * haffo - handle interrupted input
@@ -100,7 +134,7 @@ input(char *in_str, char *out_str, int max_len, int noecho, int wrap, int hist)
 {
     int len, hptr, ltop;
     char *p, *i, *space, *ptr;
-    unsigned char c, outc;
+    int c, outc; /* Modified by PL 2026-07-23 */
 
     unsigned char u8e[2] = {0,0}; int u8e_len = 0; Lines = 1;
     hptr = Comtop;
@@ -129,22 +163,22 @@ input(char *in_str, char *out_str, int max_len, int noecho, int wrap, int hist)
             alarm(60 * Timeout);
         }
         do
-            c = getc(stdin);
+            c = read_input_char(); /* Modified by PL 2026-07-23 */
         while (c == 255);
         /* if (Strip) c &= 0x7f; Obsolete 18/2 2000, OR */
 
         /* added on 2025-09-25 by PL - unix like history scroll with arrow keys*/
-	if (c == 27) { // ESC
-	    int c1 = getc(stdin);
-    	    int c2 = getc(stdin);
-    	    if (c1 == '[') {
+        if (c == 27) { // ESC
+            int c1 = read_input_char(); /* Modified by PL 2026-07-23 */
+            int c2 = read_input_char(); /* Modified by PL 2026-07-23 */
+            if (c1 == '[') {
                 if (c2 == 'A') {
                     c = 16;  // ↑
-            } else if (c2 == 'B') {
-                c = 14;  // ↓
+                } else if (c2 == 'B') {
+                    c = 14;  // ↓
+                }
             }
         }
-    }
 	alarm(0);
         Warning = 0;
         signal(SIGNAL_NEW_TEXT, baffo);
@@ -155,7 +189,7 @@ input(char *in_str, char *out_str, int max_len, int noecho, int wrap, int hist)
         outc = c;
         /* 2025-08-10, PL: minimal UTF-8 mapping for Swedish å ä ö Å Ä Ö */
         if (c == 0xC3) {
-            int c2 = getc(stdin);
+            int c2 = read_input_char(); /* Modified by PL 2026-07-23 */
             if (c2 != EOF) {
                 unsigned char u2 = (unsigned char)c2;
                 switch (u2) {
@@ -330,7 +364,7 @@ int
 input_extended(char *in_str, char *out_str, int max_len, int noecho, int wrap, int hist, int low, int hi)
 {
     int len, hptr, ltop;
-    unsigned char c, outc;
+    int c, outc; /* Modified by PL 2026-07-23 */
     unsigned char u8e[2] = {0,0}; int u8e_len = 0; char *p, *i, *space, *ptr;
 
     Lines = 1;
@@ -360,7 +394,7 @@ input_extended(char *in_str, char *out_str, int max_len, int noecho, int wrap, i
             alarm(60 * Timeout);
         }
         do
-            c = getc(stdin);
+            c = read_input_char(); /* Modified by PL 2026-07-23 */
         while ((c == 255 || c < low || c > hi) && (c >= 32 && c != 127));
         /* if (Strip) c &= 0x7f; Obsolete */
         alarm(0);
@@ -373,7 +407,7 @@ input_extended(char *in_str, char *out_str, int max_len, int noecho, int wrap, i
         outc = c;
         /* 2025-08-10, PL: minimal UTF-8 mapping for Swedish å ä ö Å Ä Ö */
         if (c == 0xC3) {
-            int c2 = getc(stdin);
+            int c2 = read_input_char(); /* Modified by PL 2026-07-23 */
             if (c2 != EOF) {
                 unsigned char u2 = (unsigned char)c2;
                 switch (u2) {
