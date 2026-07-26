@@ -869,163 +869,148 @@ cmd_change_conf(char *args)
  *
  * Upgraded on 2025-08-15 by PL:
  * - Friendly Swedish timestamp and login duration
- * - Rotating nerdy @beat messages (Swatch Internet Time)
+ * - Nerdy @beat messages (Swatch Internet Time)
  * - Random tip from SKLAFFDIR "/etc/strings"
  */
  
- 
- /*
- * HERREJÖSSES VILKEN RÖRA NEDAN - DET ÄR INTE FÄRDIGT ÄN, SKALL FIXAS! :D
- */
-int
+ int
 cmd_display_time(char *args)
 {
     char *tip = NULL;
     char linebuf[512];
     FILE *fp = NULL;
-    int linecount = 0, chosen = 0, current = 0;
-    int beatstyle;
+    int linecount = 0;
+    int chosen = 0;
+    int current = 0;
+    int beats = 0;
+    double se_pct;
     long at;
+    long bmt_secs;
+    long se_secs;
     time_t now;
-    struct tm ltm = {0};       /* <- zero-init to silence -Wmaybe-uninitialized */
-    struct tm *gmt = NULL;
+    struct tm ltm = {0};
+    struct tm *gmt;
 
-    now = time(0);
-    get_wallclock_localtime(&now, &ltm);   /* fills ltm using /etc/localtime */
-    gmt = gmtime(&now);                   /* for @beat */
+    (void)args;
+
+    now = time(NULL);
+
+    /* Local time according to /etc/localtime. */
+    get_wallclock_localtime(&now, &ltm);
+
+    /* UTC is used when calculating Swatch Internet Time. */
+    gmt = gmtime(&now);
+
     at = active_time(Uid);
 
-        /* === Swatch Internet Time (@beats) and Sweden local-day percent === */
-    /* fixed on 2025-09-10, PL: correct label + compute Sweden % from localtime */
-
-    int beats = 0;
-    double se_pct = 0.0;
-
-    if (gmt) {
-        /* BMT = UTC+1, no DST */
-        long bmt_secs =
+    /*
+     * Swatch Internet Time uses Biel Mean Time:
+     * UTC+1 without daylight-saving time.
+     */
+    if (gmt != NULL) {
+        bmt_secs =
             (((gmt->tm_hour + 1) % 24) * 3600L) +
             (gmt->tm_min * 60L) +
             gmt->tm_sec;
 
-        /* 1 beat = 86.4 seconds */
-        double bmt_beats = bmt_secs / 86.4;
-        beats = (int)floor(bmt_beats);
-        if (beats >= 1000) beats = 0; /* clamp edge */
+        /* One beat is 86.4 seconds. */
+        beats = (int)floor(bmt_secs / 86.4);
+
+        if (beats >= 1000)
+            beats = 0;
+    }
+
+    /* Percentage of the local Swedish day that has elapsed. */
+    se_secs =
+        ltm.tm_hour * 3600L +
+        ltm.tm_min * 60L +
+        ltm.tm_sec;
+
+    se_pct = (se_secs / 86400.0) * 100.0;
+
+    output_ansi_fmt(
+        "\n" WHITE "%s " CYAN "%02d:%02d" WHITE " %s "
+        CYAN "%d" WHITE " %s " CYAN "%d" WHITE ",%s " RESET,
+        "\n%s %02d:%02d %s %d %s %d,%s ",
+        MSG_DISPTIME,
+        ltm.tm_hour,
+        ltm.tm_min,
+        MSG_IT,
+        ltm.tm_mday,
+        month_name(ltm.tm_mon),
+        1900 + ltm.tm_year,
+        MSG_DISPTIME2);
+
+    if (at == 1) {
+        output_ansi_fmt(
+            WHITE "%s" RESET,
+            "%s",
+            MSG_ONEMIN);
     } else {
-        beats = 0;
+        output_ansi_fmt(
+            CYAN "%ld" WHITE " %s" RESET,
+            "%ld %s",
+            at,
+            MSG_MINUTES);
     }
-
-    /* Sweden (Europe/Stockholm) local day progress */
-    {
-        long se_secs = ltm.tm_hour * 3600L + ltm.tm_min * 60L + ltm.tm_sec;
-        se_pct = (se_secs / 86400.0) * 100.0;
-    }
-
-	/* The actual output starts here, finally */ 
-	output("\n%s %02d:%02d %s %d %s %d,\n%s ",
-           MSG_DISPTIME,
-           ltm.tm_hour, ltm.tm_min,
-           MSG_IT,
-           ltm.tm_mday, month_name(ltm.tm_mon),
-           1900 + ltm.tm_year,
-           MSG_DISPTIME2);
-
-    if (at == 1)
-        output("%s", MSG_ONEMIN);
-    else
-        output("%ld %s", at, MSG_MINUTES);
 
     output("\n");
 
-    beatstyle = rand() % 5;
-    switch (beatstyle) {
-        case 0:
-        //  output("(@%03d) = Swatch Internet Time — %.1f%% through the UTC day\n", tbeat, tbeat / 10.0);
-      //    output("(@%03d) = Swatch Internet Time — %.1f%% through the UTC day\n", tbeat, tbeat / 10.0);
-      //      output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-	   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.  
-	break;
-        case 1:
-     //       output("System Clock (Internet Time): @%03d. Transmission window optimal.\n", tbeat);
-     //       output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-        case 2:
-     //       output("UTC Sync: @%03d beats — %.1f%% of the day has elapsed.\n", tbeat, tbeat / 10.0);
-     //       output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-     output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-        case 3:
-       //     output("(@%03d)  // Internet Time: one beat = 86.4 seconds (UTC)\n", tbeat);
-      //        output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-
-            break;
-        case 4:
-       //      output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-      //      output(">>> Timecode @%03d // Swatch Internet Time engaged\n", tbeat);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-    }
+    output_ansi_fmt(
+        WHITE "%s" CYAN "(@%03d)" WHITE ", %s "
+        CYAN "%.1f%%" WHITE " %s" RESET "\n",
+        "%s(@%03d), %s %.1f%% %s\n",
+        MSG_BEATS1,
+        beats,
+        MSG_BEATS2,
+        se_pct,
+        MSG_BEATS3);
 
     fp = fopen(SKLAFFDIR "/etc/strings", "r");
-    if (fp) {
-        while (fgets(linebuf, sizeof(linebuf), fp)) {
-            if (linebuf[0] == '#' || linebuf[0] == '\n' || linebuf[0] == '\r')
+    if (fp != NULL) {
+        while (fgets(linebuf, sizeof(linebuf), fp) != NULL) {
+            if (linebuf[0] == '#' ||
+                linebuf[0] == '\n' ||
+                linebuf[0] == '\r')
                 continue;
+
             linecount++;
         }
 
         if (linecount > 0) {
             rewind(fp);
             chosen = rand() % linecount;
-            current = 0;
-            while (fgets(linebuf, sizeof(linebuf), fp)) {
-                if (linebuf[0] == '#' || linebuf[0] == '\n' || linebuf[0] == '\r')
+
+            while (fgets(linebuf, sizeof(linebuf), fp) != NULL) {
+                if (linebuf[0] == '#' ||
+                    linebuf[0] == '\n' ||
+                    linebuf[0] == '\r')
                     continue;
+
                 if (current == chosen) {
                     chomp(linebuf);
                     tip = strdup(linebuf);
                     break;
                 }
+
                 current++;
             }
         }
+
         fclose(fp);
     }
 
     if (tip) {
-        output("\n%s\n", tip);
+        output_ansi_fmt(
+            "\n" PURPLE "%s" RESET "\n",
+            "\n%s\n",
+            tip);
+
         free(tip);
     }
 
     output("\n");
+
     return 0;
 }
 
@@ -2717,6 +2702,43 @@ cmd_personal(char *args)
 }
 
 /*
+ * show_post_warning - display an optional external posting warning
+ * args: warning file path and symbolic name
+ */
+
+static void
+show_post_warning(const char *path, const char *name)
+{
+    char *buf;
+    int fd;
+
+    if ((fd = open_file(path, OPEN_QUIET)) == -1) {
+        dlog(6, "show_post_warning: optional %s not available: %s",
+            name, path);
+        return;
+    }
+
+    if ((buf = read_file(fd)) == NULL) {
+        dlog(3, "show_post_warning: read_file %s failed", name);
+        (void) close_file(fd);
+        return;
+    }
+
+    if (close_file(fd) == -1) {
+        dlog(3, "show_post_warning: close_file %s failed", name);
+        free(buf);
+        return;
+    }
+
+    dlog(8, "show_post_warning: %s shown, bytes=%zu",
+        name, strlen(buf));
+
+    output("%s", buf);
+    free(buf);
+    output("\n");
+}
+
+/*
  * cmd_post_text - post text in conference
  * args: user arguments (args)
  * ret: ok (0) or error (-1)
@@ -2795,25 +2817,10 @@ cmd_post_text(char *args)
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_post_text: edit file path=[%s]", fname);
     output("\n");
-
-    if (un) {
-        if ((fd = open_file(POST_INFO, 0)) == -1) {
-            dlog(2, "cmd_post_text: open_file POST_INFO failed: %s", POST_INFO);
-            return -1;
-        }
-        if ((inbuf = read_file(fd)) == NULL) {
-            dlog(2, "cmd_post_text: read_file POST_INFO failed");
-            return -1;
-        }
-        if (close_file(fd) == -1) {
-            dlog(3, "cmd_post_text: close_file POST_INFO failed");
-            return -1;
-        }
-        dlog(8, "cmd_post_text: POST_INFO shown to user, bytes=%zu", strlen(inbuf));
-        output(inbuf);
-        free(inbuf);
-        output("\n");
-    }
+    if (ce->type == NEWS_CONF)
+        show_post_warning(POST_INFO, "POST_INFO");
+    else if (ce->type == FTN_CONF)
+        show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     display_header(&th, 1, confid, 0, un);
     dlog(7, "cmd_post_text: header done, subject=[%s]", th.subject);
 
@@ -3173,7 +3180,7 @@ cmd_comment(char *args)
     LONG_LINE ftn_reply_msgid, ftn_fromline;
     char *buf, *oldbuf, *nbuf, *ptr2, *mailrec, *inbuf, *ptr3, *ptr4, sav;
     int conf, fd, commentuid, allow, nc, *ptr, i, right;
-    int is_news_reply, is_ftn_reply; /* 2026-06-20 PL */
+	int is_ftn_reply; /* 2026-06-20 PL */
     int is_netmail_reply; /* modified on 2026-07-13, PL */
     long textnum, last, commenttext, savednum;
     struct TEXT_HEADER th, *thtmp;
@@ -3239,13 +3246,11 @@ cmd_comment(char *args)
     thtmp = &te.th;
     commenttext = thtmp->num;
     commentuid = thtmp->author;
-    is_news_reply = 0;
 	is_ftn_reply = 0;
 
 	if (Current_conf > 0) {
     	ce = get_conf_struct(Current_conf);
     	if (ce != NULL) {
-        	is_news_reply = (ce->type == NEWS_CONF);
         	is_ftn_reply = (ce->type == FTN_CONF);
     	}
 	}
@@ -3373,25 +3378,10 @@ cmd_comment(char *args)
     strcpy(fname, Home);
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_comment: edit file path=[%s]", fname);
-    if (Current_conf || !commentuid) {
+    if (Current_conf || !commentuid)
         output("\n");
-#ifdef POSTING_OK
-			if (is_news_reply) {
-            if ((fd = open_file(POST_INFO, 0)) == -1)
-                return -1;
-            if ((buf = read_file(fd)) == NULL)
-                return -1;
-            if (close_file(fd) == -1)
-                return -1;
-            dlog(8, "cmd_comment: POST_INFO shown, bytes=%zu", strlen(buf));
-            output(buf);
-            free(buf);
-            output("\n");
-        }
-#endif
-    } else {
+    else
         disp_note(commentuid);
-    }
 
     /* Decide target conference for the comment */
     if (Current_conf) {
@@ -3427,6 +3417,17 @@ cmd_comment(char *args)
             output("\n%s\n\n", MSG_NONEWS);
             return 0;
         }
+    }
+#endif
+
+#ifdef POSTING_OK
+    if (nc > 0) {
+        ce = get_conf_struct(nc);
+
+        if (ce != NULL && ce->type == NEWS_CONF)
+            show_post_warning(POST_INFO, "POST_INFO");
+        else if (ce != NULL && ce->type == FTN_CONF)
+            show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     }
 #endif
 

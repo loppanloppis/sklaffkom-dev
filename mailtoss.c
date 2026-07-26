@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include "globals.h"
+#include "mailbody.h"
 #include <stdlib.h>
 #include <string.h>  /* strlen, strstr, strerror (2026-05-13, PL) */
 #include <errno.h>   /* ENOENT for graceful "no mail" exit (2025-08-13, PL) */
@@ -53,7 +54,7 @@
  * modified on 2026-07-05, PL
  */
 
-/* #define MAILTOSS_DEBUG */
+#define MAILTOSS_DEBUG
 
 static char *wrap_mail_body_for_skom(const char *body); /* modified on 2026-06-23, PL */
 
@@ -409,7 +410,7 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
     struct TEXT_HEADER th;
     int fd, fdo;
 	char *buf, *oldbuf, *nbuf = NULL, *ptr, *tmp, *fbuf;
-	char *plainbuf = NULL, *decodedbuf = NULL, *sf7body = NULL, *wrappedbody = NULL, *storebuf = NULL; 	/* added 2026-05-28 for better looking e-mail imports */
+	char *decodedbuf = NULL, *sf7body = NULL, *wrappedbody = NULL, *storebuf = NULL; 	/* added 2026-05-28 for better looking e-mail imports */
 	const char *hdr_end;															/* added 2026-05-28 for better looking e-mail imports */
 	size_t header_len, store_len;													/* added 2026-05-28 for better looking e-mail imports */
 
@@ -458,28 +459,18 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
 
     /*
      * Modern incoming mail handling:
-     * - extract text/plain from MIME multipart if present
-     * - decode quoted-printable if needed
+     * - recursively pick the best MIME text part
+     * - decode quoted-printable/base64 transfer encodings
+     * - render HTML through lynx when needed
+     * - clean common tracking URL noise
      * - convert UTF-8 body to SklaffKOM internal SF7
      * - preserve original mail headers
+     *
+     * modified on 2026-07-25, PL
      */
-    plainbuf = mail_extract_text_plain_dup(mbuf);
-    if (plainbuf == NULL) {
-        sys_error("send_mail", 1, "mail_extract_text_plain_dup");
-        return -1;
-    }
-
- 	if (mail_has_base64(mbuf)) {
-        decodedbuf = mail_base64_decode_dup(plainbuf);
-	} else if (mail_has_quoted_printable(mbuf)) {
-        decodedbuf = qp_decode_dup(plainbuf); /* modified on 2026-06-23, PL */
-	} else {
-    	decodedbuf = strdup(plainbuf);
-	}
-    free(plainbuf);
-
+    decodedbuf = mailbody_render_utf8_dup(mbuf, 1, 0);
     if (decodedbuf == NULL) {
-        sys_error("send_mail", 1, "mail_qp_decode_dup/strdup");
+        sys_error("send_mail", 1, "mailbody_render_utf8_dup");
         return -1;
     }
 
