@@ -163,11 +163,13 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.swe"
 #define HELP_DIR	SKLAFFDIR "/etc/help.swe"
 #define HELP_FILE	SKLAFFDIR "/etc/help.swe/general.help"
+#define ROOKIE_HELP SKLAFFDIR "/etc/help.swe/newuser.help"
 #else
 #define PARSE_FILE 	SKLAFFDIR "/etc/parse.eng"
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.eng"
 #define HELP_DIR	SKLAFFDIR "/etc/help.eng"
 #define HELP_FILE	SKLAFFDIR "/etc/help.eng/general.help"
+#define ROOKIE_HELP SKLAFFDIR "/etc/help.eng/newuser.help"
 #endif
 
 #define CONFRC_FILE 	"/confrc"

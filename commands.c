@@ -4869,8 +4869,15 @@ cmd_list_flags(char *args)
     out_onoff(Old_who);
     output("%s\n", MSG_FLAG17F);
     out_onoff(Ansi_output); /* We now have an ANSI flag PL 2025 */
-    output("%s\n\n", MSG_FLAG18F);
-    return 0;
+    output("%s\n", MSG_FLAG18F);
+    out_onoff(Compact_intro);
+    output("%s\n", MSG_FLAG20F);
+/*output("[DEBUG Rookie_mode=%d] ", Rookie_mode);
+out_onoff(Rookie_mode);
+output("%s\n\n", MSG_FLAG21F);*/
+    out_onoff(Rookie_mode);
+    output("%s\n\n", MSG_FLAG21F);
+	return 0;
 }
 
 /*
@@ -4918,7 +4925,7 @@ cmd_info(char *args)
 }
 
 /* TEMP: verbose help debugging; comment out to silence */
-//#define HELP_DEBUG 1
+/* #define HELP_DEBUG 1 */
 
 /*
  * cmd_long_help - show help about a specific command
@@ -4932,6 +4939,7 @@ cmd_long_help(char *args)
 {
     static LINE tmp;         /* derived basename (e.g., "mod_numlines") */
     static LONG_LINE fname;  /* full path */
+    const char *help_file;
     char *buf;
     int (*fcn) (), i, fd;
 
@@ -4940,26 +4948,42 @@ cmd_long_help(char *args)
         if (fcn) {
             for (i = 0; Par_ent[i].func[0]; i++) {
                 if (fcn == Par_ent[i].addr) {
-                    /* Derive help filename = function name without "cmd_" prefix as per docs. */
+                    /*
+                     * Derive help filename from the function name,
+                     * without the "cmd_" prefix.
+                     */
                     const char *sym = Par_ent[i].func;
                     const char *p = strstr(sym, "cmd_");
+
                     if (p) {
                         p += 4; /* skip "cmd_" */
                         strcpy(tmp, p);
                     } else {
-                        /* fallback: if there is an underscore, use everything after the first '_' */
+                        /*
+                         * Fallback: if there is an underscore, use
+                         * everything after the first underscore.
+                         */
                         const char *us = strchr(sym, '_');
-                        if (us && us[1]) strcpy(tmp, us + 1);
-                        else strcpy(tmp, sym);
+
+                        if (us && us[1])
+                            strcpy(tmp, us + 1);
+                        else
+                            strcpy(tmp, sym);
                     }
-                    snprintf(fname, sizeof(fname), "%s/%s", HELP_DIR, tmp);
+
+                    snprintf(fname, sizeof(fname), "%s/%s",
+                             HELP_DIR, tmp);
 
 #ifdef HELP_DEBUG
-                    output("[HELP-DEBUG] func=\"%s\" args=\"%s\" base=\"%s\" path=\"%s\"\n",
+                    output("[HELP-DEBUG] func=\"%s\" args=\"%s\" "
+                           "base=\"%s\" path=\"%s\"\n",
                            sym, (args ? args : ""), tmp, fname);
 #endif
 
-                    /* file_exists() returns -1 when NOT found in rest of codebase */
+                    /*
+                     * file_exists() returns -1 when the file
+                     * does not exist.
+                     */
                     if (file_exists(fname) == -1) {
 #ifdef HELP_DEBUG
                         output("[HELP-DEBUG] not found: %s\n", fname);
@@ -4968,33 +4992,43 @@ cmd_long_help(char *args)
                     } else {
                         if ((fd = open_file(fname, 0)) == -1) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] open_file() failed for %s\n", fname);
+                            output("[HELP-DEBUG] open_file() failed "
+                                   "for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 1, "open_file");
+                            sys_error("cmd_long_help", 1,
+                                      "open_file");
                             return -1;
                         }
+
                         if ((buf = read_file(fd)) == NULL) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] read_file() returned NULL for %s\n", fname);
+                            output("[HELP-DEBUG] read_file() returned "
+                                   "NULL for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 2, "read_file");
-                            /* try to close before bailing */
+                            sys_error("cmd_long_help", 2,
+                                      "read_file");
                             (void) close_file(fd);
                             return -1;
                         }
+
                         if (close_file(fd) == -1) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] close_file() failed for %s\n", fname);
+                            output("[HELP-DEBUG] close_file() failed "
+                                   "for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 3, "close_file");
-                            /* continue; we still have buf */
+                            sys_error("cmd_long_help", 3,
+                                      "close_file");
+                            /* Continue; we still have buf. */
                         }
 
                         output("\n%s\n", MSG_COMMAND);
+
                         for (i = 0; Par_ent[i].func[0]; i++) {
                             if (fcn == Par_ent[i].addr)
-                                output("  %s\n", Par_ent[i].cmd);
+                                output("  %s\n",
+                                       Par_ent[i].cmd);
                         }
+
                         output("\n%s\n", buf);
                         free(buf);
                     }
@@ -5003,48 +5037,84 @@ cmd_long_help(char *args)
             }
         } else {
 #ifdef HELP_DEBUG
-            output("[HELP-DEBUG] parse() did not resolve command: \"%s\"\n", args);
+            output("[HELP-DEBUG] parse() did not resolve command: "
+                   "\"%s\"\n", args);
 #endif
             output("\n%s\n\n", MSG_NOHELP);
         }
     } else {
-        /* No args: general help */
+        /*
+         * No arguments:
+         *
+         * Rookie mode displays the short introduction.
+         * Otherwise retain the original general-help behaviour.
+         */
+        help_file = Rookie_mode ? ROOKIE_HELP : HELP_FILE;
+
 #ifdef HELP_DEBUG
-        output("[HELP-DEBUG] no args, checking HELP_FILE: %s\n", HELP_FILE);
+        output("[HELP-DEBUG] no args, Rookie=%d, help file: %s\n",
+               Rookie_mode, help_file);
 #endif
-        if (file_exists(HELP_FILE) == -1) {
+
+        /*
+         * If the rookie help file is missing, fall back to the
+         * ordinary general-help file rather than showing nothing.
+         */
+        if (file_exists(help_file) == -1 &&
+            Rookie_mode &&
+            file_exists(HELP_FILE) != -1) {
 #ifdef HELP_DEBUG
-            output("[HELP-DEBUG] HELP_FILE missing, falling back to cmd_help()\n");
+            output("[HELP-DEBUG] ROOKIE_HELP missing; "
+                   "falling back to HELP_FILE: %s\n",
+                   HELP_FILE);
+#endif
+            help_file = HELP_FILE;
+        }
+
+        /*
+         * Preserve the previous fallback if no suitable help file
+         * exists at all.
+         */
+        if (file_exists(help_file) == -1) {
+#ifdef HELP_DEBUG
+            output("[HELP-DEBUG] help file missing; "
+                   "falling back to cmd_help()\n");
 #endif
             cmd_help(args);
         } else {
-            int fd;
-            if ((fd = open_file(HELP_FILE, 0)) == -1) {
+            if ((fd = open_file(help_file, 0)) == -1) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] open_file() failed for HELP_FILE\n");
+                output("[HELP-DEBUG] open_file() failed for %s\n",
+                       help_file);
 #endif
                 sys_error("cmd_long_help", 1, "open_file");
                 return -1;
             }
+
             if ((buf = read_file(fd)) == NULL) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] read_file() returned NULL for HELP_FILE\n");
+                output("[HELP-DEBUG] read_file() returned NULL "
+                       "for %s\n", help_file);
 #endif
                 sys_error("cmd_long_help", 2, "read_file");
                 (void) close_file(fd);
                 return -1;
             }
+
             if (close_file(fd) == -1) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] close_file() failed for HELP_FILE\n");
+                output("[HELP-DEBUG] close_file() failed for %s\n",
+                       help_file);
 #endif
                 sys_error("cmd_long_help", 3, "close_file");
-                /* continue; we still have buf */
+                /* Continue; we still have buf. */
             }
+
             output("\n%s\n", buf);
             free(buf);
         }
     }
+
     return 0;
 }
 
@@ -7923,7 +7993,15 @@ cmd_version(char *args)
 
 
     output("\nSklaffKOM v%s\n\n", sklaff_version);
-
+  /*Här lägger vi copyright-blocket WORK IN PROGRESS*/
+	output(MSG_CPY2);
+	output(MSG_CPY3);
+	output(MSG_CPY4);
+    output(MSG_CPY4a);
+    output(MSG_CPY4b);
+  /*output(MSG_CPY5);*/
+    output(MSG_CPY6);
+    
     if (sscanf(sklaff_build_date, "%3s %d %d", mon, &day, &year) == 3) {
     output("Kompilerad: %d %s %d %s\n",
         day, swedish_month(mon), year, sklaff_build_time);
