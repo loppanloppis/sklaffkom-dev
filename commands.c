@@ -4817,6 +4817,22 @@ cmd_delete_conf(char *args)
 }
 
 /*
+ * output_flag_line - display one complete flag line
+ * args: flag value and localized description
+ *
+ * The complete line is sent through one output() call so that paging
+ * cannot separate the on/off status from the flag description.
+ */
+
+static void
+output_flag_line(int value, const char *description)
+{
+    output("%-4s%s\n",
+        value ? MSG_ON : MSG_OFF,
+        description);
+}
+
+/*
  * cmd_list_flags - list current flags and status
  * args: user arguments (args)
  * ret: ok (0) or error (-1)
@@ -4829,57 +4845,35 @@ cmd_list_flags(char *args)
         output("\n%s\n\n", MSG_NOARG);
         return 0;
     }
-    output("\n");
-    out_onoff(Utf8);
-    output("%s\n", MSG_FLAG19F); /* Catching up with modern times ;) - utf8 is now fully supported 2025-08-11 PL */
-    out_onoff(Ibm);
-    output("%s\n", MSG_FLAG0F);
-    out_onoff(Iso8859);
-    output("%s\n", MSG_FLAG1F);
-    out_onoff(Mac);
-    output("%s\n", MSG_FLAG2F);
-    out_onoff(Present);
-    output("%s\n", MSG_FLAG3F);
-    out_onoff(Shout);
-    output("%s\n", MSG_FLAG4F);
-    out_onoff(End_default);
-    output("%s\n", MSG_FLAG5F);
-    out_onoff(Say);
-    output("%s\n", MSG_FLAG6F);
-    out_onoff(Subject_change);
-    output("%s\n", MSG_FLAG7F);
-    out_onoff(Space);
-    output("%s\n", MSG_FLAG8F);
-    out_onoff(Copy);
-    output("%s\n", MSG_FLAG9F);
-    out_onoff(Author);
-    output("%s\n", MSG_FLAG10F);
-    out_onoff(Date);
-    output("%s\n", MSG_FLAG11F);
-    out_onoff(Beep);
-    output("%s\n", MSG_FLAG12F);
-    out_onoff(Clear);
-    output("%s\n", MSG_FLAG13F);
-    out_onoff(Header);
-    output("%s\n", MSG_FLAG14F);
-    out_onoff(Special);
-    output("%s\n", MSG_FLAG15F);
-    out_onoff(Presbeep);
-    output("%s\n", MSG_FLAG16F);
-    out_onoff(Old_who);
-    output("%s\n", MSG_FLAG17F);
-    out_onoff(Ansi_output); /* We now have an ANSI flag PL 2025 */
-    output("%s\n", MSG_FLAG18F);
-    out_onoff(Compact_intro);
-    output("%s\n", MSG_FLAG20F);
-/*output("[DEBUG Rookie_mode=%d] ", Rookie_mode);
-out_onoff(Rookie_mode);
-output("%s\n\n", MSG_FLAG21F);*/
-    out_onoff(Rookie_mode);
-    output("%s\n\n", MSG_FLAG21F);
-	return 0;
-}
 
+    output("\n");
+
+    output_flag_line(Utf8, MSG_FLAG19F);
+    output_flag_line(Ibm, MSG_FLAG0F);
+    output_flag_line(Iso8859, MSG_FLAG1F);
+    output_flag_line(Mac, MSG_FLAG2F);
+    output_flag_line(Present, MSG_FLAG3F);
+    output_flag_line(Shout, MSG_FLAG4F);
+    output_flag_line(End_default, MSG_FLAG5F);
+    output_flag_line(Say, MSG_FLAG6F);
+    output_flag_line(Subject_change, MSG_FLAG7F);
+    output_flag_line(Space, MSG_FLAG8F);
+    output_flag_line(Copy, MSG_FLAG9F);
+    output_flag_line(Author, MSG_FLAG10F);
+    output_flag_line(Date, MSG_FLAG11F);
+    output_flag_line(Beep, MSG_FLAG12F);
+    output_flag_line(Clear, MSG_FLAG13F);
+    output_flag_line(Header, MSG_FLAG14F);
+    output_flag_line(Special, MSG_FLAG15F);
+    output_flag_line(Presbeep, MSG_FLAG16F);
+    output_flag_line(Old_who, MSG_FLAG17F);
+    output_flag_line(Ansi_output, MSG_FLAG18F);
+    output_flag_line(Compact_intro, MSG_FLAG20F);
+    output_flag_line(Rookie_mode, MSG_FLAG21F);
+
+    output("\n");
+    return 0;
+}
 /*
  * cmd_on_flag - turn on flag
  * args: user arguments (args)
@@ -8003,7 +7997,6 @@ if (build && build > sklaff_version && build[-1] != ' ') {
 } else {
     output("\nSklaffKOM version %s\n\n", sklaff_version);
 }
-  /*Här lägger vi copyright-blocket WORK IN PROGRESS*/
 	output(MSG_VERSIONH1"\n");
     output(MSG_VERSIONH1U"\n\n");
     output(MSG_CPY2);
