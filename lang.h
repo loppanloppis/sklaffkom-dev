@@ -73,8 +73,8 @@
 #define MSG_CPY2        "Copyright (C) 1993-1996  Torbj|rn B}}th, Peter Forsberg, Peter Lindberg,\n"
 #define MSG_CPY3        "                         Odd Petersson, Carl Sundbom.\n"
 #define MSG_CPY4        "QWK-hantering (C) 1994   Daniel Gr|njord\n"
-#define MSG_CPY4a       "Enk{tfunktion (C) 1996   Olof Runborg\n"
-#define MSG_CPY4b		"FTN-hantering (C) 2026   Peter London\n\n"
+#define MSG_CPY4a       "Enk{tfunktion (C) 1996   Olof Runborg\n\n"
+/*#define MSG_CPY4b		"FTN-hantering (C) 2026   Peter London\n\n"*/
 #define MSG_CPY5        "Uppdateringar/buggfixar gjorda av Petri Stenberg, Fredrik Bj|reman, Marcus Sundberg, Peter London och Joakim Melin.\n\n"
 #define MSG_CPY6        "Programmet {r till{gnat Staffan Bergstr|ms minne.\n\n"
 #define MSG_CPY7        "SklaffKOM distribueras UTAN GARANTI. Detta {r fri programvara och alla\n"
@@ -319,6 +319,24 @@
 #define MSG_BLOCKINTRO1	"Redigera blockerade avs{ndare, en per rad."
 #define MSG_BLOCKINTRO2	"Tomma rader och rader som b|rjar med # ignoreras."
 #define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avs}ndare)"
+/* Nytt Version-kommando */
+#define MSG_VERSIONH1	"UPPHOVSR[TT"
+#define MSG_VERSIONH1U	"==========="
+#define MSG_VERSIONH2	"LICENS"
+#define MSG_VERSIONH2U	"======"
+#define MSG_VERSIONH3	"SYSTEM"
+#define MSG_VERSIONH3U	"======"
+#define MSG_VERSIONL1	"SklaffKOM {r fri programvara enligt GNU GPL version 2 eller senare"
+#define MSG_VERSIONL2	"och levereras utan garanti. Skriv visa licens f|r fullst{ndiga villkor."
+#define MSG_VERSIONC1	"Vidareutveckling och felr{ttningar:"
+#define MSG_VERSIONC2	"Petri Stenberg, Fredrik Bj|reman, Marcus Sundberg,"
+#define MSG_VERSIONC3	"Peter London och Joakim Melin."
+#define MSG_COMPILED    "Kompilerad:"
+#define MSG_LANGUAGE    "Spr}k:"
+#define MSG_PLATFORM    "Plattform:"
+#define MSG_SSYSOP      "Sysop:"
+#define MSG_LANGNAME    "Svenska"
+#define MSG_UNKNOWN		"ok{nd"
 
 /* Nytt (Se) tiden-kommando */
 #define MSG_DISPTIME    "Klockan {r nu"
@@ -1042,6 +1060,13 @@
 #define MSG_BLOCKINTRO2 "Empty lines, and lines starting with # are ignored."
 #define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
 
+/* New version command */
+#define MSG_COMPILED    "Compiled:"
+#define MSG_LANGUAGE    "Language:"
+#define MSG_PLATFORM    "Platform:"
+#define MSG_SSYSOP      "Sysop:"
+#define MSG_LANGNAME    "English"
+#define MSG_UNKNOWN		"unknown"
 /* New time */
 #define MSG_DISPTIME    "Current time is"
 #define MSG_IT          "on the"

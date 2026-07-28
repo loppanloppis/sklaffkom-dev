@@ -7989,44 +7989,84 @@ cmd_version(char *args)
 {
 	char mon[4];
 	int day, year;
+	const char *build;
+
     struct utsname uts;
 
+build = strchr(sklaff_version, '(');
 
-    output("\nSklaffKOM v%s\n\n", sklaff_version);
+if (build && build > sklaff_version && build[-1] != ' ') {
+    output("\nSklaffKOM version %.*s %s\n\n",
+           (int) (build - sklaff_version),
+           sklaff_version,
+           build);
+} else {
+    output("\nSklaffKOM version %s\n\n", sklaff_version);
+}
   /*Här lägger vi copyright-blocket WORK IN PROGRESS*/
-	output(MSG_CPY2);
+	output(MSG_VERSIONH1"\n");
+    output(MSG_VERSIONH1U"\n\n");
+    output(MSG_CPY2);
 	output(MSG_CPY3);
 	output(MSG_CPY4);
     output(MSG_CPY4a);
-    output(MSG_CPY4b);
+  /*output(MSG_CPY4b);*/
   /*output(MSG_CPY5);*/
-    output(MSG_CPY6);
-    
-    if (sscanf(sklaff_build_date, "%3s %d %d", mon, &day, &year) == 3) {
-    output("Kompilerad: %d %s %d %s\n",
-        day, swedish_month(mon), year, sklaff_build_time);
-	} else {
-    output("Kompilerad: %s %s\n",
-        sklaff_build_date, sklaff_build_time);
-	}
+    output(MSG_VERSIONC1"\n");
+    output(MSG_VERSIONC2"\n");
+    output(MSG_VERSIONC3"\n\n");
+    output(MSG_CPY6); /* Till{gnat... */
+    output(MSG_VERSIONH2"\n"); /* Licensrubrik */
+    output(MSG_VERSIONH2U"\n\n");
+    output(MSG_VERSIONL1"\n");
+    output(MSG_VERSIONL2"\n\n");
+    output(MSG_VERSIONH3"\n");
+    output(MSG_VERSIONH3U"\n\n");
 
 #ifdef SWEDISH
-    output("Språk: Svenska\n");
+    if (sscanf(sklaff_build_date, "%3s %d %d",
+               mon, &day, &year) == 3) {
+        output("%-12s %d %s %d %s\n",
+               MSG_COMPILED,
+               day,
+               swedish_month(mon),
+               year,
+               sklaff_build_time);
+    } else {
+        output("%-12s %s %s\n",
+               MSG_COMPILED,
+               sklaff_build_date,
+               sklaff_build_time);
+    }
 #else
-    output("Språk: Engelska\n");
+    output("%-12s %s %s\n",
+           MSG_COMPILED,
+           sklaff_build_date,
+           sklaff_build_time);
 #endif
 
-    if (uname(&uts) == 0)
-        output("Plattform: %s %s\n", uts.sysname, uts.machine);
-    else
-        output("Plattform: okänd\n");
+    output("%-12s %s\n", MSG_LANGUAGE, MSG_LANGNAME);
 
-    output("Sysop: %s\n", SKLAFF_SYSOP);
+    if (uname(&uts) == 0) {
+        output("%-12s %s %s\n",
+               MSG_PLATFORM,
+               uts.sysname,
+               uts.machine);
+    } else {
+        output("%-12s %s\n",
+               MSG_PLATFORM,
+               MSG_UNKNOWN);
+    }
+
+    output("%-12s %s\n",
+           MSG_SSYSOP,
+           SKLAFF_SYSOP);
 
     /*
-	if (args && (!strcmp(args, "extern") || !strcmp(args, "-v")))
+    if (args && (!strcmp(args, "extern") || !strcmp(args, "-v")))
         show_external_versions();
-	*/
+    */
+
     output("\n");
     return 0;
 }
