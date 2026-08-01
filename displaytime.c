@@ -1,3 +1,5 @@
+/* displaytime.c */
+
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
