@@ -1,0 +1,31 @@
+Parameter:
+  (<Article number>)
+
+Description:
+  Adds a footnote to an article that you wrote. The footnote is shown
+  as a separate addition when the article is read.
+
+  If no article number is given, the article you last read in the
+  current conference is used. If you give an article number, the
+  footnote is added to that article.
+
+  The footnote is written in the text editor and may contain several
+  lines. Save it with Ctrl-Z.
+
+Please note:
+  You can only add footnotes to your own articles.
+
+  Footnotes are only available in local conferences, not in your
+  Mailbox, Usenet conferences, or FTN conferences.
+
+  An article can only have one footnote. If a footnote already exists,
+  the command stops without changing the existing footnote.
+
+  When no article number is given, the last article you read must
+  belong to the conference you are currently visiting.
+
+Background:
+  The footnote feature was added in October 2025. Internally, each
+  line is appended to the article file with the prefix F:. When the
+  article is displayed, these lines are collected in a separate
+  footnote block.

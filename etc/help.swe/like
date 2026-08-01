@@ -1,0 +1,27 @@
+Argument:
+  (<Textnummer>)
+
+Beskrivning:
+  Hyllar en text i det m|te du befinner dig i. En hyllning är ett
+  enkelt s{tt att visa uppskattning f|r n}gon annans text.
+
+  Om inget textnummer anges hyllas den text du senast l{ste. Om du
+  anger ett textnummer hyllas den texten i det aktuella m|tet.
+
+  När en hyllad text visas st}r det hur många personer som har hyllat
+  den. Under status för ett m|te visas ocks} vilka texter som har
+  hyllats och hur m}nga hyllningar de har f}tt.
+
+Observera:
+  Du kan inte hylla dina egna texter och du kan bara hylla samma text
+  en gång.
+
+  Hyllningar kan endast göras i lokala m|ten, inte i Brevl}dan,
+  Usenet-m|ten eller FTN-m|ten.
+
+  Hyllningar är inte anonyma. Under en anv{ndares status visas vilka
+  texter personen har hyllat och n{r hyllningarna gjordes.
+
+Bakgrund:
+  Hyllningsfunktionen inf|rdes i oktober 2025. Internt sparas
+  hyllningarna i m|tets extradata under avsnittet !(hiss).

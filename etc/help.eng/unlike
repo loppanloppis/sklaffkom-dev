@@ -1,0 +1,27 @@
+Parameter:
+  (<Article number>)
+
+Description:
+  Removes praise that you previously gave to an article in the current
+  conference.
+
+  If no article number is given, praise is removed from the article you
+  last read. If you give an article number, your praise is removed from
+  that article.
+
+  Removing praise lowers the article's praise count. The article also
+  disappears from the list of articles you have praised.
+
+Observe:
+  You can only remove your own praise. Praise from other users is not
+  affected.
+
+  If you have not praised the selected article, nothing is changed.
+
+  Unpraise is only available in local conferences, not in your Mailbox,
+  Usenet conferences, or FTN conferences.
+
+Background:
+  Unpraise belongs to the praise feature, which was added in October
+  2025. The command removes your entry from the conference's !(hiss)
+  data.

@@ -1,0 +1,29 @@
+Parameter:
+  (<Article number>)
+
+Description:
+  Praises an article in the conference you are currently visiting.
+  Praise is a simple way to show appreciation for someone else's
+  article.
+
+  If no article number is given, the article you last read is praised.
+  If you give an article number, that article in the current conference
+  is praised.
+
+  A praised article shows how many people have praised it. The
+  conference status also lists praised articles and how many praises
+  each one has received.
+
+Observe:
+  You cannot praise your own articles, and you can only praise the same
+  article once.
+
+  Praise is only available in local conferences, not in your Mailbox,
+  Usenet conferences, or FTN conferences.
+
+  Praise is not anonymous. A user's status shows which articles that
+  person has praised and when each praise was given.
+
+Background:
+  The praise feature was added in October 2025. Internally, praises are
+  stored in the conference's extra data under the !(hiss) section.
