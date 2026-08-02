@@ -34,6 +34,169 @@
 #include "sklaff.h"
 #include "ext_globals.h"
 
+#define QUOTE_LINE_WIDTH 73
+#define QUOTE_PREFIX_LEN 2
+#define QUOTE_TEXT_WIDTH (QUOTE_LINE_WIDTH - QUOTE_PREFIX_LEN)
+
+/*
+ * append_quote_line - append one quoted line to the editor buffer
+ */
+
+static int
+append_quote_line(struct EDIT_BUF **current, long *numlines,
+    const char *text, size_t textlen)
+{
+    struct EDIT_BUF *next;
+
+    if (textlen > QUOTE_TEXT_WIDTH)
+        textlen = QUOTE_TEXT_WIDTH;
+
+    if ((next = (struct EDIT_BUF *) malloc(sizeof(struct EDIT_BUF))) == NULL)
+        return -1;
+
+    (*current)->line[0] = '>';
+    (*current)->line[1] = ' ';
+    if (textlen)
+        memcpy((*current)->line + QUOTE_PREFIX_LEN, text, textlen);
+    (*current)->line[QUOTE_PREFIX_LEN + textlen] = '\0';
+
+    (*current)->next = next;
+    next->previous = *current;
+    next->next = NULL;
+    next->line[0] = '\0';
+    *current = next;
+
+    (*numlines)++;
+    Size++;
+    return 0;
+}
+
+/*
+ * append_wrapped_quote - word-wrap one quoted paragraph
+ */
+
+static int
+append_wrapped_quote(struct EDIT_BUF **current, long *numlines,
+    const char *text)
+{
+    const char *start;
+    struct EDIT_BUF *previous;
+    char *split, *word;
+    char tail[QUOTE_TEXT_WIDTH + 1];
+    size_t remaining, take, advance, wordlen;
+    int wrote_line;
+
+    start = text;
+    wrote_line = 0;
+    while (*start) {
+        remaining = strlen(start);
+        take = remaining;
+        advance = remaining;
+
+        /* Avoid leaving a single orphaned word on the last line. */
+        if (remaining <= QUOTE_TEXT_WIDTH && wrote_line
+            && !strchr(start, ' ') && !strchr(start, '\t')) {
+            previous = (*current)->previous;
+            split = strrchr(previous->line + QUOTE_PREFIX_LEN, ' ');
+            if (split) {
+                word = split + 1;
+                wordlen = strlen(word);
+                if (wordlen + 1 + remaining <= QUOTE_TEXT_WIDTH) {
+                    memcpy(tail, word, wordlen);
+                    tail[wordlen] = ' ';
+                    memcpy(tail + wordlen + 1, start, remaining + 1);
+                    while (split > previous->line + QUOTE_PREFIX_LEN
+                        && split[-1] == ' ') {
+                        split--;
+                    }
+                    *split = '\0';
+                    return append_quote_line(current, numlines, tail,
+                        wordlen + 1 + remaining);
+                }
+            }
+        }
+
+        if (take > QUOTE_TEXT_WIDTH) {
+            take = QUOTE_TEXT_WIDTH;
+            advance = take;
+
+            while (advance > 0 && start[advance] != ' '
+                && start[advance] != '\t') {
+                advance--;
+            }
+
+            if (advance > 0)
+                take = advance;
+            else
+                advance = take;
+        }
+
+        while (take > 0 && (start[take - 1] == ' '
+            || start[take - 1] == '\t')) {
+            take--;
+        }
+
+        if (append_quote_line(current, numlines, start, take) == -1)
+            return -1;
+        wrote_line = 1;
+
+        start += advance;
+        while (*start == ' ' || *start == '\t')
+            start++;
+    }
+
+    return 0;
+}
+
+/*
+ * add_quote_source_line - add one source line to a quoted paragraph
+ */
+
+static int
+add_quote_source_line(char **paragraph, size_t *length, size_t *capacity,
+    const char *line)
+{
+    char *newbuf;
+    size_t linelen, needed, newcap;
+
+    linelen = strlen(line);
+    needed = *length + linelen + (*length ? 1 : 0) + 1;
+
+    if (needed > *capacity) {
+        newcap = needed + 256;
+        newbuf = realloc(*paragraph, newcap);
+        if (!newbuf)
+            return -1;
+        *paragraph = newbuf;
+        *capacity = newcap;
+    }
+
+    if (*length)
+        (*paragraph)[(*length)++] = ' ';
+    memcpy(*paragraph + *length, line, linelen);
+    *length += linelen;
+    (*paragraph)[*length] = '\0';
+    return 0;
+}
+
+/*
+ * flush_quote_paragraph - write and empty the pending quoted paragraph
+ */
+
+static int
+flush_quote_paragraph(struct EDIT_BUF **current, long *numlines,
+    char *paragraph, size_t *length)
+{
+    if (!*length)
+        return 0;
+
+    if (append_wrapped_quote(current, numlines, paragraph) == -1)
+        return -1;
+
+    *length = 0;
+    paragraph[0] = '\0';
+    return 0;
+}
 
 
 /*
@@ -540,6 +703,12 @@ if (c == 0xC3) {
 			qt = 0;
 			output("\n%s\n\n", MSG_QUSE);
 
+                        {
+                            char *quote_paragraph = NULL;
+                            size_t quote_length = 0;
+                            size_t quote_capacity = 0;
+                            int quote_error = 0;
+
 			while (tb) {
     			const char *qline = tb->line;
     			output("> %s", qline);
@@ -562,26 +731,44 @@ if (c == 0xC3) {
         		c2 = MSG_YESANSWER;
     		        }
 
-    		    if (c2 == MSG_YESANSWER) {
-        		Lines = 1;
-        		strcpy(ptr->line, "> ");
-				strlcat(ptr->line, qline, sizeof(ptr->line));
-        		ptr->line[73] = '\0';
-        		numlines++;
-        		Size++;
-        	    if ((ptr->next = (struct EDIT_BUF *)malloc(sizeof(struct EDIT_BUF))) == NULL) {
-            		sys_error("line_ed", 2, "malloc");
-            		break;
-        		}
-        		tmpptr = ptr;
-        		ptr = ptr->next;
-        		ptr->previous = tmpptr;
-        		ptr->next = NULL;
-        		ptr->line[0] = '\0';
-    			}
+                            if (c2 == MSG_YESANSWER) {
+                                Lines = 1;
+
+                                if (*qline == '\0') {
+                                    if (flush_quote_paragraph(&ptr,
+                                            &numlines, quote_paragraph,
+                                            &quote_length) == -1
+                                        || append_quote_line(&ptr,
+                                            &numlines, "", 0) == -1) {
+                                        quote_error = 1;
+                                        break;
+                                    }
+                                } else if (add_quote_source_line(
+                                        &quote_paragraph, &quote_length,
+                                        &quote_capacity, qline) == -1) {
+                                    quote_error = 1;
+                                    break;
+                                }
+                            } else if (flush_quote_paragraph(&ptr,
+                                    &numlines, quote_paragraph,
+                                    &quote_length) == -1) {
+                                quote_error = 1;
+                                break;
+                            }
 
     			tb = tb->next;
 		    }
+
+                            if (!quote_error
+                                && flush_quote_paragraph(&ptr, &numlines,
+                                    quote_paragraph, &quote_length) == -1) {
+                                quote_error = 1;
+                            }
+
+                            free(quote_paragraph);
+                            if (quote_error)
+                                sys_error("line_ed", 2, "malloc");
+                        }
 
 			done_quote: ;
 			output("\n");
