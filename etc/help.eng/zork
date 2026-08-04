@@ -1,0 +1,6 @@
+Parameter:
+  (<Zork-number>)
+
+Description:
+  Launches the classic adventuregames Zork, provided they have been
+  installed by SysOp. Currently, Zork 1, 2 and 3 are available.

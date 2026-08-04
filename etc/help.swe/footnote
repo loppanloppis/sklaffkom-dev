@@ -1,0 +1,30 @@
+Argument:
+  (<Textnummer>)
+
+Beskrivning:
+  L{gger till en fotnot till en text som du sj{lv har skrivit.
+  Fotnoten visas som ett separat till{gg n{r texten l{ses.
+
+  Om inget textnummer anges anv{nds den text du senast l{ste i det
+  aktuella m|tet. Om du anger ett textnummer l{ggs fotnoten till den
+  texten.
+
+  Fotnoten skrivs i texteditorn och kan best} av flera rader.
+  Spara den med Ctrl-Z.
+
+Observera:
+  Du kan bara l{gga till fotnoter till dina egna texter.
+
+  Fotnoter kan endast anv{ndas i lokala m|ten, inte i Brevl}dan,
+  Usenet-m|ten eller FTN-m|ten.
+
+  En text kan bara ha en fotnot. Om texten redan har en fotnot
+  avbryts kommandot utan att den befintliga fotnoten {ndras.
+
+  N{r inget textnummer anges m}ste den senast l{sta texten finnas
+  i det m|te du befinner dig i.
+
+Bakgrund:
+  Fotnotsfunktionen inf|rdes i oktober 2025. Varje rad i fotnoten
+  sparas internt sist i textfilen med prefixet F:. N{r texten visas
+  samlas dessa rader i ett s{rskilt fotnotsblock.

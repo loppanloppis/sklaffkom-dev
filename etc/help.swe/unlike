@@ -1,0 +1,25 @@
+Argument:
+  (<Textnummer>)
+
+Beskrivning:
+  Tar bort en hyllning som du tidigare har gett en text i det
+  aktuella m|tet.
+
+  Om inget textnummer anges avhyllas den text du senast l{ste. Om du
+  anger ett textnummer tas din hyllning bort från den texten.
+
+  N{r hyllningen tas bort minskar textens antal hyllningar. Texten
+  f|rsvinner också ur listan |ver texter som du har hyllat.
+
+Observera:
+  Du kan bara ta bort din egen hyllning. Andra anv{ndares hyllningar
+  påverkas inte.
+
+  Om du inte har hyllat den valda texten g|rs ingen {ndring.
+
+  Avhylla kan endast anv{ndas i lokala m|ten, inte i Brevl]dan,
+  Usenet-m|ten eller FTN-m|ten.
+
+Bakgrund:
+  Avhylla h|r till hyllningsfunktionen, som inf|rdes i oktober 2025.
+  Kommandot tar bort just din post ur m|tets !(hiss)-data.
