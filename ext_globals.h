@@ -99,7 +99,7 @@ extern int Header;              /* email header		   */
 extern int Presbeep;            /* Beep at present msg     */
 extern int Ansi_output;         /* Allows ANSI colors      */
 extern int Utf8;                /* UTF-8 mode		   */
-extern int Compact_intro;		/* Shorter intro screen */
+extern int Alternate_intro;		/* Re-arranged intro screen */
 extern int Rookie_mode;			/* Extra help for new users */
 
 extern struct termios Tty_mode;

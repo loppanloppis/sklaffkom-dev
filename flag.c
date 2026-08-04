@@ -199,13 +199,13 @@ set_flags(char *flags)
         } else
             Utf8 = 0;  /* default off */
 
-        p = strstr(flags, "compact_intro");
+        p = strstr(flags, "alternate_intro");
         if (p) {
             i = strchr(p, '=');
             i++;
-            Compact_intro = atoi(i);
+            Alternate_intro = atoi(i);
         } else
-            Compact_intro = 0;  /* default off */
+            Alternate_intro = 0;  /* default off */
 
         p = strstr(flags, "rookie_mode");
         if (p) {
@@ -235,7 +235,7 @@ set_flags(char *flags)
         Old_who = 0;
         Ansi_output = 0;
         Utf8 = 0;
-        Compact_intro = 0;
+        Alternate_intro = 0;
         Rookie_mode = 1;
     }
 }
@@ -412,7 +412,7 @@ turn_flag(int mode, char *flag)
         strcpy(outline, MSG_FLAG19F);
 
     } else if ((strstr(flags[20], flag) == flags[20]) && (i >= MSG_FLAG20N)) {
-        Compact_intro = mode;	
+        Alternate_intro = mode;	
         strcpy(outline, MSG_FLAG20F);
     } else if ((strstr(flags[21], flag) == flags[21]) && (i >= MSG_FLAG21N)) {
         Rookie_mode = mode;
@@ -464,7 +464,7 @@ turn_flag(int mode, char *flag)
     strcat(newflags, tmpline);
     sprintf(tmpline, "utf8 = %d\n", Utf8);
     strcat(newflags, tmpline);
-    sprintf(tmpline, "compact_intro = %d\n", Compact_intro);
+    sprintf(tmpline, "alternate_intro = %d\n", Alternate_intro);
     strcat(newflags, tmpline);
     sprintf(tmpline, "rookie_mode = %d\n", Rookie_mode);
     strcat(newflags, tmpline);

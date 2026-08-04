@@ -141,6 +141,9 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define NEWS_FILE 	SKLAFFDIR "/etc/news"
 #define NEWS_FILE_ENG	SKLAFFDIR "/etc/news.eng"
 #define NEWS_FILE_SWE	SKLAFFDIR "/etc/news.swe"
+#define INTRO_FILE   	SKLAFFDIR "/etc/intro"
+#define INTRO_FILE_ENG   SKLAFFDIR "/etc/intro.eng"
+#define INTRO_FILE_SWE   SKLAFFDIR "/etc/intro.swe"
 #define LOGOUT_FILE     "/usr/local/sklaff/etc/logout"
 #define LOGOUT_FILE_ENG     "/usr/local/sklaff/etc/logout.eng"
 #define LOGOUT_FILE_SWE "/usr/local/sklaff/etc/logout.swe"
@@ -411,6 +414,7 @@ void display_langfile(const char *base, const char *base_eng, const char *base_s
 void display_news(void);
 void display_logout(void);
 void display_info(void);
+void display_intro(void);
 
 /* lib/ftn.c */
 void export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum); /* modified on 2026-06-14, PL */
@@ -418,7 +422,7 @@ int queue_ftn_netmail(int, const char *, const char *, const char *, const char 
 int queue_ftn_netmail_reply(int, const char *, const char *, const char *,
     const char *, const char *); /* modified on 2026-07-13, PL */
 int parse_ftn_netmail_recipient(const char *, char *, size_t, char *, size_t); /* modified on 2026-07-10, PL */
-    
+
 /* lib/misc.c */
 int quote_depth(const char *s);                                                         /* Usenet quotes in colors 2025-08-31 PL */
 void normalize_label(const char *raw, char *norm, size_t nlen);                              /* Normalize a label to ensure exactly one trailing ": " */
@@ -426,6 +430,7 @@ long clamp_nonneg(long v);                                                      
 const char *time_string_static(time_t t);                                                   /* 2025-10-24 PL */
 const char *month_name_sv(const char *mon);												/* 2026-06-04 PL nicer output in new "version" command */
 int sender_is_blocked(const char *blocklist, const char *sender); /* modified on 2026-06-16, PL */
+void display_credits(void);											/* 2026-08-01 display SklaffKOM authors etc inside "version" command and during logout */
 
 // enable the function below when ready and uncomment in conf.c
 //int has_file_area(int confnum);															/* 2025-11-11 PL */
@@ -546,6 +551,7 @@ void debuglog(char *, int);
 int strip_string(char *, char *);
 int show_status(int, int, int);
 int list_who(int);
+void display_alternative_intro_finish(void);
 
 /* bbslink.c */
 

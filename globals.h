@@ -90,7 +90,7 @@ int Special;                    /* Special use, e.g. GUI client  */
 int Presbeep;                   /* Beep at present msg        	 */
 int Ansi_output;                /* Allow display of ANSI colors  */
 int Utf8;                       /* UTF-8 mode			 */
-int Compact_intro;              /* Short intro screen */
+int Alternate_intro;            /* Re-arranged intro screen */
 int Rookie_mode;				/* Extra help for new users */
 
 struct termios Tty_mode;

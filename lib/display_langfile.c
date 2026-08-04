@@ -1,3 +1,5 @@
+/* display_langfile.c */
+
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
@@ -93,3 +95,8 @@ void display_info(void)
 {
 	display_langfile(INFO_FILE, INFO_FILE_ENG, INFO_FILE_SWE);
 }
+
+void display_intro(void)
+{
+    display_langfile(INTRO_FILE, INTRO_FILE_ENG, INTRO_FILE_SWE);
+} 

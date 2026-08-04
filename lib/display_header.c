@@ -1,3 +1,5 @@
+/* display_header.c */
+
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
@@ -141,7 +143,7 @@ if (!used_news_date) {
 
 if (Current_conf != 0) {
     conf_name(Current_conf, confname);
-    output_ansi_fmt("%s " CYAN "%d" DOT " %s " BR_RED "%s " DOT CYAN"%s\n"DOT, "%s %d %s %s %s\n",
+    output_ansi_fmt("%s " CYAN "%d" DOT " %s " BR_YELLOW "%s " DOT CYAN"%s\n"DOT, "%s %d %s %s %s\n",
         (th->type == TYPE_TEXT) ? MSG_TEXTNAME : MSG_SURVEYNAME,
         th->num, MSG_IN, confname, time_val);
 

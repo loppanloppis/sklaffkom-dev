@@ -807,18 +807,25 @@ cmd_where(char *args)
     int left;
 
     conf_name(Current_conf, confname);
-    //output("\n%s %s\n", MSG_WHERE2, confname);
-    output_ansi_fmt("\n%s "BR_RED "%s\n"DOT, "\n%s %s\n", MSG_WHERE2, confname);
-    left = num_unread(Uid, Current_conf, last_text(Current_conf, Uid));
-    if (left == 0)
-        output("%s\n\n", MSG_NOUNREAD);
-    else if (left == 1)
-        output_ansi_fmt("%s\n\n","%s\n\n", MSG_ONEUNREAD);
-    else
-        output_ansi_fmt(CYAN"%d"DOT" %s\n\n", "%d %s\n\n", left, MSG_UNREADTEXTS);
+
+    output_ansi_fmt("\n%s " BR_YELLOW "%s\n" DOT,
+        "\n%s %s\n", MSG_WHERE2, confname);
+
+    left = num_unread(Uid, Current_conf,
+        last_text(Current_conf, Uid));
+
+    if (left == 0) {
+        output("%s %s\n\n", MSG_HOWMANY, MSG_NOUNREAD);
+    } else if (left == 1) {
+        output("%s %s\n\n", MSG_HOWMANY, MSG_ONEUNREAD);
+    } else {
+        output_ansi_fmt("%s " CYAN "%d" DOT " %s\n\n",
+            "%s %d %s\n\n",
+            MSG_HOWMANY, left, MSG_UNREADTEXTS);
+    }
+
     return 0;
 }
-
 /*
  * cmd_change_conf - change conference
  * args: user arguments (args)
@@ -1399,9 +1406,9 @@ cmd_create_conf(char *args)
     }
     ltrim(confname);
 
-    if (expand_name(confname, CONF, 1, NULL)) {
-        output("%s\n\n", MSG_ERRCNAME);
-        return 0;
+    if (conf_num(confname) > 0) { /* PL 2027-06-08, fixes collission check bug when creating new conferences (hopefully) */
+    output("%s\n\n", MSG_ERRCNAME);
+    return 0;
     }
     if (*confname != '\0') {
 
@@ -4529,7 +4536,8 @@ int
 cmd_change_cname(char *args)
 {
     int fd, c_num;
-    char *buf, *tmpbuf, *origbuf, *expanded_name;
+    int existing_num; /* PL 2026-08-04 collission check bug fixed */
+    char *buf, *tmpbuf, *origbuf;
     struct CONF_ENTRY ce;
     LINE confname, oldname, newname;
 
@@ -4563,8 +4571,9 @@ cmd_change_cname(char *args)
         output("\n%s\n\n", MSG_NOCHNAME);
         return 0;
     }
-    if ((expanded_name = expand_name(newname, CONF, 1, NULL)) &&
-        (strcmp(oldname, expanded_name) != 0)) {
+    existing_num = conf_num(newname);
+
+    if (existing_num > 0 && existing_num != c_num) {
         output("\n%s\n\n", MSG_ERRCNAME);
         return 0;
     }
@@ -4868,7 +4877,7 @@ cmd_list_flags(char *args)
     output_flag_line(Presbeep, MSG_FLAG16F);
     output_flag_line(Old_who, MSG_FLAG17F);
     output_flag_line(Ansi_output, MSG_FLAG18F);
-    output_flag_line(Compact_intro, MSG_FLAG20F);
+    output_flag_line(Alternate_intro, MSG_FLAG20F);
     output_flag_line(Rookie_mode, MSG_FLAG21F);
 
     output("\n");
@@ -7468,11 +7477,14 @@ cmd_footnote(char *args)
         output("\n"MSG_NOTINMBOX "\n\n");
         return 0;
     }
-	struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
-	if (ce && ce->type == NEWS_CONF) {
-    output("\n"MSG_FOOTINLOCAL "\n\n");
-    return 0;
-	}
+
+    struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
+
+    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+        output("\n" MSG_FOOTINLOCAL "\n\n");
+        return 0;
+    }
+
     snprintf(fname, sizeof(fname), "%s/%d/%ld", SKLAFF_DB, Current_conf, textnum);
 
     if ((fd = open_file(fname, OPEN_QUIET)) == -1) {
@@ -7666,8 +7678,9 @@ cmd_like(char *args)
     }
 
     struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
-    if (!ce || ce->type == NEWS_CONF) {
-        output("\n"MSG_PRAISELOCAL "\n\n");
+
+    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+        output("\n" MSG_PRAISELOCAL "\n\n");
         return 0;
     }
 
@@ -7810,9 +7823,10 @@ cmd_unlike(char *args)
         return 0;
     }
 
-    struct CONF_ENTRY *ce = get_conf_struct(Current_conf);                      
-    if (!ce || ce->type == NEWS_CONF) {
-        output("\n"MSG_PRAISELOCAL"\n\n");
+    struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
+
+    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+        output("\n" MSG_PRAISELOCAL "\n\n");
         return 0;
     }
 
@@ -7959,6 +7973,7 @@ cmd_change_cdesc(char *args)
     return 0;
 }
 
+#ifdef SWEDISH
 static const char *
 swedish_month(const char *mon)
 {
@@ -7977,14 +7992,18 @@ swedish_month(const char *mon)
 
     return mon;
 }
+#endif
 
 int
 cmd_version(char *args)
 {
+#ifdef SWEDISH
+
 	char mon[4];
 	int day, year;
-	const char *build;
+#endif
 
+	const char *build;
     struct utsname uts;
 
 build = strchr(sklaff_version, '(');
@@ -7997,23 +8016,14 @@ if (build && build > sklaff_version && build[-1] != ' ') {
 } else {
     output("\nSklaffKOM version %s\n\n", sklaff_version);
 }
-	output(MSG_VERSIONH1"\n");
+	output(MSG_VERSIONH1"\n"); /* Upphovsrättsrubrik */
     output(MSG_VERSIONH1U"\n\n");
-    output(MSG_CPY2);
-	output(MSG_CPY3);
-	output(MSG_CPY4);
-    output(MSG_CPY4a);
-  /*output(MSG_CPY4b);*/
-  /*output(MSG_CPY5);*/
-    output(MSG_VERSIONC1"\n");
-    output(MSG_VERSIONC2"\n");
-    output(MSG_VERSIONC3"\n\n");
-    output(MSG_CPY6); /* Till{gnat... */
+    display_credits();
     output(MSG_VERSIONH2"\n"); /* Licensrubrik */
     output(MSG_VERSIONH2U"\n\n");
     output(MSG_VERSIONL1"\n");
     output(MSG_VERSIONL2"\n\n");
-    output(MSG_VERSIONH3"\n");
+    output(MSG_VERSIONH3"\n"); /* Systemrubrik */
     output(MSG_VERSIONH3U"\n\n");
 
 #ifdef SWEDISH

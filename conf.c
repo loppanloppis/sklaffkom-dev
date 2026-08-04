@@ -596,12 +596,14 @@ list_confs(int uid, int all)
     }
 
     /* -------- Header -------- */
-    	output("\n");
-		output_ansi_fmt(
-        " Texter  Ol{sta  M|tesnamn\n"
-        " ------  ------  ------------------------------\n",
-        " Texter  Ol{sta  M|tesnamn\n"
-        " ------  ------  ------------------------------\n"
+    output("\n");
+    output_ansi_fmt(
+        "%s\n"
+        "%s\n",
+        "%s\n"
+        "%s\n",
+        MSG_CONFH1,
+        MSG_CONFH1U
     );
 
  /* -------- Mailbox first -------- */
@@ -621,7 +623,7 @@ if ((buf = get_conf_entry(buf, &ce))) {
         unreads = total;
 
     output_ansi_fmt(
-        CYAN"%6ld  %6ld"DOT"  %s" BR_RED "%s\n" DOT,
+        CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s\n" DOT,
         "%6ld  %6ld  %s%s\n",
         total, unreads, mark, ce.name
     );
@@ -754,7 +756,7 @@ if ((buf = get_conf_entry(buf, &ce))) {
             type_suffix = " (FTN)";
 
         output_ansi_fmt(
-            CYAN"%6ld  %6ld"DOT"  %s" BR_RED "%s" BLUE"%s" DOT "%s\n",
+            CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s" BLUE"%s" DOT "%s\n",
             "%6ld  %6ld  %s%s%s%s\n",
             c->total, c->unreads, mark, c->name, type_suffix, file_suffix
         );
@@ -770,7 +772,7 @@ if ((buf = get_conf_entry(buf, &ce))) {
 	        file_suffix = " (F)";
 
 	    output_ansi_fmt(
-	        CYAN"%6ld  %6ld"DOT"  %s" BR_RED "%s" BLUE" (FTN)" DOT "%s\n",
+	        CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s" BLUE" (FTN)" DOT "%s\n",
 	        "%6ld  %6ld  %s%s (FTN)%s\n",
 	        c->total, c->unreads, mark, c->name, file_suffix
 	    );
@@ -782,9 +784,9 @@ if ((buf = get_conf_entry(buf, &ce))) {
     /* -------- Print Usenet (with colored "(Usenet)" suffix) -------- */
     for (struct CEL *c = usenet; c; c = c->next) {
         const char *mark = c->is_member ? " " : (Ansi_output ? YELLOW "*" DOT : "*");
-    /* Siffror: CYAN, namn: BR_RED, suffix: BLUE */
+    /* Siffror: CYAN, namn: BR_YELLOW, suffix: BLUE */
         output_ansi_fmt(
-        CYAN"%6ld  %6ld"DOT"  %s" BR_RED "%s" BLUE" (Usenet)\n" DOT,
+        CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s" BLUE" (Usenet)\n" DOT,
         "%6ld  %6ld  %s%s (Usenet)\n",
         c->total, c->unreads, mark, c->name
     );
@@ -1622,7 +1624,7 @@ list_news(int uid)
         if (left != 0L) {
             if (can_see_conf(Uid, ce.num, ce.type, ce.creator)) {
                 unreads += left;
-                if (output_ansi_fmt(CYAN"%7ld"DOT  BR_RED" %s\n"DOT, "%7ld   %s\n", left, ce.name) == -1) {
+                if (output_ansi_fmt(CYAN"%7ld"DOT  BR_YELLOW" %s\n"DOT, "%7ld   %s\n", left, ce.name) == -1) {
                     xit = 1;
                 }
             }

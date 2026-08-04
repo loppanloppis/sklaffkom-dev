@@ -109,6 +109,18 @@
 #define MSG_ONEMIN	"en minut."
 #define MSG_WARNING	"Om en minut blir jag utloggad pga inaktivitet!"
 #define MSG_FTN		"ftn"
+#define MSG_LESSMIN "mindre {n en minut."
+
+/* Alternativ startskärm */
+#define MSG_INTRO_CONTINUE "Tryck ENTER för att gå vidare..."
+#define MSG_ALT_NOUNREAD "Du har inga nya texter."
+#define MSG_ALT_ONEUNREAD "Du har en ny text."
+#define MSG_ALT_YOU_HAVE "Du har"
+#define MSG_ALT_UNREADTEXTS "nya texter."
+#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 SklaffKOMs upphovsmän. GNU GPL 2+, utan garanti."
+#define MSG_ALT_LICENSE "Skriv visa licens för fullständiga villkor."
+#define MSG_ALT_DEDICATION "Programmet är tillägnat Staffan Bergströms minne."
+#define MSG_ALT_ROOKIE_TIP01 "Tips! Tryck ENTER f|r att l{sa ol{sta texter. Skriv hj{lp om du fastnar."
 
 /* bbslink.c */
 
@@ -128,8 +140,8 @@
 #define MSG_WHERE	"Du {r i"
 #define MSG_HOWMANY	"H{r finns"
 #define MSG_UNREADTEXTS	"nya texter."
-#define MSG_NOUNREAD	"Inga nya texter."
-#define MSG_ONEUNREAD	"En ny text."
+#define MSG_NOUNREAD	"inga nya texter."
+#define MSG_ONEUNREAD	"en ny text."
 #define MSG_JOIN	"Vill du bli medlem i"
 #define MSG_YES		"Ja"
 #define MSG_YES2	"ja"
@@ -394,6 +406,9 @@
 #define MSG_TOTONE	"Totalt en ny text."
 #define MSG_TOTAL	"Totalt"
 #define MSG_WHERE2	"Du befinner dig i"
+#define MSG_CONFH1	" Texter  Ol{sta  M|tesnamn"
+#define MSG_CONFH1U " ------  ------  ------------------------------"
+
 /* edit.c */
 
 #define MSG_REMTEXT	"Vill du verkligen ta bort din text?"
@@ -814,13 +829,12 @@
 #define MSG_CPY1	"SklaffKOM version "
 #define MSG_CPY2	"Copyright (C) 1993-1994  Torbj|rn B}}th, Peter Forsberg, Peter Lindberg,\n"
 #define MSG_CPY3	"                         Odd Petersson, Carl Sundbom.\n"
-#define MSG_CPY4	"QWK extensions (C) 1994  Daniel Gr|njord\n\n"
+#define MSG_CPY4	"QWK extensions (C) 1994  Daniel Gr|njord\n"
 #define MSG_CPY4a	"Surveys (C) 1996         Olof Runborg\n\n" /* Missing language strings made the english binary crash, now fixed 2025-07-14 PL */
-#define MSG_CPY5	"Program dedicated to the memory of Staffan Bergstr|m.\n\n"
-#define MSG_CPY6	"SklaffKOM comes with ABSOLUTELY NO WARRANTY. This is free software, \n"
-#define MSG_CPY7	"and you are welcome to redistribute it under certain conditions.\n\n"
-#define MSG_CPY8	"Type "
-#define MSG_CPY9	" for details.\n\n"
+#define MSG_CPY6	"Program dedicated to the memory of Staffan Bergstr|m.\n\n"
+#define MSG_CPY7	"SklaffKOM comes with ABSOLUTELY NO WARRANTY. This is free software, \n"
+#define MSG_CPY8	"and you are welcome to redistribute it under certain conditions.\n\n"
+#define MSG_CPY9	"Type show license for details.\n\n"
 #define MSG_REPLYPROMPT	"(Read) next follow-up"
 #define MSG_TEXTPROMPT	"(Read) next article"
 #define MSG_CONFPROMPT	"(Goto) next conference"
@@ -850,15 +864,26 @@
 #define MSG_ONEMIN	"one minute."
 #define MSG_WARNING	"Inactivity logout in one minute!"
 #define MSG_FTN		"ftn"
+#define MSG_LESSMIN "less than one minute."
+/* alternative start screen */
+#define MSG_INTRO_CONTINUE "Press ENTER to continue..."
+#define MSG_ALT_NOUNREAD "You have no new articles."
+#define MSG_ALT_ONEUNREAD "You have one new article."
+#define MSG_ALT_YOU_HAVE "You have"
+#define MSG_ALT_UNREADTEXTS "new articles."
+#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 the SklaffKOM authors. GNU GPL 2+, no warranty."
+#define MSG_ALT_LICENSE "Type show license for the full terms."
+#define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergström."
+#define MSG_ALT_ROOKIE_TIP01 "Tip! Just press ENTER to read unread posts. Type help if you get stuck."
 
-/* bbslink.c */                                                                 
-                                                                                
+
+/* bbslink.c */
 #define MSG_BBSLINK01 "BBSLink is a door server with nearly 150 BBS'es connected."
 #define MSG_BBSLINK02 "Each game has its own unique 'game code'."
-#define MSG_BBSLINK03 "Example command : 'play  usrp' will launch Usurper."           
+#define MSG_BBSLINK03 "Example command : 'play  usrp' will launch Usurper."
 #define MSG_BBSLINK_OFF "SysOp did not configure bbslink gaming yet." 
-/* commands.c */
 
+/* commands.c */
 #define MSG_BUSY	"is busy."
 #define MSG_ACT		"Idle   "
 #define MSG_CRPACK	"Creating packet..."
@@ -1061,6 +1086,17 @@
 #define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
 
 /* New version command */
+#define MSG_VERSIONH1	"COPYRIGHT"
+#define MSG_VERSIONH1U	"========="
+#define MSG_VERSIONH2	"LICENSE"
+#define MSG_VERSIONH2U	"======="
+#define MSG_VERSIONH3	"SYSTEM"
+#define MSG_VERSIONH3U	"======"
+#define MSG_VERSIONL1	"SklaffKOM is free software under GNU GPL version 2 or later"
+#define MSG_VERSIONL2	"and comes without warranty. Type show license for the complete terms."
+#define MSG_VERSIONC1	"Further development and bug fixes:"
+#define MSG_VERSIONC2	"Petri Stenberg, Fredrik Bj|reman, Marcus Sundberg,"
+#define MSG_VERSIONC3	"Peter London and Joakim Melin."
 #define MSG_COMPILED    "Compiled:"
 #define MSG_LANGUAGE    "Language:"
 #define MSG_PLATFORM    "Platform:"
@@ -1077,7 +1113,7 @@
 /* Footnote */
 #define MSG_FOOTNOTE	"Footnote"
 #define MSG_USEFOOT     "Syntax: footnote <article>"
-#define MSG_FOOTINLOCAL "Footnotes only works in local meetings."
+#define MSG_FOOTINLOCAL "Footnotes can only be added in local conferences."
 #define MSG_NOREADFILE  "Text file read error. Sorry."
 #define MSG_NOPARSEFILE "Text file parsing error. Sorry."
 #define MSG_FNERROR01   "That's not your article. Footnote disallowed."
@@ -1123,6 +1159,8 @@
 #define MSG_TOTONE	"One new article."
 #define MSG_TOTAL	"A total of"
 #define MSG_WHERE2       "You're currently in"
+#define MSG_CONFH1  " Articles  Unread  Conference"
+#define MSG_CONFH1U " ------    ------  ------------------------------"
 
 /* edit.c */
 
