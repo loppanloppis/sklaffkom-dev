@@ -1572,6 +1572,113 @@ cmd_subscribe(char *args)
 }
 
 /*
+ * unsubscribe_conf_num - unsubscribe from an already resolved conference
+ * args: conference number and command arguments for cmd_where()
+ * ret: ok (0) or error (-1)
+ */
+
+static int
+unsubscribe_conf_num(int conf, char *where_args)
+{
+    LINE confsname, confname;
+    char *buf, *nbuf, *oldbuf, *tmpbuf;
+    int fd, i;
+    struct CONFS_ENTRY ce;
+
+    if (conf <= 0) {
+        output("\n%s\n\n", MSG_NOUSUBMAIL);
+        return 0;
+    }
+
+    if (!member_of(Uid, conf)) {
+        output("\n%s\n\n", MSG_NOSUB);
+        return 0;
+    }
+
+    strcpy(confsname, Home);
+    strcat(confsname, CONFS_FILE);
+
+    if ((fd = open_file(confsname, 0)) == -1)
+        return -1;
+
+    if ((buf = read_file(fd)) == NULL) {
+        close_file(fd);
+        return -1;
+    }
+
+    oldbuf = buf;
+
+    i = strlen(buf) + 1;
+    nbuf = (char *) malloc(i);
+    if (!nbuf) {
+        free(oldbuf);
+        close_file(fd);
+        sys_error("unsubscribe_conf_num", 1, "malloc");
+        return -1;
+    }
+    memset(nbuf, 0, i);
+
+    ce.num = -1;
+    while (buf != NULL) {
+        buf = get_confs_entry(buf, &ce);
+        free_confs_entry(&ce);
+        if (ce.num == conf)
+            break;
+    }
+
+    if (ce.num != conf) {
+        free(nbuf);
+        free(oldbuf);
+        close_file(fd);
+        return -1;
+    }
+
+    tmpbuf = buf;
+
+    tmpbuf--;
+    while ((tmpbuf > oldbuf) && (*tmpbuf == '\n'))
+        tmpbuf--;
+
+    while ((tmpbuf > oldbuf) && (*tmpbuf != '\n'))
+        tmpbuf--;
+
+    if (tmpbuf > oldbuf)
+        tmpbuf++;
+    *tmpbuf = '\0';
+    strcpy(nbuf, oldbuf);
+    strcat(nbuf, buf);
+
+    critical();
+    if (write_file(fd, nbuf) == -1) {
+        free(oldbuf);
+        close_file(fd);
+        non_critical();
+        return -1;
+    }
+
+    free(oldbuf);
+
+    if (close_file(fd) == -1) {
+        non_critical();
+        return -1;
+    }
+    non_critical();
+
+    conf_name(conf, confname);
+    output("\n%s %s.\n", MSG_USUBOK, confname);
+
+    if (conf == Current_conf) {
+        set_conf(0);
+        clear_comment();
+        cmd_where(where_args);
+    } else {
+        output("\n");
+    }
+
+    return 0;
+}
+
+/*
  * cmd_unsubscribe - unsubscribe to a conference
  * args: user arguments (args)
  * ret: ok (0) or error (-1)
@@ -1580,10 +1687,9 @@ cmd_subscribe(char *args)
 int
 cmd_unsubscribe(char *args)
 {
-    LINE confsname, confname;
-    char *exp_confname, *buf, *nbuf, *oldbuf, *tmpbuf;
-    int fd, conf, i;
-    struct CONFS_ENTRY ce;
+    LINE confname;
+    char *exp_confname;
+    int conf;
 
     if (args && *args) {
         strcpy(confname, args);
@@ -1591,74 +1697,14 @@ cmd_unsubscribe(char *args)
         output("\n%s\n\n", MSG_NOCONFNAME);
         return 0;
     }
-    exp_confname = expand_name(confname, SUBSCRIBED | ALSOERASED, 0, NULL);
-    if (exp_confname) {
-        conf = conf_num(exp_confname);
-        if (conf) {
-            if (member_of(Uid, conf)) {
-                strcpy(confsname, Home);
-                strcat(confsname, CONFS_FILE);
 
-                if ((fd = open_file(confsname, 0)) == -1)
-                    return -1;
+    exp_confname = expand_name(confname,
+        SUBSCRIBED | ALSOERASED, 0, NULL);
+    if (!exp_confname)
+        return 0;
 
-                if ((buf = read_file(fd)) == NULL)
-                    return -1;
-
-                oldbuf = buf;
-
-                i = strlen(buf) + 1;
-                nbuf = (char *) malloc(i);
-                if (!nbuf) {
-                    sys_error("cmd_unsubscribe", 1, "malloc");
-                    return -1;
-                }
-                memset(nbuf, 0, i);
-
-                while (buf != NULL) {
-                    buf = get_confs_entry(buf, &ce);
-                    free_confs_entry(&ce);
-                    if (ce.num == conf)
-                        break;
-                }
-
-                if (ce.num == conf) {
-                    tmpbuf = buf;
-
-                    tmpbuf--;
-                    while ((tmpbuf > oldbuf) && (*tmpbuf == '\n'))
-                        tmpbuf--;
-
-                    while ((tmpbuf > oldbuf) && (*tmpbuf != '\n'))
-                        tmpbuf--;
-
-                    if (tmpbuf > oldbuf)
-                        tmpbuf++;
-                    *tmpbuf = '\0';
-                    strcpy(nbuf, oldbuf);
-                    strcat(nbuf, buf);
-                    critical();
-                    if (write_file(fd, nbuf) == -1) {
-                        return -1;
-                    }
-                }
-                free(oldbuf);
-                if (close_file(fd) == -1)
-                    return -1;
-                non_critical();
-                output("\n%s %s.\n", MSG_USUBOK, exp_confname);
-                if (conf == Current_conf) {
-                    set_conf(0);
-                    clear_comment();
-                    cmd_where(args);
-                } else
-                    output("\n");
-            } else
-                output("\n%s\n\n", MSG_NOSUB);
-        } else
-            output("\n%s\n\n", MSG_NOUSUBMAIL);
-    }
-    return 0;
+    conf = conf_num(exp_confname);
+    return unsubscribe_conf_num(conf, args);
 }
 
 /*
@@ -4769,7 +4815,16 @@ cmd_delete_conf(char *args)
     down_string(answer);
     if (*answer && (answer[0] == MSG_YESANSWER)) {
         strcpy(confname, args);
-        cmd_unsubscribe(confname);
+
+        /*
+         * The conference is already unambiguously resolved as c_num.
+         * Do not call cmd_unsubscribe(), since that would run the name
+         * through expand_name() a second time.
+         *
+         * modified on 2026-08-04, PL
+         */
+        if (unsubscribe_conf_num(c_num, confname) == -1)
+            return -1;
         if ((fd = open_file(CONF_FILE, 0)) == -1) {
             return -1;
         }
