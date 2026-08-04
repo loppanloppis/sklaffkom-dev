@@ -102,6 +102,6 @@ I:cmd_I:Tell everyone how you are
 Nethack:cmd_nethack:Play Nethack
 Zork:cmd_zork:Play Zork 1,2 or 3
 
-?:cmd_help:Same as 'List commands'
+?:cmd_long_help:Same as 'Help'
 +:cmd_next_conf:Same as 'Next conference'
 -:cmd_display_commented:Same as 'Display followed-up'

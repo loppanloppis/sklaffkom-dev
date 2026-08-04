@@ -869,163 +869,148 @@ cmd_change_conf(char *args)
  *
  * Upgraded on 2025-08-15 by PL:
  * - Friendly Swedish timestamp and login duration
- * - Rotating nerdy @beat messages (Swatch Internet Time)
+ * - Nerdy @beat messages (Swatch Internet Time)
  * - Random tip from SKLAFFDIR "/etc/strings"
  */
  
- 
- /*
- * HERREJÖSSES VILKEN RÖRA NEDAN - DET ÄR INTE FÄRDIGT ÄN, SKALL FIXAS! :D
- */
-int
+ int
 cmd_display_time(char *args)
 {
     char *tip = NULL;
     char linebuf[512];
     FILE *fp = NULL;
-    int linecount = 0, chosen = 0, current = 0;
-    int beatstyle;
+    int linecount = 0;
+    int chosen = 0;
+    int current = 0;
+    int beats = 0;
+    double se_pct;
     long at;
+    long bmt_secs;
+    long se_secs;
     time_t now;
-    struct tm ltm = {0};       /* <- zero-init to silence -Wmaybe-uninitialized */
-    struct tm *gmt = NULL;
+    struct tm ltm = {0};
+    struct tm *gmt;
 
-    now = time(0);
-    get_wallclock_localtime(&now, &ltm);   /* fills ltm using /etc/localtime */
-    gmt = gmtime(&now);                   /* for @beat */
+    (void)args;
+
+    now = time(NULL);
+
+    /* Local time according to /etc/localtime. */
+    get_wallclock_localtime(&now, &ltm);
+
+    /* UTC is used when calculating Swatch Internet Time. */
+    gmt = gmtime(&now);
+
     at = active_time(Uid);
 
-        /* === Swatch Internet Time (@beats) and Sweden local-day percent === */
-    /* fixed on 2025-09-10, PL: correct label + compute Sweden % from localtime */
-
-    int beats = 0;
-    double se_pct = 0.0;
-
-    if (gmt) {
-        /* BMT = UTC+1, no DST */
-        long bmt_secs =
+    /*
+     * Swatch Internet Time uses Biel Mean Time:
+     * UTC+1 without daylight-saving time.
+     */
+    if (gmt != NULL) {
+        bmt_secs =
             (((gmt->tm_hour + 1) % 24) * 3600L) +
             (gmt->tm_min * 60L) +
             gmt->tm_sec;
 
-        /* 1 beat = 86.4 seconds */
-        double bmt_beats = bmt_secs / 86.4;
-        beats = (int)floor(bmt_beats);
-        if (beats >= 1000) beats = 0; /* clamp edge */
+        /* One beat is 86.4 seconds. */
+        beats = (int)floor(bmt_secs / 86.4);
+
+        if (beats >= 1000)
+            beats = 0;
+    }
+
+    /* Percentage of the local Swedish day that has elapsed. */
+    se_secs =
+        ltm.tm_hour * 3600L +
+        ltm.tm_min * 60L +
+        ltm.tm_sec;
+
+    se_pct = (se_secs / 86400.0) * 100.0;
+
+    output_ansi_fmt(
+        "\n" WHITE "%s " CYAN "%02d:%02d" WHITE " %s "
+        CYAN "%d" WHITE " %s " CYAN "%d" WHITE ",%s " RESET,
+        "\n%s %02d:%02d %s %d %s %d,%s ",
+        MSG_DISPTIME,
+        ltm.tm_hour,
+        ltm.tm_min,
+        MSG_IT,
+        ltm.tm_mday,
+        month_name(ltm.tm_mon),
+        1900 + ltm.tm_year,
+        MSG_DISPTIME2);
+
+    if (at == 1) {
+        output_ansi_fmt(
+            WHITE "%s" RESET,
+            "%s",
+            MSG_ONEMIN);
     } else {
-        beats = 0;
+        output_ansi_fmt(
+            CYAN "%ld" WHITE " %s" RESET,
+            "%ld %s",
+            at,
+            MSG_MINUTES);
     }
-
-    /* Sweden (Europe/Stockholm) local day progress */
-    {
-        long se_secs = ltm.tm_hour * 3600L + ltm.tm_min * 60L + ltm.tm_sec;
-        se_pct = (se_secs / 86400.0) * 100.0;
-    }
-
-	/* The actual output starts here, finally */ 
-	output("\n%s %02d:%02d %s %d %s %d,\n%s ",
-           MSG_DISPTIME,
-           ltm.tm_hour, ltm.tm_min,
-           MSG_IT,
-           ltm.tm_mday, month_name(ltm.tm_mon),
-           1900 + ltm.tm_year,
-           MSG_DISPTIME2);
-
-    if (at == 1)
-        output("%s", MSG_ONEMIN);
-    else
-        output("%ld %s", at, MSG_MINUTES);
 
     output("\n");
 
-    beatstyle = rand() % 5;
-    switch (beatstyle) {
-        case 0:
-        //  output("(@%03d) = Swatch Internet Time — %.1f%% through the UTC day\n", tbeat, tbeat / 10.0);
-      //    output("(@%03d) = Swatch Internet Time — %.1f%% through the UTC day\n", tbeat, tbeat / 10.0);
-      //      output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-	   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.  
-	break;
-        case 1:
-     //       output("System Clock (Internet Time): @%03d. Transmission window optimal.\n", tbeat);
-     //       output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-        case 2:
-     //       output("UTC Sync: @%03d beats — %.1f%% of the day has elapsed.\n", tbeat, tbeat / 10.0);
-     //       output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-     output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-        case 3:
-       //     output("(@%03d)  // Internet Time: one beat = 86.4 seconds (UTC)\n", tbeat);
-      //        output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-
-            break;
-        case 4:
-       //      output("Tiden på internet är (@%03d), och i Sverige har %.1f%% av dygnet hunnit gå.\n", beats, se_pct);
-      //      output(">>> Timecode @%03d // Swatch Internet Time engaged\n", tbeat);
-   output("%s(@%03d), %s %.1f%% %s\n",
-           MSG_BEATS1,   // "Tiden på internet {r"
-           beats,
-           MSG_BEATS2,   // "och i Sverige har"
-           se_pct,
-           MSG_BEATS3);  // "av dygnet hunnit g}.
-            break;
-    }
+    output_ansi_fmt(
+        WHITE "%s" CYAN "(@%03d)" WHITE ", %s "
+        CYAN "%.1f%%" WHITE " %s" RESET "\n",
+        "%s(@%03d), %s %.1f%% %s\n",
+        MSG_BEATS1,
+        beats,
+        MSG_BEATS2,
+        se_pct,
+        MSG_BEATS3);
 
     fp = fopen(SKLAFFDIR "/etc/strings", "r");
-    if (fp) {
-        while (fgets(linebuf, sizeof(linebuf), fp)) {
-            if (linebuf[0] == '#' || linebuf[0] == '\n' || linebuf[0] == '\r')
+    if (fp != NULL) {
+        while (fgets(linebuf, sizeof(linebuf), fp) != NULL) {
+            if (linebuf[0] == '#' ||
+                linebuf[0] == '\n' ||
+                linebuf[0] == '\r')
                 continue;
+
             linecount++;
         }
 
         if (linecount > 0) {
             rewind(fp);
             chosen = rand() % linecount;
-            current = 0;
-            while (fgets(linebuf, sizeof(linebuf), fp)) {
-                if (linebuf[0] == '#' || linebuf[0] == '\n' || linebuf[0] == '\r')
+
+            while (fgets(linebuf, sizeof(linebuf), fp) != NULL) {
+                if (linebuf[0] == '#' ||
+                    linebuf[0] == '\n' ||
+                    linebuf[0] == '\r')
                     continue;
+
                 if (current == chosen) {
                     chomp(linebuf);
                     tip = strdup(linebuf);
                     break;
                 }
+
                 current++;
             }
         }
+
         fclose(fp);
     }
 
     if (tip) {
-        output("\n%s\n", tip);
+        output_ansi_fmt(
+            "\n" PURPLE "%s" RESET "\n",
+            "\n%s\n",
+            tip);
+
         free(tip);
     }
 
     output("\n");
+
     return 0;
 }
 
@@ -2717,6 +2702,43 @@ cmd_personal(char *args)
 }
 
 /*
+ * show_post_warning - display an optional external posting warning
+ * args: warning file path and symbolic name
+ */
+
+static void
+show_post_warning(const char *path, const char *name)
+{
+    char *buf;
+    int fd;
+
+    if ((fd = open_file(path, OPEN_QUIET)) == -1) {
+        dlog(6, "show_post_warning: optional %s not available: %s",
+            name, path);
+        return;
+    }
+
+    if ((buf = read_file(fd)) == NULL) {
+        dlog(3, "show_post_warning: read_file %s failed", name);
+        (void) close_file(fd);
+        return;
+    }
+
+    if (close_file(fd) == -1) {
+        dlog(3, "show_post_warning: close_file %s failed", name);
+        free(buf);
+        return;
+    }
+
+    dlog(8, "show_post_warning: %s shown, bytes=%zu",
+        name, strlen(buf));
+
+    output("%s", buf);
+    free(buf);
+    output("\n");
+}
+
+/*
  * cmd_post_text - post text in conference
  * args: user arguments (args)
  * ret: ok (0) or error (-1)
@@ -2795,25 +2817,10 @@ cmd_post_text(char *args)
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_post_text: edit file path=[%s]", fname);
     output("\n");
-
-    if (un) {
-        if ((fd = open_file(POST_INFO, 0)) == -1) {
-            dlog(2, "cmd_post_text: open_file POST_INFO failed: %s", POST_INFO);
-            return -1;
-        }
-        if ((inbuf = read_file(fd)) == NULL) {
-            dlog(2, "cmd_post_text: read_file POST_INFO failed");
-            return -1;
-        }
-        if (close_file(fd) == -1) {
-            dlog(3, "cmd_post_text: close_file POST_INFO failed");
-            return -1;
-        }
-        dlog(8, "cmd_post_text: POST_INFO shown to user, bytes=%zu", strlen(inbuf));
-        output(inbuf);
-        free(inbuf);
-        output("\n");
-    }
+    if (ce->type == NEWS_CONF)
+        show_post_warning(POST_INFO, "POST_INFO");
+    else if (ce->type == FTN_CONF)
+        show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     display_header(&th, 1, confid, 0, un);
     dlog(7, "cmd_post_text: header done, subject=[%s]", th.subject);
 
@@ -3173,7 +3180,7 @@ cmd_comment(char *args)
     LONG_LINE ftn_reply_msgid, ftn_fromline;
     char *buf, *oldbuf, *nbuf, *ptr2, *mailrec, *inbuf, *ptr3, *ptr4, sav;
     int conf, fd, commentuid, allow, nc, *ptr, i, right;
-    int is_news_reply, is_ftn_reply; /* 2026-06-20 PL */
+	int is_ftn_reply; /* 2026-06-20 PL */
     int is_netmail_reply; /* modified on 2026-07-13, PL */
     long textnum, last, commenttext, savednum;
     struct TEXT_HEADER th, *thtmp;
@@ -3239,13 +3246,11 @@ cmd_comment(char *args)
     thtmp = &te.th;
     commenttext = thtmp->num;
     commentuid = thtmp->author;
-    is_news_reply = 0;
 	is_ftn_reply = 0;
 
 	if (Current_conf > 0) {
     	ce = get_conf_struct(Current_conf);
     	if (ce != NULL) {
-        	is_news_reply = (ce->type == NEWS_CONF);
         	is_ftn_reply = (ce->type == FTN_CONF);
     	}
 	}
@@ -3373,25 +3378,10 @@ cmd_comment(char *args)
     strcpy(fname, Home);
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_comment: edit file path=[%s]", fname);
-    if (Current_conf || !commentuid) {
+    if (Current_conf || !commentuid)
         output("\n");
-#ifdef POSTING_OK
-			if (is_news_reply) {
-            if ((fd = open_file(POST_INFO, 0)) == -1)
-                return -1;
-            if ((buf = read_file(fd)) == NULL)
-                return -1;
-            if (close_file(fd) == -1)
-                return -1;
-            dlog(8, "cmd_comment: POST_INFO shown, bytes=%zu", strlen(buf));
-            output(buf);
-            free(buf);
-            output("\n");
-        }
-#endif
-    } else {
+    else
         disp_note(commentuid);
-    }
 
     /* Decide target conference for the comment */
     if (Current_conf) {
@@ -3427,6 +3417,17 @@ cmd_comment(char *args)
             output("\n%s\n\n", MSG_NONEWS);
             return 0;
         }
+    }
+#endif
+
+#ifdef POSTING_OK
+    if (nc > 0) {
+        ce = get_conf_struct(nc);
+
+        if (ce != NULL && ce->type == NEWS_CONF)
+            show_post_warning(POST_INFO, "POST_INFO");
+        else if (ce != NULL && ce->type == FTN_CONF)
+            show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     }
 #endif
 
@@ -4816,6 +4817,22 @@ cmd_delete_conf(char *args)
 }
 
 /*
+ * output_flag_line - display one complete flag line
+ * args: flag value and localized description
+ *
+ * The complete line is sent through one output() call so that paging
+ * cannot separate the on/off status from the flag description.
+ */
+
+static void
+output_flag_line(int value, const char *description)
+{
+    output("%-4s%s\n",
+        value ? MSG_ON : MSG_OFF,
+        description);
+}
+
+/*
  * cmd_list_flags - list current flags and status
  * args: user arguments (args)
  * ret: ok (0) or error (-1)
@@ -4828,50 +4845,35 @@ cmd_list_flags(char *args)
         output("\n%s\n\n", MSG_NOARG);
         return 0;
     }
+
     output("\n");
-    out_onoff(Utf8);
-    output("%s\n", MSG_FLAG19F); /* Catching up with modern times ;) - utf8 is now fully supported 2025-08-11 PL */
-    out_onoff(Ibm);
-    output("%s\n", MSG_FLAG0F);
-    out_onoff(Iso8859);
-    output("%s\n", MSG_FLAG1F);
-    out_onoff(Mac);
-    output("%s\n", MSG_FLAG2F);
-    out_onoff(Present);
-    output("%s\n", MSG_FLAG3F);
-    out_onoff(Shout);
-    output("%s\n", MSG_FLAG4F);
-    out_onoff(End_default);
-    output("%s\n", MSG_FLAG5F);
-    out_onoff(Say);
-    output("%s\n", MSG_FLAG6F);
-    out_onoff(Subject_change);
-    output("%s\n", MSG_FLAG7F);
-    out_onoff(Space);
-    output("%s\n", MSG_FLAG8F);
-    out_onoff(Copy);
-    output("%s\n", MSG_FLAG9F);
-    out_onoff(Author);
-    output("%s\n", MSG_FLAG10F);
-    out_onoff(Date);
-    output("%s\n", MSG_FLAG11F);
-    out_onoff(Beep);
-    output("%s\n", MSG_FLAG12F);
-    out_onoff(Clear);
-    output("%s\n", MSG_FLAG13F);
-    out_onoff(Header);
-    output("%s\n", MSG_FLAG14F);
-    out_onoff(Special);
-    output("%s\n", MSG_FLAG15F);
-    out_onoff(Presbeep);
-    output("%s\n", MSG_FLAG16F);
-    out_onoff(Old_who);
-    output("%s\n", MSG_FLAG17F);
-    out_onoff(Ansi_output); /* We now have an ANSI flag PL 2025 */
-    output("%s\n\n", MSG_FLAG18F);
+
+    output_flag_line(Utf8, MSG_FLAG19F);
+    output_flag_line(Ibm, MSG_FLAG0F);
+    output_flag_line(Iso8859, MSG_FLAG1F);
+    output_flag_line(Mac, MSG_FLAG2F);
+    output_flag_line(Present, MSG_FLAG3F);
+    output_flag_line(Shout, MSG_FLAG4F);
+    output_flag_line(End_default, MSG_FLAG5F);
+    output_flag_line(Say, MSG_FLAG6F);
+    output_flag_line(Subject_change, MSG_FLAG7F);
+    output_flag_line(Space, MSG_FLAG8F);
+    output_flag_line(Copy, MSG_FLAG9F);
+    output_flag_line(Author, MSG_FLAG10F);
+    output_flag_line(Date, MSG_FLAG11F);
+    output_flag_line(Beep, MSG_FLAG12F);
+    output_flag_line(Clear, MSG_FLAG13F);
+    output_flag_line(Header, MSG_FLAG14F);
+    output_flag_line(Special, MSG_FLAG15F);
+    output_flag_line(Presbeep, MSG_FLAG16F);
+    output_flag_line(Old_who, MSG_FLAG17F);
+    output_flag_line(Ansi_output, MSG_FLAG18F);
+    output_flag_line(Compact_intro, MSG_FLAG20F);
+    output_flag_line(Rookie_mode, MSG_FLAG21F);
+
+    output("\n");
     return 0;
 }
-
 /*
  * cmd_on_flag - turn on flag
  * args: user arguments (args)
@@ -4917,7 +4919,7 @@ cmd_info(char *args)
 }
 
 /* TEMP: verbose help debugging; comment out to silence */
-//#define HELP_DEBUG 1
+/* #define HELP_DEBUG 1 */
 
 /*
  * cmd_long_help - show help about a specific command
@@ -4931,6 +4933,7 @@ cmd_long_help(char *args)
 {
     static LINE tmp;         /* derived basename (e.g., "mod_numlines") */
     static LONG_LINE fname;  /* full path */
+    const char *help_file;
     char *buf;
     int (*fcn) (), i, fd;
 
@@ -4939,26 +4942,42 @@ cmd_long_help(char *args)
         if (fcn) {
             for (i = 0; Par_ent[i].func[0]; i++) {
                 if (fcn == Par_ent[i].addr) {
-                    /* Derive help filename = function name without "cmd_" prefix as per docs. */
+                    /*
+                     * Derive help filename from the function name,
+                     * without the "cmd_" prefix.
+                     */
                     const char *sym = Par_ent[i].func;
                     const char *p = strstr(sym, "cmd_");
+
                     if (p) {
                         p += 4; /* skip "cmd_" */
                         strcpy(tmp, p);
                     } else {
-                        /* fallback: if there is an underscore, use everything after the first '_' */
+                        /*
+                         * Fallback: if there is an underscore, use
+                         * everything after the first underscore.
+                         */
                         const char *us = strchr(sym, '_');
-                        if (us && us[1]) strcpy(tmp, us + 1);
-                        else strcpy(tmp, sym);
+
+                        if (us && us[1])
+                            strcpy(tmp, us + 1);
+                        else
+                            strcpy(tmp, sym);
                     }
-                    snprintf(fname, sizeof(fname), "%s/%s", HELP_DIR, tmp);
+
+                    snprintf(fname, sizeof(fname), "%s/%s",
+                             HELP_DIR, tmp);
 
 #ifdef HELP_DEBUG
-                    output("[HELP-DEBUG] func=\"%s\" args=\"%s\" base=\"%s\" path=\"%s\"\n",
+                    output("[HELP-DEBUG] func=\"%s\" args=\"%s\" "
+                           "base=\"%s\" path=\"%s\"\n",
                            sym, (args ? args : ""), tmp, fname);
 #endif
 
-                    /* file_exists() returns -1 when NOT found in rest of codebase */
+                    /*
+                     * file_exists() returns -1 when the file
+                     * does not exist.
+                     */
                     if (file_exists(fname) == -1) {
 #ifdef HELP_DEBUG
                         output("[HELP-DEBUG] not found: %s\n", fname);
@@ -4967,33 +4986,43 @@ cmd_long_help(char *args)
                     } else {
                         if ((fd = open_file(fname, 0)) == -1) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] open_file() failed for %s\n", fname);
+                            output("[HELP-DEBUG] open_file() failed "
+                                   "for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 1, "open_file");
+                            sys_error("cmd_long_help", 1,
+                                      "open_file");
                             return -1;
                         }
+
                         if ((buf = read_file(fd)) == NULL) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] read_file() returned NULL for %s\n", fname);
+                            output("[HELP-DEBUG] read_file() returned "
+                                   "NULL for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 2, "read_file");
-                            /* try to close before bailing */
+                            sys_error("cmd_long_help", 2,
+                                      "read_file");
                             (void) close_file(fd);
                             return -1;
                         }
+
                         if (close_file(fd) == -1) {
 #ifdef HELP_DEBUG
-                            output("[HELP-DEBUG] close_file() failed for %s\n", fname);
+                            output("[HELP-DEBUG] close_file() failed "
+                                   "for %s\n", fname);
 #endif
-                            sys_error("cmd_long_help", 3, "close_file");
-                            /* continue; we still have buf */
+                            sys_error("cmd_long_help", 3,
+                                      "close_file");
+                            /* Continue; we still have buf. */
                         }
 
                         output("\n%s\n", MSG_COMMAND);
+
                         for (i = 0; Par_ent[i].func[0]; i++) {
                             if (fcn == Par_ent[i].addr)
-                                output("  %s\n", Par_ent[i].cmd);
+                                output("  %s\n",
+                                       Par_ent[i].cmd);
                         }
+
                         output("\n%s\n", buf);
                         free(buf);
                     }
@@ -5002,48 +5031,84 @@ cmd_long_help(char *args)
             }
         } else {
 #ifdef HELP_DEBUG
-            output("[HELP-DEBUG] parse() did not resolve command: \"%s\"\n", args);
+            output("[HELP-DEBUG] parse() did not resolve command: "
+                   "\"%s\"\n", args);
 #endif
             output("\n%s\n\n", MSG_NOHELP);
         }
     } else {
-        /* No args: general help */
+        /*
+         * No arguments:
+         *
+         * Rookie mode displays the short introduction.
+         * Otherwise retain the original general-help behaviour.
+         */
+        help_file = Rookie_mode ? ROOKIE_HELP : HELP_FILE;
+
 #ifdef HELP_DEBUG
-        output("[HELP-DEBUG] no args, checking HELP_FILE: %s\n", HELP_FILE);
+        output("[HELP-DEBUG] no args, Rookie=%d, help file: %s\n",
+               Rookie_mode, help_file);
 #endif
-        if (file_exists(HELP_FILE) == -1) {
+
+        /*
+         * If the rookie help file is missing, fall back to the
+         * ordinary general-help file rather than showing nothing.
+         */
+        if (file_exists(help_file) == -1 &&
+            Rookie_mode &&
+            file_exists(HELP_FILE) != -1) {
 #ifdef HELP_DEBUG
-            output("[HELP-DEBUG] HELP_FILE missing, falling back to cmd_help()\n");
+            output("[HELP-DEBUG] ROOKIE_HELP missing; "
+                   "falling back to HELP_FILE: %s\n",
+                   HELP_FILE);
+#endif
+            help_file = HELP_FILE;
+        }
+
+        /*
+         * Preserve the previous fallback if no suitable help file
+         * exists at all.
+         */
+        if (file_exists(help_file) == -1) {
+#ifdef HELP_DEBUG
+            output("[HELP-DEBUG] help file missing; "
+                   "falling back to cmd_help()\n");
 #endif
             cmd_help(args);
         } else {
-            int fd;
-            if ((fd = open_file(HELP_FILE, 0)) == -1) {
+            if ((fd = open_file(help_file, 0)) == -1) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] open_file() failed for HELP_FILE\n");
+                output("[HELP-DEBUG] open_file() failed for %s\n",
+                       help_file);
 #endif
                 sys_error("cmd_long_help", 1, "open_file");
                 return -1;
             }
+
             if ((buf = read_file(fd)) == NULL) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] read_file() returned NULL for HELP_FILE\n");
+                output("[HELP-DEBUG] read_file() returned NULL "
+                       "for %s\n", help_file);
 #endif
                 sys_error("cmd_long_help", 2, "read_file");
                 (void) close_file(fd);
                 return -1;
             }
+
             if (close_file(fd) == -1) {
 #ifdef HELP_DEBUG
-                output("[HELP-DEBUG] close_file() failed for HELP_FILE\n");
+                output("[HELP-DEBUG] close_file() failed for %s\n",
+                       help_file);
 #endif
                 sys_error("cmd_long_help", 3, "close_file");
-                /* continue; we still have buf */
+                /* Continue; we still have buf. */
             }
+
             output("\n%s\n", buf);
             free(buf);
         }
     }
+
     return 0;
 }
 
@@ -7918,36 +7983,83 @@ cmd_version(char *args)
 {
 	char mon[4];
 	int day, year;
+	const char *build;
+
     struct utsname uts;
 
+build = strchr(sklaff_version, '(');
 
-    output("\nSklaffKOM v%s\n\n", sklaff_version);
-
-    if (sscanf(sklaff_build_date, "%3s %d %d", mon, &day, &year) == 3) {
-    output("Kompilerad: %d %s %d %s\n",
-        day, swedish_month(mon), year, sklaff_build_time);
-	} else {
-    output("Kompilerad: %s %s\n",
-        sklaff_build_date, sklaff_build_time);
-	}
+if (build && build > sklaff_version && build[-1] != ' ') {
+    output("\nSklaffKOM version %.*s %s\n\n",
+           (int) (build - sklaff_version),
+           sklaff_version,
+           build);
+} else {
+    output("\nSklaffKOM version %s\n\n", sklaff_version);
+}
+	output(MSG_VERSIONH1"\n");
+    output(MSG_VERSIONH1U"\n\n");
+    output(MSG_CPY2);
+	output(MSG_CPY3);
+	output(MSG_CPY4);
+    output(MSG_CPY4a);
+  /*output(MSG_CPY4b);*/
+  /*output(MSG_CPY5);*/
+    output(MSG_VERSIONC1"\n");
+    output(MSG_VERSIONC2"\n");
+    output(MSG_VERSIONC3"\n\n");
+    output(MSG_CPY6); /* Till{gnat... */
+    output(MSG_VERSIONH2"\n"); /* Licensrubrik */
+    output(MSG_VERSIONH2U"\n\n");
+    output(MSG_VERSIONL1"\n");
+    output(MSG_VERSIONL2"\n\n");
+    output(MSG_VERSIONH3"\n");
+    output(MSG_VERSIONH3U"\n\n");
 
 #ifdef SWEDISH
-    output("Språk: Svenska\n");
+    if (sscanf(sklaff_build_date, "%3s %d %d",
+               mon, &day, &year) == 3) {
+        output("%-12s %d %s %d %s\n",
+               MSG_COMPILED,
+               day,
+               swedish_month(mon),
+               year,
+               sklaff_build_time);
+    } else {
+        output("%-12s %s %s\n",
+               MSG_COMPILED,
+               sklaff_build_date,
+               sklaff_build_time);
+    }
 #else
-    output("Språk: Engelska\n");
+    output("%-12s %s %s\n",
+           MSG_COMPILED,
+           sklaff_build_date,
+           sklaff_build_time);
 #endif
 
-    if (uname(&uts) == 0)
-        output("Plattform: %s %s\n", uts.sysname, uts.machine);
-    else
-        output("Plattform: okänd\n");
+    output("%-12s %s\n", MSG_LANGUAGE, MSG_LANGNAME);
 
-    output("Sysop: %s\n", SKLAFF_SYSOP);
+    if (uname(&uts) == 0) {
+        output("%-12s %s %s\n",
+               MSG_PLATFORM,
+               uts.sysname,
+               uts.machine);
+    } else {
+        output("%-12s %s\n",
+               MSG_PLATFORM,
+               MSG_UNKNOWN);
+    }
+
+    output("%-12s %s\n",
+           MSG_SSYSOP,
+           SKLAFF_SYSOP);
 
     /*
-	if (args && (!strcmp(args, "extern") || !strcmp(args, "-v")))
+    if (args && (!strcmp(args, "extern") || !strcmp(args, "-v")))
         show_external_versions();
-	*/
+    */
+
     output("\n");
     return 0;
 }

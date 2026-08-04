@@ -97,8 +97,11 @@ extern int Beep;                /* Allow beeps 		   */
 extern int Clear;               /* Clear screen		   */
 extern int Header;              /* email header		   */
 extern int Presbeep;            /* Beep at present msg     */
-extern int Ansi_output;		/* Allows ANSI colors      */
-extern int Utf8;		/* UTF-8 mode		   */
+extern int Ansi_output;         /* Allows ANSI colors      */
+extern int Utf8;                /* UTF-8 mode		   */
+extern int Compact_intro;		/* Shorter intro screen */
+extern int Rookie_mode;			/* Extra help for new users */
+
 extern struct termios Tty_mode;
 extern sigset_t Oldmask;
 

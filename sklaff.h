@@ -95,7 +95,6 @@
 #define SKLAFFECHO 	"/bin/echo"
 #define DEFAULT_NETHACK_PATH 	"/usr/local/bin/nethack"  /* default Nethack path */
 
-
 /* Everything related to Frotz and Zork */
 #define FROTZ_BIN       "/usr/local/bin/frotz"        /* Path to frotz binary */
 #define FROTZ_ARGS      "-D 0 -Z 0 -R "               /* Disable colors on top, report 0 errors, saves in ./data dir */
@@ -125,6 +124,7 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define MVPRGM		"/bin/mv"
 #define MAILPRGM	"/usr/sbin/sendmail"
 #define NEWSPRGM	"/usr/local/bin/inews -h -S -P" /*-h needed!  */
+#define HTMLPRGM	"/usr/bin/lynx" /* lynx browser / HTML-to-text renderer */
 #define SURVREPORT 	SKLAFFBIN "/srep"
 
 /* SklaffKOM-files */
@@ -157,17 +157,19 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define GLOBAL_SKLAFFRC	SKLAFFDIR "/etc/sklaffrc"
 #define STD_SKLAFFRC 	SKLAFFDIR "/etc/stdsklaffrc"
 #define POST_INFO	SKLAFFDIR "/etc/postnews"
-
+#define POST_FTNINFO	SKLAFFDIR "/etc/postftn"
 #ifdef SWEDISH
 #define PARSE_FILE 	SKLAFFDIR "/etc/parse.swe"
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.swe"
 #define HELP_DIR	SKLAFFDIR "/etc/help.swe"
 #define HELP_FILE	SKLAFFDIR "/etc/help.swe/general.help"
+#define ROOKIE_HELP SKLAFFDIR "/etc/help.swe/newuser.help"
 #else
 #define PARSE_FILE 	SKLAFFDIR "/etc/parse.eng"
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.eng"
 #define HELP_DIR	SKLAFFDIR "/etc/help.eng"
 #define HELP_FILE	SKLAFFDIR "/etc/help.eng/general.help"
+#define ROOKIE_HELP SKLAFFDIR "/etc/help.eng/newuser.help"
 #endif
 
 #define CONFRC_FILE 	"/confrc"
@@ -231,31 +233,32 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define dlog_errno_with(tag, level, ctx) \
     dlog_with((tag), (level), "%s: errno=%d (%s)", (ctx), errno, strerror(errno))
 
-
-
 /* Misc macros */
 #define ansi_output(...) do { if (Ansi_output) output(__VA_ARGS__); } while (0) /* 2025-07-30 PL */
 #define output_ansi_fallback(ansi_str, plain_str) \
         do { output(Ansi_output ? (ansi_str) : (plain_str)); } while (0)  	/* 2025-07-30 PL */
 
 /* Misc settings */
-#define PROMPT		"-> " /* one whitespace at the end is a good idea PL 2025-07-30*/
+#define PROMPT      "-> " /* one whitespace at the end is a good idea PL 2025-07-30*/
 #define ANSI_CLS    "\033[H\033[J"
 
 /* ANSI colors */ 								/* 2025-07-30 PL */
-#define RED             "\e[31m"
-#define GREEN		"\e[32m"
-#define YELLOW		"\e[33m"
-#define BLUE		"\e[34m"
-#define PURPLE		"\e[35m"
-#define CYAN		"\e[36m"
-#define WHITE		"\e[37m"
-#define BR_WHITE	"\e[97m"
-#define BR_RED		"\e[91m"
-#define BR_YELLOW	"\e[93m"
-#define BR_BLUE		"\e[94m"
-#define DOT		"\e[0m" /* Reset to default */
-#define RESET		"\e[0m" /* Alias for the above */
+#define RED         "\e[31m"
+#define GREEN       "\e[32m"
+#define YELLOW      "\e[33m"
+#define BLUE        "\e[34m"
+#define PURPLE      "\e[35m"
+#define CYAN        "\e[36m"
+#define WHITE       "\e[37m"
+#define BR_WHITE    "\e[97m"
+#define BR_RED      "\e[91m"
+#define BR_GREEN    "\e[92m"
+#define BR_YELLOW   "\e[93m"
+#define BR_BLUE     "\e[94m"
+#define BR_PURPLE   "\e[95m"
+#define BR_CYAN     "\e[96m"
+#define DOT         "\e[0m" /* Reset to default */
+#define RESET       "\e[0m" /* Alias for the above */
 
 /* Change nothing below this line (unless it won't compile) */
 

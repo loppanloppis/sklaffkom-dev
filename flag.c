@@ -198,6 +198,22 @@ set_flags(char *flags)
             Utf8 = atoi(i);
         } else
             Utf8 = 0;  /* default off */
+
+        p = strstr(flags, "compact_intro");
+        if (p) {
+            i = strchr(p, '=');
+            i++;
+            Compact_intro = atoi(i);
+        } else
+            Compact_intro = 0;  /* default off */
+
+        p = strstr(flags, "rookie_mode");
+        if (p) {
+            i = strchr(p, '=');
+            i++;
+            Rookie_mode = atoi(i);
+        } else
+            Rookie_mode = 1;  /* default on */
     } else {
         Shout = 1;
         Say = 1;
@@ -217,8 +233,10 @@ set_flags(char *flags)
         Special = 0;
         Presbeep = 0;
         Old_who = 0;
-	Ansi_output = 0;
-	Utf8 = 0;
+        Ansi_output = 0;
+        Utf8 = 0;
+        Compact_intro = 0;
+        Rookie_mode = 1;
     }
 }
 
@@ -252,7 +270,7 @@ int
 turn_flag(int mode, char *flag)
 {
     int i;
-    LINE flags[20], outline, tmpline;
+    LINE flags[22], outline, tmpline;
     static HUGE_LINE newflags;
     struct SKLAFFRC *rc;
 
@@ -276,6 +294,8 @@ turn_flag(int mode, char *flag)
     strcpy(flags[17], MSG_FLAG17);
     strcpy(flags[18], MSG_FLAG18);
     strcpy(flags[19], MSG_FLAG19);
+    strcpy(flags[20], MSG_FLAG20);
+    strcpy(flags[21], MSG_FLAG21);
     if (!flag || (*flag == '\0')) {
         output("\n%s\n\n", MSG_NOFLAG);
         return 0;
@@ -390,7 +410,15 @@ turn_flag(int mode, char *flag)
         }
         Utf8 = mode;
         strcpy(outline, MSG_FLAG19F);
-     } else {
+
+    } else if ((strstr(flags[20], flag) == flags[20]) && (i >= MSG_FLAG20N)) {
+        Compact_intro = mode;	
+        strcpy(outline, MSG_FLAG20F);
+    } else if ((strstr(flags[21], flag) == flags[21]) && (i >= MSG_FLAG21N)) {
+        Rookie_mode = mode;
+        strcpy(outline, MSG_FLAG21F);
+
+    } else {
         output("\n%s\n\n", MSG_BADFLAG);
         return 0;
     }
@@ -435,6 +463,10 @@ turn_flag(int mode, char *flag)
     sprintf(tmpline, "ansi = %d\n", Ansi_output);
     strcat(newflags, tmpline);
     sprintf(tmpline, "utf8 = %d\n", Utf8);
+    strcat(newflags, tmpline);
+    sprintf(tmpline, "compact_intro = %d\n", Compact_intro);
+    strcat(newflags, tmpline);
+    sprintf(tmpline, "rookie_mode = %d\n", Rookie_mode);
     strcat(newflags, tmpline);
     strcpy(rc->flags, newflags);
     write_sklaffrc(Uid, rc);

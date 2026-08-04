@@ -74,8 +74,9 @@
 #define MSG_CPY3        "                         Odd Petersson, Carl Sundbom.\n"
 #define MSG_CPY4        "QWK-hantering (C) 1994   Daniel Gr|njord\n"
 #define MSG_CPY4a       "Enk{tfunktion (C) 1996   Olof Runborg\n\n"
+/*#define MSG_CPY4b		"FTN-hantering (C) 2026   Peter London\n\n"*/
 #define MSG_CPY5        "Uppdateringar/buggfixar gjorda av Petri Stenberg, Fredrik Bj|reman, Marcus Sundberg, Peter London och Joakim Melin.\n\n"
-#define MSG_CPY6        "Programmet till{gnat Staffan Bergstr|ms minne.\n\n"
+#define MSG_CPY6        "Programmet {r till{gnat Staffan Bergstr|ms minne.\n\n"
 #define MSG_CPY7        "SklaffKOM distribueras UTAN GARANTI. Detta {r fri programvara och alla\n"
 #define MSG_CPY8        "har r{tt sprida den enligt vissa villkor.\n\n"
 #define MSG_CPY9        "Skriv visa licens f|r n{rmare detaljer. \n\n"
@@ -318,6 +319,24 @@
 #define MSG_BLOCKINTRO1	"Redigera blockerade avs{ndare, en per rad."
 #define MSG_BLOCKINTRO2	"Tomma rader och rader som b|rjar med # ignoreras."
 #define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avs}ndare)"
+/* Nytt Version-kommando */
+#define MSG_VERSIONH1	"UPPHOVSR[TT"
+#define MSG_VERSIONH1U	"==========="
+#define MSG_VERSIONH2	"LICENS"
+#define MSG_VERSIONH2U	"======"
+#define MSG_VERSIONH3	"SYSTEM"
+#define MSG_VERSIONH3U	"======"
+#define MSG_VERSIONL1	"SklaffKOM {r fri programvara enligt GNU GPL version 2 eller senare"
+#define MSG_VERSIONL2	"och levereras utan garanti. Skriv visa licens f|r fullst{ndiga villkor."
+#define MSG_VERSIONC1	"Vidareutveckling och felr{ttningar:"
+#define MSG_VERSIONC2	"Petri Stenberg, Fredrik Bj|reman, Marcus Sundberg,"
+#define MSG_VERSIONC3	"Peter London och Joakim Melin."
+#define MSG_COMPILED    "Kompilerad:"
+#define MSG_LANGUAGE    "Spr}k:"
+#define MSG_PLATFORM    "Plattform:"
+#define MSG_SSYSOP      "Sysop:"
+#define MSG_LANGNAME    "Svenska"
+#define MSG_UNKNOWN		"ok{nd"
 
 /* Nytt (Se) tiden-kommando */
 #define MSG_DISPTIME    "Klockan {r nu"
@@ -482,7 +501,7 @@
 #define MSG_FLAG8N	1
 #define MSG_FLAG8F	"Mellanslag (ger vagnretur)"
 #define MSG_FLAG9	"kopia"
-#define MSG_FLAG9N	1
+#define MSG_FLAG9N	3
 #define MSG_FLAG9F	"Kopia (av s{nda brev)"
 #define MSG_FLAG10	"f|rfattare"
 #define MSG_FLAG10N	1
@@ -510,15 +529,21 @@
 #define MSG_FLAG16	"bell"
 #define MSG_FLAG16N	1
 #define MSG_FLAG16F	"Bell (vid n{rvaromeddelanden)"
-#define MSG_FLAG17      "gammal"
-#define MSG_FLAG17N     1
-#define MSG_FLAG17F     "Gammal (vilkalistesortering)"
+#define MSG_FLAG17   "gammal"
+#define MSG_FLAG17N  1
+#define MSG_FLAG17F  "Gammal (vilkalistesortering)"
 #define MSG_FLAG18	"ansi"
 #define MSG_FLAG18N	2
 #define MSG_FLAG18F	"ANSI-f{rger"
 #define MSG_FLAG19	"utf8"
 #define MSG_FLAG19N	1
 #define MSG_FLAG19F	"UTF-8 (teckenupps{ttning)"
+#define MSG_FLAG20	"alternativ"
+#define MSG_FLAG20N	2
+#define MSG_FLAG20F	"Alternativ (startsk{rm)"
+#define MSG_FLAG21  "rookie"
+#define MSG_FLAG21N 2
+#define MSG_FLAG21F "(Jag {r en) rookie"
 #define MSG_NOFLAG	"Du m}ste ange en flagga."
 #define MSG_PCWARN	"Du b|r sl} av IBM-PC f|rst."
 #define MSG_ISOWARN	"Du b|r sl} av ISO 8859-1 f|rst."
@@ -1035,6 +1060,13 @@
 #define MSG_BLOCKINTRO2 "Empty lines, and lines starting with # are ignored."
 #define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
 
+/* New version command */
+#define MSG_COMPILED    "Compiled:"
+#define MSG_LANGUAGE    "Language:"
+#define MSG_PLATFORM    "Platform:"
+#define MSG_SSYSOP      "Sysop:"
+#define MSG_LANGNAME    "English"
+#define MSG_UNKNOWN		"unknown"
 /* New time */
 #define MSG_DISPTIME    "Current time is"
 #define MSG_IT          "on the"
@@ -1236,21 +1268,27 @@
 #define MSG_FLAG14	"header"
 #define MSG_FLAG14N	1
 #define MSG_FLAG14F	"Header (when reading email/news)"
-#define MSG_FLAG15	"strip"
-#define MSG_FLAG15N	2
-#define MSG_FLAG15F	"Strip (bit 8 in input)"
+#define MSG_FLAG15	"compatibility"
+#define MSG_FLAG15N	3
+#define MSG_FLAG15F	"Compatibility (mode for special clients)"
 #define MSG_FLAG16	"bell"
 #define MSG_FLAG16N	3
 #define MSG_FLAG16F	"Bell (with present messages)"
-#define MSG_FLAG17      "old"
-#define MSG_FLAG17N     1
-#define MSG_FLAG17F     "Old (who-list sort order)"
-#define MSG_FLAG18      "ansi"
-#define MSG_FLAG18N     2
-#define MSG_FLAG18F      "ANSI colors"
+#define MSG_FLAG17  "old"
+#define MSG_FLAG17N 1
+#define MSG_FLAG17F "Old (who-list sort order)"
+#define MSG_FLAG18  "ansi"
+#define MSG_FLAG18N 2
+#define MSG_FLAG18F "ANSI colors"
 #define MSG_FLAG19	"utf8"
 #define MSG_FLAG19N	1
 #define MSG_FLAG19F	"UTF-8 (character set)"
+#define MSG_FLAG20  "alternate"
+#define MSG_FLAG20N 2
+#define MSG_FLAG20F "Alternate (login screen)"
+#define MSG_FLAG21  "rookie"
+#define MSG_FLAG21N 1
+#define MSG_FLAG21F "Rookie mode"
 #define MSG_NOFLAG	"You must supply a flagname."
 #define MSG_PCWARN	"You should turn off IBM-PC first."
 #define MSG_ISOWARN	"You should turn off ISO 8859-1 first."
