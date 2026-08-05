@@ -59,9 +59,13 @@ main(int argc, char *argv[])
         Current_text = last_text(Current_conf, Uid);
         Last_text = Current_text;
         Current_author = -1;
-        cmd_where(args);
+        if (Alternate_intro)
+            display_alternative_intro_finish();
+        else
+            cmd_where(args);
 
         End_sklaff = 0;
+
         while (!End_sklaff) {
             display_msg(0);
             display_prompt(Prompt, "", 0);

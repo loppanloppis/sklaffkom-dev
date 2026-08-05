@@ -275,6 +275,189 @@ display_prompt(char *p, char *oldp, int type)
 }
 
 /*
+ * display_alternative_intro_finish - display current conference,
+ * unread count, program information, and optional rookie tip
+ */
+
+void
+display_alternative_intro_finish(void)
+{
+    LINE confname;
+    int left;
+
+    conf_name(Current_conf, confname);
+
+    output_ansi_fmt("\n%s " BR_YELLOW "%s.\n" DOT,
+        "\n%s %s.\n", MSG_WHERE2, confname);
+
+    left = num_unread(Uid, Current_conf,
+        last_text(Current_conf, Uid));
+
+    if (left == 0) {
+        output("%s\n", MSG_ALT_NOUNREAD);
+    } else if (left == 1) {
+        output("%s\n", MSG_ALT_ONEUNREAD);
+    } else {
+        output_ansi_fmt("%s " CYAN "%d" DOT " %s\n",
+            "%s %d %s\n",
+            MSG_ALT_YOU_HAVE,
+            left,
+            MSG_ALT_UNREADTEXTS);
+    }
+
+/*
+    output_ansi_fmt("\n" YELLOW "%s%s, %s.\n" DOT,
+        "\n%s%s, %s.\n",
+        MSG_CPY1,
+        sklaff_version,
+        MSG_LANG);
+
+    output("\n%s\n", MSG_ALT_COPYRIGHT);
+    output("%s\n", MSG_ALT_LICENSE);
+    output("%s\n", MSG_ALT_DEDICATION);
+*/
+	/* Good idea (the rookie tip) but most be made smarter. Looks good though */
+
+    if (Rookie_mode) {
+        output_ansi_fmt("\n" GREEN "%s\n" DOT,
+            "\n%s\n", MSG_ALT_ROOKIE_TIP01);
+    }
+
+    output("\n");
+}
+
+/*
+ * display_original_intro_header - display the original version and
+ * copyright block
+ */
+
+static void
+display_original_intro_header(void)
+{
+    output_ansi_fmt(YELLOW "%s%s, %s.\n\n" DOT, "%s%s, %s.\n\n",
+        MSG_CPY1, sklaff_version, MSG_LANG);
+    output_ansi_fallback(BR_BLUE MSG_CPY2 DOT, MSG_CPY2);
+    output_ansi_fallback(BR_BLUE MSG_CPY3 DOT, MSG_CPY3);
+    output_ansi_fallback(BR_BLUE MSG_CPY4 DOT, MSG_CPY4);
+    output_ansi_fallback(BR_BLUE MSG_CPY4a DOT, MSG_CPY4a);
+/*  output_ansi_fallback(BLUE MSG_CPY5 DOT, MSG_CPY5); */
+    output_ansi_fallback(BR_BLUE MSG_CPY6 DOT, MSG_CPY6);
+    output_ansi_fallback(BR_BLUE MSG_CPY7 DOT, MSG_CPY7);
+    output_ansi_fallback(BR_BLUE MSG_CPY8 DOT, MSG_CPY8);
+    output_ansi_fallback(BR_BLUE MSG_CPY9 DOT, MSG_CPY9);
+}
+
+
+/*
+ * display_original_intro_user - display the original news and
+ * personal welcome block
+ */
+
+static void
+display_original_intro_user(void)
+{
+    LINE name;
+    struct USER_ENTRY *ue;
+
+    dlog(6, "We try to display news-file");
+    display_news();
+
+    snprintf(name, sizeof(name), "display_welcome(): smta");
+    debuglog(name, 6);
+    send_msg_to_all(MSG_LOGIN, "");
+
+    user_name(Uid, name);
+    /* output("\n%s, %s.\n", MSG_WELCOME, name); */
+    output_ansi_fmt("\n%s, " BR_YELLOW "%s.\n" DOT,
+        "\n%s, %s.\n", MSG_WELCOME, name);
+
+    ue = get_user_struct(Uid);
+    if (ue->last_session) {
+        time_string(ue->last_session, name, 0);
+        down_string(name);
+        output_ansi_fmt("\n%s" CYAN " %s\n" DOT,
+            "\n%s %s\n", MSG_LASTHERE, name);
+    }
+}
+
+/*
+ * wait_for_intro_continue - pause before entering the main interface
+ */
+
+static void
+wait_for_intro_continue(void)
+{
+    LINE answer;
+
+    output("\n%s", MSG_INTRO_CONTINUE);
+    input("", answer, LINE_LEN, 0, 0, 1);
+}
+
+
+/*
+ * display_alternative_intro_user - display rookie information, news,
+ * and the personal welcome part of the alternative login screen
+ */
+
+static void
+display_alternative_intro_user(void)
+{
+    LINE name;
+    struct USER_ENTRY *ue;
+
+    /*
+     * Rookie information is only shown while Rookie mode is enabled.
+     */
+    if (Rookie_mode)
+        display_intro();
+
+    /*
+     * TODO: Later, only display news when the file has changed since
+     * the user last saw it.
+     */
+    dlog(6, "We try to display news-file");
+    display_news();
+
+    /*
+     * For now the alternative intro always pauses here. Once the news
+     * tracking is implemented, only pause if intro or news was shown.
+     */
+    wait_for_intro_continue();
+    clear_screen();
+
+    /*
+    * Sklaff version goes here for now
+    */
+    output_ansi_fmt("\n" DOT "%s%s, %s.\n" DOT,
+    "\n%s%s, %s.\n",
+    MSG_CPY1,
+    sklaff_version,
+    MSG_LANG);
+
+output("\n%s\n", MSG_ALT_COPYRIGHT);
+output("%s\n", MSG_ALT_LICENSE);
+/*output("%s\n", MSG_ALT_DEDICATION);*/
+
+
+
+    snprintf(name, sizeof(name), "display_welcome(): smta");
+    debuglog(name, 6);
+    send_msg_to_all(MSG_LOGIN, "");
+
+    user_name(Uid, name);
+    output_ansi_fmt("\n%s, " BR_YELLOW "%s!\n" DOT,
+        "\n%s, %s!\n", MSG_WELCOME, name);
+
+    ue = get_user_struct(Uid);
+    if (ue->last_session) {
+        time_string(ue->last_session, name, 0);
+        down_string(name);
+        output_ansi_fmt("\n%s" CYAN " %s\n" DOT,
+            "\n%s %s\n", MSG_LASTHERE, name);
+    }
+}
+
+/*
  * display_welcome - displays welcome message and sets up new users
  */
 
@@ -283,7 +466,6 @@ display_welcome(void)
 {
     LINE name, home, fname;
     int fd;
-    struct USER_ENTRY *ue;
     struct SKLAFFRC *rc;
 
 #ifdef MODEM_POOL
@@ -330,6 +512,12 @@ display_welcome(void)
     rc = read_sklaffrc(Uid);
 
     set_flags(rc->flags);
+
+    if (Rookie_mode && !Alternate_intro) {
+    display_intro();
+    wait_for_intro_continue();
+    clear_screen();
+    }
     if (rc->timeout[0] != '\0') {
         Timeout = atoi(rc->timeout);
         if (Timeout) {
@@ -338,16 +526,8 @@ display_welcome(void)
     } else {
         Timeout = 0;
     }
-    output_ansi_fmt(YELLOW "%s%s, %s.\n\n" DOT, "%s%s, %s.\n\n", MSG_CPY1, sklaff_version, MSG_LANG);
-    output_ansi_fallback(BR_BLUE MSG_CPY2 DOT, MSG_CPY2);
-    output_ansi_fallback(BR_BLUE MSG_CPY3 DOT, MSG_CPY3);
-    output_ansi_fallback(BR_BLUE MSG_CPY4 DOT, MSG_CPY4);
-    output_ansi_fallback(BR_BLUE MSG_CPY4a DOT,  MSG_CPY4a);;
-//  output_ansi_fallback(BLUE MSG_CPY5 DOT, MSG_CPY5);
-    output_ansi_fallback(BR_BLUE MSG_CPY6 DOT, MSG_CPY6);
-    output_ansi_fallback(BR_BLUE MSG_CPY7 DOT, MSG_CPY7);
-    output_ansi_fallback(BR_BLUE MSG_CPY8 DOT, MSG_CPY8);
-    output_ansi_fallback(BR_BLUE MSG_CPY9 DOT, MSG_CPY9);
+    if (!Alternate_intro)
+        display_original_intro_header();
 
 #ifdef MODEM_POOL
 #ifdef MODEM_GROUP
@@ -402,22 +582,10 @@ display_welcome(void)
         tty_reset();
         exit(1);
     }
-    dlog(6, "We try to display news-file");
-	display_news();   
-	snprintf(name, sizeof(name), "display_welcome(): smta");
-    debuglog(name, 6);
-    send_msg_to_all(MSG_LOGIN, "");
-
-    user_name(Uid, name);
-    //output("\n%s, %s.\n", MSG_WELCOME, name);
-    output_ansi_fmt("\n%s, " BR_YELLOW "%s.\n"DOT, "\n%s, %s.\n", MSG_WELCOME, name);
-    ue = get_user_struct(Uid);
-
-    if (ue->last_session) {
-        time_string(ue->last_session, name, 0);
-        down_string(name);
-        output_ansi_fmt("\n%s" CYAN " %s\n"DOT, "\n%s %s\n", MSG_LASTHERE, name);
-    }
+    if (Alternate_intro)
+        display_alternative_intro_user();
+    else
+        display_original_intro_user();
 
     /*
      * Several setup paths after the welcome text may touch CONF_FILE before
@@ -663,24 +831,56 @@ exec_logout(int tmp)
     if (tmp != SIGHUP) {
         at = active_time(Uid);
         clear_screen();
-		display_logout();
-		output("\n%s, %s.\n%s ",
-       	     MSG_WELBACK, user_name(Uid, name), MSG_ACTIVETIME);
-        if (at == 1L)
+        display_logout();
+        output("\n");
+        display_credits(); /* 2026-08-01 PL display credits during logout */
+
+        if (at < 1L) {
+            output("\n%s, %s.\n%s %s\n\n",
+                MSG_WELBACK,
+                user_name(Uid, name),
+                MSG_ACTIVETIME,
+                MSG_LESSMIN);
+        } else if (at == 1L) {
+            output("\n%s, %s.\n%s %s\n\n",
+                MSG_WELBACK,
+                user_name(Uid, name),
+                MSG_ACTIVETIME,
+                MSG_ONEMIN);
+        } else {
+            output("\n%s, %s.\n%s %ld %s\n\n",
+            MSG_WELBACK,
+            user_name(Uid, name),
+            MSG_ACTIVETIME,
+            at,
+            MSG_MINUTES);
+        }
+        
+        
+        /*
+        display_credits(); *//* 2026-08-01 PL display credits during logout */
+        /*
+        output("\n%s, %s.\n%s ",
+            MSG_WELBACK, user_name(Uid, name), MSG_ACTIVETIME);
+
+        if (at < 1L)
+            output("%s\n\n", MSG_LESSMIN);
+        else if (at == 1L)
             output("%s\n\n", MSG_ONEMIN);
         else
             output("%ld %s\n\n", at, MSG_MINUTES);
+        */
         /* Modem-style logout sequence because why not PL 2025-09-25*/
         if (!restart) {
-    	/* But don't show unless we're truly logging out */
-		sleep(1);
+        /* But don't show unless we're truly logging out */
+        sleep(1);
         output("ATH0\n");
         fflush(stdout);
         sleep(2);
         output("NO CARRIER\n\n");
         fflush(stdout);
         sleep(1);
-    	}
+        }
     }
     sprintf(tmpdir, "  removing from active list");
     debuglog(tmpdir, 6);

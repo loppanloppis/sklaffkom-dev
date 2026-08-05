@@ -393,3 +393,20 @@ sender_is_blocked(const char *blocklist, const char *sender)
 
     return 0;
 }
+
+/*
+ * display_credits - display SklaffKOM authors, contributors and dedication
+ */
+
+void
+display_credits(void)
+{
+    output(MSG_CPY2);
+    output(MSG_CPY3);
+    output(MSG_CPY4);
+    output(MSG_CPY4a);
+    output(MSG_VERSIONC1"\n");
+    output(MSG_VERSIONC2"\n");
+    output(MSG_VERSIONC3"\n\n");
+    output(MSG_CPY6); /* Till{gnat... */
+}
