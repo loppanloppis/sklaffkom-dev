@@ -7,3 +7,6 @@ Description:
 
   If you enter a email-adress (eg 'calle@skom.se') instead of a
   username, a email is sent instead.
+  
+  If you enter a netmail-adress (such as totte@21:3/24), a netmail
+  is sent instead.
