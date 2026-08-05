@@ -157,7 +157,7 @@ set_flags(char *flags)
             i++;
             Header = atoi(i);
         } else
-            Header = 1;
+            Header = 0; /* default off */
 
         p = strstr(flags, "presbeep");
         if (p) {
@@ -229,7 +229,7 @@ set_flags(char *flags)
         Date = 0;
         Beep = 1;
         Clear = 0;
-        Header = 1;
+        Header = 0;
         Special = 0;
         Presbeep = 0;
         Old_who = 0;
