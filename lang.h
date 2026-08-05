@@ -505,7 +505,7 @@
 #define MSG_FLAG4F	"(Till}t) skrik"
 #define MSG_FLAG5	"sluta"
 #define MSG_FLAG5N	2
-#define MSG_FLAG5F	"Sluta (som default)"
+#define MSG_FLAG5F	"Sluta (f|resl}s n{r du {r ikapp)"
 #define MSG_FLAG6	"s{g"
 #define MSG_FLAG6N	2
 #define MSG_FLAG6F	"(Till}t) s{g"
@@ -520,10 +520,10 @@
 #define MSG_FLAG9F	"Kopia (av s{nda brev)"
 #define MSG_FLAG10	"f|rfattare"
 #define MSG_FLAG10N	1
-#define MSG_FLAG10F	"F|rfattare (efter text)"
+#define MSG_FLAG10F	"F|rfattare (alltid efter text)"
 #define MSG_FLAG11	"datum"
 #define MSG_FLAG11N	1
-#define MSG_FLAG11F	"Datum (i texthuvud)"
+#define MSG_FLAG11F	"Datum (alltid absolut i texthuvud)"
 #define MSG_FLAG12	"pip"
 #define MSG_FLAG12N	1
 #define MSG_FLAG12F	"(Till}t) pip"
@@ -532,15 +532,10 @@
 #define MSG_FLAG13F	"Rensa (sk{rmen f|re varje text)"
 #define MSG_FLAG14	"header"
 #define MSG_FLAG14N	1
-#define MSG_FLAG14F	"Header (vid l{sning av email/news)"
-/*
-#define MSG_FLAG15	"strippa"
-#define MSG_FLAG15N	2
-#define MSG_FLAG15F	"Strippa (bit 8 vid inmatning)"
-*/
-#define MSG_FLAG15	"om|jligt"
-#define MSG_FLAG15N	1
-#define MSG_FLAG15F	"Om|jligt (speciall{ge)"
+#define MSG_FLAG14F	"Header (vid l{sning av e-post/news/FTN)"
+#define MSG_FLAG15	"kompatibilitet"
+#define MSG_FLAG15N	3
+#define MSG_FLAG15F	"Kompatibilitet (f|r specialklienter)"
 #define MSG_FLAG16	"bell"
 #define MSG_FLAG16N	1
 #define MSG_FLAG16F	"Bell (vid n{rvaromeddelanden)"
@@ -1278,7 +1273,7 @@
 #define MSG_FLAG4F	"(Allow) shouting"
 #define MSG_FLAG5	"logout"
 #define MSG_FLAG5N	1
-#define MSG_FLAG5F	"Logout (as default)"
+#define MSG_FLAG5F	"Logout (suggested when caught up)"
 #define MSG_FLAG6	"tell"
 #define MSG_FLAG6N	1
 #define MSG_FLAG6F	"(Allow) tell"
@@ -1293,10 +1288,10 @@
 #define MSG_FLAG9F	"Copy (of mail sent)"
 #define MSG_FLAG10	"author"
 #define MSG_FLAG10N	1
-#define MSG_FLAG10F	"Author (after text)"
+#define MSG_FLAG10F	"Author (always shown after text)"
 #define MSG_FLAG11	"date"
 #define MSG_FLAG11N	1
-#define MSG_FLAG11F	"Date (i textheader)"
+#define MSG_FLAG11F	"Date (always absolute in text header)"
 #define MSG_FLAG12	"beeps"
 #define MSG_FLAG12N	3
 #define MSG_FLAG12F	"(Allow) beeps"
@@ -1305,7 +1300,7 @@
 #define MSG_FLAG13F	"Clear (screen before textdisplay)"
 #define MSG_FLAG14	"header"
 #define MSG_FLAG14N	1
-#define MSG_FLAG14F	"Header (when reading email/news)"
+#define MSG_FLAG14F	"Header (when reading email/news/FTN)"
 #define MSG_FLAG15	"compatibility"
 #define MSG_FLAG15N	3
 #define MSG_FLAG15F	"Compatibility (mode for special clients)"
