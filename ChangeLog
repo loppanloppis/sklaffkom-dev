@@ -1,7 +1,32 @@
+v1.33-rc1 Sunday 02 August 2026 PL
+
+* Numerous small fixes. Code cleanup. Praise / Unpraise blocked in ftn, as
+  well as footnotes. No reason to dump those extra chars out to ftn :D.
+  Some ANSI colors changed for clarity. Some help files for commands
+  I have added are written finally (boooring). Rookie-mode (flag) provides
+  (some) help for beginners. Trying to make the startup screen more effective
+  UX-wise and I decided a flag (alternate startup screen) was the way to go.
+  Try it. Source file headers added, where these were missing (preparing for
+  upcoming sharp release ;)). Avoiding red color in conferences name etc, as
+  red suggest warning we'll save it for something useful. Some corrections
+  in the English language defines affecting startup screen fixed. Buggy
+  collission checks in cmd_create_conf and cmd_change_cname fixed, as well
+  as in cmd_delete_conf and cmd_unsubsribe. Yikes!
+
+* Mailtoss now can interpet HTML through the external cli browser Lynx.
+
+* ftntoss and related components seem to work as intended.
+
+* Started working on UX-improvements here and there, especially for new users.
+  The feature freeze I promised months ago seem to not have happened yet.
+
+* A new IBOL-parser (InterBBS OneLiner) seems functional but work remains on
+  integrating it in SklaffKOM. At least we now have a way to fetch the data.
+
 v1.33-rc1 Saturday 06 June 2026 JM
 
 * Changed language for swedish names of days to avoid intercaps and to
-  comply with swedish language standards. 
+  comply with swedish language standards.
 
 v1.33-rc1 Thursday 02 June 2026 PL
 
