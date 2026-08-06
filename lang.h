@@ -112,15 +112,39 @@
 #define MSG_LESSMIN "mindre {n en minut."
 
 /* Alternativ startskärm */
-#define MSG_INTRO_CONTINUE "Tryck ENTER för att gå vidare..."
+#define MSG_INTRO_CONTINUE "Tryck ENTER f|r att g} vidare..."
 #define MSG_ALT_NOUNREAD "Du har inga nya texter."
 #define MSG_ALT_ONEUNREAD "Du har en ny text."
 #define MSG_ALT_YOU_HAVE "Du har"
 #define MSG_ALT_UNREADTEXTS "nya texter."
-#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 SklaffKOMs upphovsmän. GNU GPL 2+, utan garanti."
-#define MSG_ALT_LICENSE "Skriv visa licens för fullständiga villkor."
-#define MSG_ALT_DEDICATION "Programmet är tillägnat Staffan Bergströms minne."
+#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 SklaffKOMs upphovsm{n. GNU GPL 2+, utan garanti."
+#define MSG_ALT_LICENSE "Skriv visa licens f|r fullst{ndiga villkor."
+#define MSG_ALT_DEDICATION "Programmet {r till{gnat Staffan Bergstr|ms minne."
 #define MSG_ALT_ROOKIE_TIP01 "Tips! Tryck ENTER f|r att l{sa ol{sta texter. Skriv hj{lp om du fastnar."
+
+/* Välja teckentabell vid login */
+#define MSG_CHARSET_MENU \
+    "Valkommen till SklaffKOM!\n\n" \
+    "Innan vi borjar maste SklaffKOM och din terminal tala samma\n" \
+    "teckensprak.\n\n" \
+    "  1. UTF-8\n" \
+    "     Moderna terminaler, SSH och de flesta telnetklienter.\n\n" \
+    "  2. IBM CP437\n" \
+    "     Klassiska BBS-klienter som SyncTERM och NetRunner.\n\n" \
+    "  3. ISO-8859-1\n" \
+    "     Vanligast pa Amiga.\n\n" \
+    "  4. Klassiskt SklaffKOM-lage\n" \
+    "     Behall SF7 utan teckenkonvertering.\n\n"
+#define MSG_CHARSET_PROMPT 		"Vilket teckensprak talar din terminal? (1): "
+#define MSG_CHARSET_BAD_CHOICE	"Skriv 1, 2, 3 eller 4."
+#define MSG_CHARSET_TEST		"Din terminal ska nu visa:"
+#define MSG_CHARSET_CONFIRM 	"Ser det riktigt ut? (Ja/Nej): "
+#define MSG_CHARSET_BAD_CONFIRM "Svara Ja eller Nej."
+#define MSG_CHARSET_RETRY 		"D} provar vi igen."
+#define MSG_CHARSET_OK 			"Utm{rkt! Nu f|rst}r vi varandra."
+#define MSG_CHARSET_SAVE_FAILED \
+    "Kunde inte spara valet. Teckentabellen anv{nds under denna session,\n" \
+    "men du kommer att f} v{lja igen n{sta g}ng."
 
 /* bbslink.c */
 
@@ -868,9 +892,31 @@
 #define MSG_ALT_UNREADTEXTS "new articles."
 #define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 the SklaffKOM authors. GNU GPL 2+, no warranty."
 #define MSG_ALT_LICENSE "Type show license for the full terms."
-#define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergström."
+#define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergstr|m."
 #define MSG_ALT_ROOKIE_TIP01 "Tip! Just press ENTER to read unread posts. Type help if you get stuck."
-
+/* charset during login */
+#define MSG_CHARSET_MENU \
+    "Welcome to SklaffKOM!\n\n" \
+    "Before we begin, SklaffKOM and your terminal need to speak the\n" \
+    "same character language.\n\n" \
+    "  1. UTF-8\n" \
+    "     Modern terminals, SSH, and most telnet clients.\n\n" \
+    "  2. IBM CP437\n" \
+    "     Classic BBS clients such as SyncTERM and NetRunner.\n\n" \
+    "  3. ISO-8859-1\n" \
+    "     Most commonly used on the Amiga.\n\n" \
+    "  4. Classic SklaffKOM mode\n" \
+    "     Keep SF7 without character conversion.\n\n"
+#define MSG_CHARSET_PROMPT 		"Which character language does your terminal speak? (1): "
+#define MSG_CHARSET_BAD_CHOICE 	"Please enter 1, 2, 3 or 4."
+#define MSG_CHARSET_TEST 		"Your terminal should now display:"
+#define MSG_CHARSET_CONFIRM 	"Does that look right? (Yes/No): "
+#define MSG_CHARSET_BAD_CONFIRM "Please answer Yes or No."
+#define MSG_CHARSET_RETRY		"Let's try again."
+#define MSG_CHARSET_OK 			"Excellent! Now we understand each other."
+#define MSG_CHARSET_SAVE_FAILED \
+    "The choice could not be saved. It will be used for this session,\n" \
+    "but you will be asked again next time."
 
 /* bbslink.c */
 #define MSG_BBSLINK01 "BBSLink is a door server with nearly 150 BBS'es connected."

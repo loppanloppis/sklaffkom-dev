@@ -23,6 +23,9 @@ v1.33-rc1 Sunday 02 August 2026 PL
 * A new IBOL-parser (InterBBS OneLiner) seems functional but work remains on
   integrating it in SklaffKOM. At least we now have a way to fetch the data.
 
+* Character set "handshake" during login for users who did not yet pick a
+  charset flag. Only displayed once. Meant for new users.
+
 v1.33-rc1 Saturday 06 June 2026 JM
 
 * Changed language for swedish names of days to avoid intercaps and to

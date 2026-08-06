@@ -35,6 +35,12 @@
 #define SWEDISH
 //#define ENGLISH
 
+/* Enable (1) or disable (0) the character-set handshake at login. */
+
+#ifndef ENABLE_CHARSET_HANDSHAKE
+#define ENABLE_CHARSET_HANDSHAKE 0
+#endif
+
 /* Define group ids and terminaltypes for modem_pool */
 
 #define MODEM_POOL 	"silly"
@@ -431,7 +437,7 @@ const char *time_string_static(time_t t);                                       
 const char *month_name_sv(const char *mon);												/* 2026-06-04 PL nicer output in new "version" command */
 int sender_is_blocked(const char *blocklist, const char *sender); /* modified on 2026-06-16, PL */
 void display_credits(void);											/* 2026-08-01 display SklaffKOM authors etc inside "version" command and during logout */
-
+int select_charset(void);											/* 2026-08-05 lets user select charset during login */
 // enable the function below when ready and uncomment in conf.c
 //int has_file_area(int confnum);															/* 2025-11-11 PL */
 
@@ -629,6 +635,7 @@ int rebuild_index_file(void);
 void set_flags(char *);
 int check_flag(char *, char *);
 int turn_flag(int, char *);
+int save_flags(void);	/* PL 2026-08-05 improved save_flags procedure */
 
 /* footnote.c */
 

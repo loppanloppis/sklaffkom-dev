@@ -99,6 +99,7 @@ extern int Header;              /* email header		   */
 extern int Presbeep;            /* Beep at present msg     */
 extern int Ansi_output;         /* Allows ANSI colors      */
 extern int Utf8;                /* UTF-8 mode		   */
+extern int Force_sf7;                  /* SF7 selection during login (hidden flag) */  
 extern int Alternate_intro;		/* Re-arranged intro screen */
 extern int Rookie_mode;			/* Extra help for new users */
 
