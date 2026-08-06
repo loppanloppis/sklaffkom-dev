@@ -4934,7 +4934,7 @@ cmd_list_flags(char *args)
     output_flag_line(Ansi_output, MSG_FLAG18F);
     output_flag_line(Alternate_intro, MSG_FLAG20F);
     output_flag_line(Rookie_mode, MSG_FLAG21F);
-
+    output_flag_line(Start_mailbox, MSG_FLAG22F);
     output("\n");
     return 0;
 }

@@ -220,6 +220,13 @@ set_flags(char *flags)
             Rookie_mode = atoi(i);
         } else
             Rookie_mode = 1;  /* default on */
+        p = strstr(flags, "start_mailbox");
+        if (p) {
+            i = strchr(p, '=');
+            i++;
+            Start_mailbox = atoi(i);
+        } else
+            Start_mailbox = 0; /* default off */
     } else {
         Shout = 1;
         Say = 1;
@@ -244,6 +251,7 @@ set_flags(char *flags)
         Force_sf7 = 0;
         Alternate_intro = 0;
         Rookie_mode = 1;
+        Start_mailbox = 0;
     }
 }
 
@@ -286,7 +294,8 @@ save_flags(void)
         "utf8 = %d\n"
         "force_sf7 = %d\n"
         "alternate_intro = %d\n"
-        "rookie_mode = %d\n",
+        "rookie_mode = %d\n"
+        "start_mailbox = %d\n",
         Say,
         Shout,
         Present,
@@ -309,7 +318,8 @@ save_flags(void)
         Utf8,
         Force_sf7,
         Alternate_intro,
-        Rookie_mode);
+        Rookie_mode,
+        Start_mailbox);
 
     if (n < 0 || (size_t)n >= sizeof(rc->flags)) {
         debuglog("save_flags: flags buffer too small", 1);
@@ -359,7 +369,7 @@ int
 turn_flag(int mode, char *flag)
 {
     int i;
-    LINE flags[22], outline;
+    LINE flags[23], outline;
 
     strcpy(flags[0], MSG_FLAG0);
     strcpy(flags[1], MSG_FLAG1);
@@ -383,6 +393,7 @@ turn_flag(int mode, char *flag)
     strcpy(flags[19], MSG_FLAG19);
     strcpy(flags[20], MSG_FLAG20);
     strcpy(flags[21], MSG_FLAG21);
+    strcpy(flags[22], MSG_FLAG22);
     if (!flag || (*flag == '\0')) {
         output("\n%s\n\n", MSG_NOFLAG);
         return 0;
@@ -512,7 +523,9 @@ turn_flag(int mode, char *flag)
     } else if ((strstr(flags[21], flag) == flags[21]) && (i >= MSG_FLAG21N)) {
         Rookie_mode = mode;
         strcpy(outline, MSG_FLAG21F);
-
+    } else if ((strstr(flags[22], flag) == flags[22]) && (i >= MSG_FLAG22N)) {
+        Start_mailbox = mode;
+        strcpy(outline, MSG_FLAG22F);
     } else {
         output("\n%s\n\n", MSG_BADFLAG);
         return 0;

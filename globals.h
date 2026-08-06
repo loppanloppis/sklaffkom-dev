@@ -93,7 +93,7 @@ int Utf8;                       /* UTF-8 mode			 */
 int Force_sf7;					/* SF7 selection during login (hidden flag) */
 int Alternate_intro;            /* Re-arranged intro screen */
 int Rookie_mode;				/* Extra help for new users */
-
+int Start_mailbox;				/* Always start in Mailbox during login */
 struct termios Tty_mode;
 sigset_t Oldmask;
 

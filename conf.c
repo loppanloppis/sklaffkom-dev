@@ -518,7 +518,21 @@ int
 set_first_conf(void)
 {
     int conf;
+    
+    /*
+    * Optional NiKom-style login:
+    * always stop in the Mailbox, even when it contains no unread mail.
+    */
+    if (Start_mailbox) {
+        set_conf(0);
+        return 0;
+    }
 
+    /*
+     * Original SklaffKOM behaviour:
+     * start in the Mailbox if it contains unread mail, otherwise
+     * continue to the first conference containing unread articles.
+     */    
     conf = 0;
     set_conf(conf);
     if (!more_text()) {

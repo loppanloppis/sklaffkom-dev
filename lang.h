@@ -578,6 +578,9 @@
 #define MSG_FLAG21  "rookie"
 #define MSG_FLAG21N 2
 #define MSG_FLAG21F "(Jag {r en) rookie"
+#define MSG_FLAG22  "brevl}dan"
+#define MSG_FLAG22N 3
+#define MSG_FLAG22F "(B|rja alltid i) Brevl}dan"
 #define MSG_NOFLAG	"Du m}ste ange en flagga."
 #define MSG_PCWARN	"Du b|r sl} av IBM-PC f|rst."
 #define MSG_ISOWARN	"Du b|r sl} av ISO 8859-1 f|rst."
@@ -1368,6 +1371,9 @@
 #define MSG_FLAG21  "rookie"
 #define MSG_FLAG21N 1
 #define MSG_FLAG21F "Rookie mode"
+#define MSG_FLAG22  "mailbox"
+#define MSG_FLAG22N 3
+#define MSG_FLAG22F "(Always start in) Mailbox"
 #define MSG_NOFLAG	"You must supply a flagname."
 #define MSG_PCWARN	"You should turn off IBM-PC first."
 #define MSG_ISOWARN	"You should turn off ISO 8859-1 first."
