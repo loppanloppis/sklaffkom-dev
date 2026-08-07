@@ -1,7 +1,5 @@
 /* ftn.c */
 
-/* user.c */
-
 /*
  *   SklaffKOM, a simple conference system for UNIX.
  *
@@ -32,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h> /* Improved 5D netmail address support PL 2026-08-07 */
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h> /* chmod queue jobs (2026-07-10, PL) */
@@ -47,6 +46,100 @@
 
 #define FTNQUEUE_NETMAIL_PENDING \
     SKLAFFDIR "/ftnqueue/netmail/pending" /* modified on 2026-07-10, PL */
+
+int
+ftn_netmail_address_needs_domain(const char *addr)
+{
+    FILE *fp;
+    char line[1024];
+    char *p, *q, *end;
+    long wanted_zone, zone;
+    int matches;
+
+    if (addr == NULL || *addr == '\0')
+        return 0;
+
+    /*
+     * A 5D address is already explicit and cannot be ambiguous here.
+     *
+     * modified on 2026-08-07, PL
+     */
+    if (strchr(addr, '@') != NULL)
+        return 0;
+
+    wanted_zone = strtol(addr, &end, 10);
+    if (end == addr || *end != ':' ||
+        wanted_zone < 0 || wanted_zone > 65535)
+        return 0;
+
+    fp = fopen(CRASHMAIL_PREFS_FILE, "r");
+    if (fp == NULL) {
+        /*
+         * Do not break otherwise valid 4D netmail merely because the
+         * configuration cannot be inspected here.  ftntoss will perform
+         * its normal validation later.
+         */
+        dlog(2, "ftn_netmail_address_needs_domain: cannot open %s",
+            CRASHMAIL_PREFS_FILE);
+        return 0;
+    }
+
+    matches = 0;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        p = line;
+
+        while (*p != '\0' && isspace((unsigned char)*p))
+            p++;
+
+        if (*p == '\0' || *p == ';' || *p == '#')
+            continue;
+
+        if (strncasecmp(p, "NETMAIL", 7) != 0 ||
+            !isspace((unsigned char)p[7]))
+            continue;
+
+        p += 7;
+
+        while (*p != '\0' && isspace((unsigned char)*p))
+            p++;
+
+        /*
+         * Skip the NETMAIL tag, normally:
+         *
+         *   NETMAIL "FIDO_NETMAIL" 2:221/250.0 ...
+         */
+        if (*p == '"') {
+            p++;
+            q = strchr(p, '"');
+            if (q == NULL)
+                continue;
+            p = q + 1;
+        } else {
+            while (*p != '\0' && !isspace((unsigned char)*p))
+                p++;
+        }
+
+        while (*p != '\0' && isspace((unsigned char)*p))
+            p++;
+
+        zone = strtol(p, &end, 10);
+        if (end == p || *end != ':')
+            continue;
+
+        if (zone == wanted_zone) {
+            matches++;
+
+            if (matches > 1) {
+                fclose(fp);
+                return 1;
+            }
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
 
 static int
 is_safe_ftn_area_name(const char *area)
@@ -86,58 +179,52 @@ is_safe_ftn_queue_header_value(const char *s)
     return 1;
 }
 
-int
-parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
-    char *addr, size_t addrsz)
+static int
+parse_ftn_address(const char *s, char *out, size_t outsz)
 {
-    const char *at;
+    char buf[128];
+    char *domain;
     const char *p;
     char *end;
-    char addrbuf[128];
     long zone, net, node, point;
+    const unsigned char *q;
 
-    if (s == NULL || name == NULL || namesz == 0 ||
-        addr == NULL || addrsz == 0)
+    if (s == NULL || *s == '\0' || out == NULL || outsz == 0)
         return -1;
 
-    name[0] = '\0';
-    addr[0] = '\0';
+    out[0] = '\0';
+
+    if (strlen(s) >= sizeof(buf))
+        return -1;
+
+    strcpy(buf, s);
 
     /*
-     * FTN netmail recipient format:
+     * Optional FTN domain:
      *
-     *   Name@zone:net/node[.point]
+     *   zone:net/node[.point]@domain
      *
-     * Use the last '@' so display names can contain odd old-world stuff
-     * without confusing the address parser.
-     *
-     * modified on 2026-07-10, PL
+     * modified on 2026-08-07, PL
      */
-    at = strrchr(s, '@');
-    if (at == NULL || at == s || at[1] == '\0')
-        return -1;
+    domain = strchr(buf, '@');
+    if (domain != NULL) {
+        *domain++ = '\0';
 
-    if ((size_t)(at - s) >= namesz)
-        return -1;
+        if (*domain == '\0' || strchr(domain, '@') != NULL)
+            return -1;
 
-    memcpy(name, s, (size_t)(at - s));
-    name[at - s] = '\0';
+        /*
+         * Keep domains deliberately boring.  This covers fidonet,
+         * fsxnet, nixnet, tqwnet etc.
+         */
+        for (q = (const unsigned char *)domain; *q != '\0'; q++) {
+            if (!isalnum(*q) &&
+                *q != '.' && *q != '-' && *q != '_')
+                return -1;
+        }
+    }
 
-    while (name[0] == ' ' || name[0] == '\t')
-        memmove(name, name + 1, strlen(name));
-
-    while (strlen(name) > 0 &&
-        (name[strlen(name) - 1] == ' ' || name[strlen(name) - 1] == '\t'))
-        name[strlen(name) - 1] = '\0';
-
-    if (name[0] == '\0')
-        return -1;
-
-    if (strlen(at + 1) >= sizeof(addrbuf))
-        return -1;
-
-    strcpy(addrbuf, at + 1);
-    p = addrbuf;
+    p = buf;
 
     zone = strtol(p, &end, 10);
     if (p == end || *end != ':' || zone < 0 || zone > 65535)
@@ -154,9 +241,11 @@ parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
         return -1;
 
     point = 0;
+
     if (*end == '.') {
         p = end + 1;
         point = strtol(p, &end, 10);
+
         if (p == end || point < 0 || point > 65535)
             return -1;
     }
@@ -164,15 +253,96 @@ parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
     if (*end != '\0')
         return -1;
 
-    if (point == 0)
-        snprintf(addr, addrsz, "%ld:%ld/%ld", zone, net, node);
-    else
-        snprintf(addr, addrsz, "%ld:%ld/%ld.%ld", zone, net, node, point);
+    if (domain != NULL) {
+        if (point == 0) {
+            snprintf(out, outsz, "%ld:%ld/%ld@%s",
+                zone, net, node, domain);
+        } else {
+            snprintf(out, outsz, "%ld:%ld/%ld.%ld@%s",
+                zone, net, node, point, domain);
+        }
+    } else {
+        if (point == 0) {
+            snprintf(out, outsz, "%ld:%ld/%ld",
+                zone, net, node);
+        } else {
+            snprintf(out, outsz, "%ld:%ld/%ld.%ld",
+                zone, net, node, point);
+        }
+    }
 
-    if (addr[0] == '\0')
+    if (out[0] == '\0')
         return -1;
 
     return 0;
+}
+
+
+int
+parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
+    char *addr, size_t addrsz)
+{
+    const char *at;
+    size_t namelen;
+
+    if (s == NULL || name == NULL || namesz == 0 ||
+        addr == NULL || addrsz == 0)
+        return -1;
+
+    name[0] = '\0';
+    addr[0] = '\0';
+
+    /*
+     * Supported forms:
+     *
+     *   Name@zone:net/node[.point]
+     *   Name@zone:net/node[.point]@domain
+     *
+     * Do not blindly use the first or last '@'.  Try each '@' as the
+     * separator between display name and FTN address, and accept the
+     * first one followed by a valid FTN address.
+     *
+     * This also preserves odd display names containing '@'.
+     *
+     * modified on 2026-08-07, PL
+     */
+    at = strchr(s, '@');
+
+    while (at != NULL) {
+        if (at != s && at[1] != '\0' &&
+            parse_ftn_address(at + 1, addr, addrsz) == 0) {
+
+            namelen = (size_t)(at - s);
+
+            if (namelen >= namesz) {
+                addr[0] = '\0';
+                return -1;
+            }
+
+            memcpy(name, s, namelen);
+            name[namelen] = '\0';
+
+            while (name[0] == ' ' || name[0] == '\t')
+                memmove(name, name + 1, strlen(name));
+
+            while (strlen(name) > 0 &&
+                (name[strlen(name) - 1] == ' ' ||
+                 name[strlen(name) - 1] == '\t'))
+                name[strlen(name) - 1] = '\0';
+
+            if (name[0] == '\0') {
+                addr[0] = '\0';
+                return -1;
+            }
+
+            return 0;
+        }
+
+        at = strchr(at + 1, '@');
+    }
+
+    addr[0] = '\0';
+    return -1;
 }
 
 static int

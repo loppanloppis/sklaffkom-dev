@@ -36,10 +36,6 @@
 #define FTN_PRIVATE_ATTR 0x0001 /* modified on 2026-07-11, PL */
 #define FTN_NETMAIL_ATTR (FTN_PRIVATE_ATTR | FTN_LOCAL_ATTR) /* modified on 2026-07-11, PL */
 
-#ifndef CRASHMAIL_PREFS_FILE
-#define CRASHMAIL_PREFS_FILE "/ftn/etc/crashmail.prefs"
-#endif
-
 struct ftn_conf_info {
     int num;
     long last_text;
