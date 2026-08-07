@@ -110,7 +110,7 @@
 #define MSG_WARNING	"Om en minut blir jag utloggad pga inaktivitet!"
 #define MSG_FTN		"ftn"
 #define MSG_LESSMIN "mindre {n en minut."
-
+#define MSG_FTN_AMBIGUOUS "FTN-adressen {r tvetydig. Ange full 5D-adress, t.ex. Areafix@2:221/1@fidonet."
 /* Alternativ startskärm */
 #define MSG_INTRO_CONTINUE "Tryck ENTER f|r att g} vidare..."
 #define MSG_ALT_NOUNREAD "Du har inga nya texter."
@@ -887,6 +887,7 @@
 #define MSG_WARNING	"Inactivity logout in one minute!"
 #define MSG_FTN		"ftn"
 #define MSG_LESSMIN "less than one minute."
+#define MSG_FTN_AMBIGUOUS "The FTN address is ambiguous. Use a full 5D address, e.g. Areafix@2:221/1@fidonet."
 /* alternative start screen */
 #define MSG_INTRO_CONTINUE "Press ENTER to continue..."
 #define MSG_ALT_NOUNREAD "You have no new articles."

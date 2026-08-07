@@ -2327,19 +2327,37 @@ cmd_mail(char *args)
         if (parse_ftn_netmail_recipient(args, ftn_to_name,
                 sizeof(ftn_to_name), ftn_to_addr,
                 sizeof(ftn_to_addr)) == 0) {
-            mailrec = ftn_to_name;
-            mailuid = 0;
-            is_ftn_netmail = 1;
-        } else if (strchr(args, '@')) {
+
+        /*  
+         * A legacy 4D address is fine as long as its zone identifies exactly
+         * one configured NETMAIL area.  Otherwise require an explicit FTN
+         * domain so the job does not fail later in ftntoss.
+         *
+         * modified on 2026-08-07, PL
+         */
+        if (strchr(ftn_to_addr, '@') == NULL &&
+            ftn_netmail_address_needs_domain(ftn_to_addr)) {
+            output("\n%s\n\n", MSG_FTN_AMBIGUOUS);
+            return 0;
+         }
+
+        mailrec = ftn_to_name;
+        mailuid = 0;
+        is_ftn_netmail = 1;
+        
+    } else if (strchr(args, '@')) {
 
             strcpy(tmp, args);
+
             /* Only allow a minimum of nonalphanum chars in mail address */
             if (strip_string(tmp, "@+.-_%") != 0 || tmp[0] == '-') {
                 output("\n%s\n\n", MSG_BADAD);
                 return 0;
             }
+
             mailrec = args;
             mailuid = 0;
+
         } else {
             username = expand_name(args, USER, 0, NULL);
             if (!username) {

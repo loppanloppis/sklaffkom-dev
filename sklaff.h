@@ -41,6 +41,11 @@
 #define ENABLE_CHARSET_HANDSHAKE 0
 #endif
 
+/* Define full path to crashmail.prefs */
+#ifndef CRASHMAIL_PREFS_FILE
+#define CRASHMAIL_PREFS_FILE "/ftn/etc/crashmail.prefs"
+#endif
+
 /* Define group ids and terminaltypes for modem_pool */
 
 #define MODEM_POOL 	"silly"
@@ -428,6 +433,7 @@ int queue_ftn_netmail(int, const char *, const char *, const char *, const char 
 int queue_ftn_netmail_reply(int, const char *, const char *, const char *,
     const char *, const char *); /* modified on 2026-07-13, PL */
 int parse_ftn_netmail_recipient(const char *, char *, size_t, char *, size_t); /* modified on 2026-07-10, PL */
+int ftn_netmail_address_needs_domain(const char *addr);
 
 /* lib/misc.c */
 int quote_depth(const char *s);                                                         /* Usenet quotes in colors 2025-08-31 PL */
