@@ -37,6 +37,8 @@
 #include <errno.h>   /* ENOENT for graceful "no mail" exit (2025-08-13, PL) */
 #include <stdarg.h>  /* verbose status output (2026-05-13, PL) */
 
+char *mail_subject_utf8_dup(const char *msg);
+
 #define MAILTOSS_WRAP_COL 78 /* modified on 2026-06-23, PL */
 
 /*
@@ -409,7 +411,8 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
     struct CONF_ENTRY ce;
     struct TEXT_HEADER th;
     int fd, fdo;
-	char *buf, *oldbuf, *nbuf = NULL, *ptr, *tmp, *fbuf;
+	char *buf, *oldbuf, *nbuf = NULL, *ptr, *fbuf;
+	char *subject_utf8 = NULL, *subject_sf7 = NULL;
 	char *decodedbuf = NULL, *sf7body = NULL, *wrappedbody = NULL, *storebuf = NULL; 	/* added 2026-05-28 for better looking e-mail imports */
 	const char *hdr_end;															/* added 2026-05-28 for better looking e-mail imports */
 	size_t header_len, store_len;													/* added 2026-05-28 for better looking e-mail imports */
@@ -440,18 +443,24 @@ send_mail(int uid, char *mbuf, int ouid, int ogrp)
         printf("\n%s\n\n", MSG_ERRCREATET);
         return -1;
     }
- 	ptr = strstr(mbuf, MSG_EMSUB);
-    if (ptr) {
-        ptr = ptr + strlen(MSG_EMSUB);
-        tmp = strchr(ptr, '\n');
-        if (tmp) {
-            *tmp = '\0';
-            strncpy(th.subject, ptr, (SUBJECT_LEN - 2));
+    /*
+     * Decode RFC 2047 encoded Subject headers before storing SklaffKOM's
+     * internal subject line. Reading already decodes the raw header for
+     * display, but replies/comments use this stored subject directly.
+     *
+     * modified on 2026-07-25, PL
+     */
+    subject_utf8 = mail_subject_utf8_dup(mbuf);
+    if (subject_utf8 != NULL) {
+        subject_sf7 = utf8_to_sf7_dup(subject_utf8);
+        free(subject_utf8);
+
+        if (subject_sf7 != NULL) {
+            strncpy(th.subject, subject_sf7, SUBJECT_LEN - 2);
             th.subject[SUBJECT_LEN - 1] = 0;
-            *tmp = '\n';
+            free(subject_sf7);
         } else {
-            strncpy(th.subject, ptr, (SUBJECT_LEN - 2));
-            th.subject[SUBJECT_LEN - 1] = 0;
+            strcpy(th.subject, "");
         }
     } else {
         strcpy(th.subject, "");
