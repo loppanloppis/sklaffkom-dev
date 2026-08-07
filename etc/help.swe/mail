@@ -8,3 +8,6 @@ Beskrivning:
 
   Om en email-adress anges, allts} ett namn som inneh}ller '@',
   (ex calle@skom.se), skickas ist{llet ett email till personen i fr}ga.
+  
+  Om en netmail-adress anges (s}som totte@21:3/242) skickas ist{llet
+  ett netmail till personen i fr}ga.

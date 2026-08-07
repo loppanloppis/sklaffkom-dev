@@ -8,7 +8,7 @@
  *
  *   Program dedicated to the memory of Staffan Bergstr|m.
  *
- *   For questions about this program, mail sklaff@sklaffkom.se    
+ *   For questions about this program, mail sklaff@sklaffkom.se
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -409,4 +409,157 @@ display_credits(void)
     output(MSG_VERSIONC2"\n");
     output(MSG_VERSIONC3"\n\n");
     output(MSG_CPY6); /* Till{gnat... */
+}
+
+/*
+ * reset_charset_flags - return to untranslated SF7 output
+ */
+
+static void
+reset_charset_flags(void)
+{
+    Utf8 = 0;
+    Ibm = 0;
+    Iso8859 = 0;
+    Mac = 0;
+    Force_sf7 = 0;
+}
+
+
+/*
+ * set_charset_choice - activate exactly one character set
+ */
+
+static void
+set_charset_choice(int choice)
+{
+    reset_charset_flags();
+
+    switch (choice) {
+    case 1:
+        Utf8 = 1;
+        break;
+
+    case 2:
+        Ibm = 1;
+        break;
+
+    case 3:
+        Iso8859 = 1;
+        break;
+    case 4:
+        Force_sf7 = 1;
+        break;
+    }
+}
+
+
+/*
+ * first_answer_char - return first non-whitespace character
+ */
+
+static int
+first_answer_char(const char *answer)
+{
+    const unsigned char *p;
+
+    if (answer == NULL)
+        return '\0';
+
+    p = (const unsigned char *)answer;
+
+    while (*p && isspace(*p))
+        p++;
+
+    return tolower(*p);
+}
+
+
+/*
+ * select_charset - first-login handshake between SklaffKOM and terminal
+ *
+ * The first menu deliberately contains ASCII only. After a choice has
+ * been made, the global character-set flag is temporarily activated and
+ * a Swedish test line is displayed using normal SF7 translation.
+ */
+
+int
+select_charset(void)
+{
+    LINE answer;
+    int choice;
+    int c;
+
+    for (;;) {
+        /*
+         * The menu must always be emitted without SF7 conversion.
+         */
+        reset_charset_flags();
+        clear_screen();
+
+        output("%s", MSG_CHARSET_MENU);
+
+        for (;;) {
+            output("%s", MSG_CHARSET_PROMPT);
+            input("", answer, LINE_LEN, 0, 0, 0);
+
+            c = first_answer_char(answer);
+
+            if (c == '\0') {
+                choice = 1;             /* ENTER defaults to UTF-8 */
+                break;
+            }
+
+            if (c >= '1' && c <= '4') {
+                choice = c - '0';
+                break;
+            }
+
+            output("\n%s\n\n", MSG_CHARSET_BAD_CHOICE);
+        }
+
+        /*
+         * output() now converts SF7 according to the selected flag.
+         */
+        set_charset_choice(choice);
+
+        output("\n%s\n\n", MSG_CHARSET_TEST);
+
+        /*
+         * SF7:
+         *   } = å   { = ä   | = ö
+         *   ] = Å   [ = Ä   \ = Ö
+         */
+        output("  } { |   ] [ %c\n\n", '\\');
+
+        for (;;) {
+            output("%s", MSG_CHARSET_CONFIRM);
+            input("", answer, LINE_LEN, 0, 0, 0);
+
+            c = first_answer_char(answer);
+
+            /*
+             * Accept both Swedish and English answers in either build.
+             */
+            if (c == 'j' || c == 'y') {
+                if (save_flags() == -1) {
+                    output("\n%s\n\n", MSG_CHARSET_SAVE_FAILED);
+                    return -1;
+                }
+
+                output("\n%s\n", MSG_CHARSET_OK);
+                sleep(1);
+                clear_screen();
+                return 0;
+            }
+
+            if (c == 'n') {
+                output("\n%s\n", MSG_CHARSET_RETRY);
+                sleep(1);
+                break;
+            }
+
+            output("\n%s\n\n", MSG_CHARSET_BAD_CONFIRM);
+        }
+    }
 }

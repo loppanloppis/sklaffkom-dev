@@ -112,15 +112,39 @@
 #define MSG_LESSMIN "mindre {n en minut."
 
 /* Alternativ startskärm */
-#define MSG_INTRO_CONTINUE "Tryck ENTER för att gå vidare..."
+#define MSG_INTRO_CONTINUE "Tryck ENTER f|r att g} vidare..."
 #define MSG_ALT_NOUNREAD "Du har inga nya texter."
 #define MSG_ALT_ONEUNREAD "Du har en ny text."
 #define MSG_ALT_YOU_HAVE "Du har"
 #define MSG_ALT_UNREADTEXTS "nya texter."
-#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 SklaffKOMs upphovsmän. GNU GPL 2+, utan garanti."
-#define MSG_ALT_LICENSE "Skriv visa licens för fullständiga villkor."
-#define MSG_ALT_DEDICATION "Programmet är tillägnat Staffan Bergströms minne."
+#define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 SklaffKOMs upphovsm{n. GNU GPL 2+, utan garanti."
+#define MSG_ALT_LICENSE "Skriv visa licens f|r fullst{ndiga villkor."
+#define MSG_ALT_DEDICATION "Programmet {r till{gnat Staffan Bergstr|ms minne."
 #define MSG_ALT_ROOKIE_TIP01 "Tips! Tryck ENTER f|r att l{sa ol{sta texter. Skriv hj{lp om du fastnar."
+
+/* Välja teckentabell vid login */
+#define MSG_CHARSET_MENU \
+    "Valkommen till SklaffKOM!\n\n" \
+    "Innan vi borjar maste SklaffKOM och din terminal tala samma\n" \
+    "teckensprak.\n\n" \
+    "  1. UTF-8\n" \
+    "     Moderna terminaler, SSH och de flesta telnetklienter.\n\n" \
+    "  2. IBM CP437\n" \
+    "     Klassiska BBS-klienter som SyncTERM och NetRunner.\n\n" \
+    "  3. ISO-8859-1\n" \
+    "     Vanligast pa Amiga.\n\n" \
+    "  4. Klassiskt SklaffKOM-lage\n" \
+    "     Behall SF7 utan teckenkonvertering.\n\n"
+#define MSG_CHARSET_PROMPT 		"Vilket teckensprak talar din terminal? (1): "
+#define MSG_CHARSET_BAD_CHOICE	"Skriv 1, 2, 3 eller 4."
+#define MSG_CHARSET_TEST		"Din terminal ska nu visa:"
+#define MSG_CHARSET_CONFIRM 	"Ser det riktigt ut? (Ja/Nej): "
+#define MSG_CHARSET_BAD_CONFIRM "Svara Ja eller Nej."
+#define MSG_CHARSET_RETRY 		"D} provar vi igen."
+#define MSG_CHARSET_OK 			"Utm{rkt! Nu f|rst}r vi varandra."
+#define MSG_CHARSET_SAVE_FAILED \
+    "Kunde inte spara valet. Teckentabellen anv{nds under denna session,\n" \
+    "men du kommer att f} v{lja igen n{sta g}ng."
 
 /* bbslink.c */
 
@@ -505,7 +529,7 @@
 #define MSG_FLAG4F	"(Till}t) skrik"
 #define MSG_FLAG5	"sluta"
 #define MSG_FLAG5N	2
-#define MSG_FLAG5F	"Sluta (som default)"
+#define MSG_FLAG5F	"Sluta (f|resl}s n{r du {r ikapp)"
 #define MSG_FLAG6	"s{g"
 #define MSG_FLAG6N	2
 #define MSG_FLAG6F	"(Till}t) s{g"
@@ -520,10 +544,10 @@
 #define MSG_FLAG9F	"Kopia (av s{nda brev)"
 #define MSG_FLAG10	"f|rfattare"
 #define MSG_FLAG10N	1
-#define MSG_FLAG10F	"F|rfattare (efter text)"
+#define MSG_FLAG10F	"F|rfattare (alltid efter text)"
 #define MSG_FLAG11	"datum"
 #define MSG_FLAG11N	1
-#define MSG_FLAG11F	"Datum (i texthuvud)"
+#define MSG_FLAG11F	"Datum (alltid absolut i texthuvud)"
 #define MSG_FLAG12	"pip"
 #define MSG_FLAG12N	1
 #define MSG_FLAG12F	"(Till}t) pip"
@@ -532,15 +556,10 @@
 #define MSG_FLAG13F	"Rensa (sk{rmen f|re varje text)"
 #define MSG_FLAG14	"header"
 #define MSG_FLAG14N	1
-#define MSG_FLAG14F	"Header (vid l{sning av email/news)"
-/*
-#define MSG_FLAG15	"strippa"
-#define MSG_FLAG15N	2
-#define MSG_FLAG15F	"Strippa (bit 8 vid inmatning)"
-*/
-#define MSG_FLAG15	"om|jligt"
-#define MSG_FLAG15N	1
-#define MSG_FLAG15F	"Om|jligt (speciall{ge)"
+#define MSG_FLAG14F	"Header (vid l{sning av e-post/news/FTN)"
+#define MSG_FLAG15	"kompatibilitet"
+#define MSG_FLAG15N	3
+#define MSG_FLAG15F	"Kompatibilitet (f|r specialklienter)"
 #define MSG_FLAG16	"bell"
 #define MSG_FLAG16N	1
 #define MSG_FLAG16F	"Bell (vid n{rvaromeddelanden)"
@@ -559,6 +578,9 @@
 #define MSG_FLAG21  "rookie"
 #define MSG_FLAG21N 2
 #define MSG_FLAG21F "(Jag {r en) rookie"
+#define MSG_FLAG22  "brevl}dan"
+#define MSG_FLAG22N 3
+#define MSG_FLAG22F "(B|rja alltid i) Brevl}dan"
 #define MSG_NOFLAG	"Du m}ste ange en flagga."
 #define MSG_PCWARN	"Du b|r sl} av IBM-PC f|rst."
 #define MSG_ISOWARN	"Du b|r sl} av ISO 8859-1 f|rst."
@@ -873,9 +895,31 @@
 #define MSG_ALT_UNREADTEXTS "new articles."
 #define MSG_ALT_COPYRIGHT "Copyright (C) 1993-1996 the SklaffKOM authors. GNU GPL 2+, no warranty."
 #define MSG_ALT_LICENSE "Type show license for the full terms."
-#define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergström."
+#define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergstr|m."
 #define MSG_ALT_ROOKIE_TIP01 "Tip! Just press ENTER to read unread posts. Type help if you get stuck."
-
+/* charset during login */
+#define MSG_CHARSET_MENU \
+    "Welcome to SklaffKOM!\n\n" \
+    "Before we begin, SklaffKOM and your terminal need to speak the\n" \
+    "same character language.\n\n" \
+    "  1. UTF-8\n" \
+    "     Modern terminals, SSH, and most telnet clients.\n\n" \
+    "  2. IBM CP437\n" \
+    "     Classic BBS clients such as SyncTERM and NetRunner.\n\n" \
+    "  3. ISO-8859-1\n" \
+    "     Most commonly used on the Amiga.\n\n" \
+    "  4. Classic SklaffKOM mode\n" \
+    "     Keep SF7 without character conversion.\n\n"
+#define MSG_CHARSET_PROMPT 		"Which character language does your terminal speak? (1): "
+#define MSG_CHARSET_BAD_CHOICE 	"Please enter 1, 2, 3 or 4."
+#define MSG_CHARSET_TEST 		"Your terminal should now display:"
+#define MSG_CHARSET_CONFIRM 	"Does that look right? (Yes/No): "
+#define MSG_CHARSET_BAD_CONFIRM "Please answer Yes or No."
+#define MSG_CHARSET_RETRY		"Let's try again."
+#define MSG_CHARSET_OK 			"Excellent! Now we understand each other."
+#define MSG_CHARSET_SAVE_FAILED \
+    "The choice could not be saved. It will be used for this session,\n" \
+    "but you will be asked again next time."
 
 /* bbslink.c */
 #define MSG_BBSLINK01 "BBSLink is a door server with nearly 150 BBS'es connected."
@@ -1278,7 +1322,7 @@
 #define MSG_FLAG4F	"(Allow) shouting"
 #define MSG_FLAG5	"logout"
 #define MSG_FLAG5N	1
-#define MSG_FLAG5F	"Logout (as default)"
+#define MSG_FLAG5F	"Logout (suggested when caught up)"
 #define MSG_FLAG6	"tell"
 #define MSG_FLAG6N	1
 #define MSG_FLAG6F	"(Allow) tell"
@@ -1293,10 +1337,10 @@
 #define MSG_FLAG9F	"Copy (of mail sent)"
 #define MSG_FLAG10	"author"
 #define MSG_FLAG10N	1
-#define MSG_FLAG10F	"Author (after text)"
+#define MSG_FLAG10F	"Author (always shown after text)"
 #define MSG_FLAG11	"date"
 #define MSG_FLAG11N	1
-#define MSG_FLAG11F	"Date (i textheader)"
+#define MSG_FLAG11F	"Date (always absolute in text header)"
 #define MSG_FLAG12	"beeps"
 #define MSG_FLAG12N	3
 #define MSG_FLAG12F	"(Allow) beeps"
@@ -1305,7 +1349,7 @@
 #define MSG_FLAG13F	"Clear (screen before textdisplay)"
 #define MSG_FLAG14	"header"
 #define MSG_FLAG14N	1
-#define MSG_FLAG14F	"Header (when reading email/news)"
+#define MSG_FLAG14F	"Header (when reading email/news/FTN)"
 #define MSG_FLAG15	"compatibility"
 #define MSG_FLAG15N	3
 #define MSG_FLAG15F	"Compatibility (mode for special clients)"
@@ -1327,6 +1371,9 @@
 #define MSG_FLAG21  "rookie"
 #define MSG_FLAG21N 1
 #define MSG_FLAG21F "Rookie mode"
+#define MSG_FLAG22  "mailbox"
+#define MSG_FLAG22N 3
+#define MSG_FLAG22F "(Always start in) Mailbox"
 #define MSG_NOFLAG	"You must supply a flagname."
 #define MSG_PCWARN	"You should turn off IBM-PC first."
 #define MSG_ISOWARN	"You should turn off ISO 8859-1 first."

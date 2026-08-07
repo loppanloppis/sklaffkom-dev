@@ -513,6 +513,14 @@ display_welcome(void)
 
     set_flags(rc->flags);
 
+	/*
+     * If no character set has ever been selected, let SklaffKOM and
+     * the terminal agree on one before displaying any localized text.
+    */
+#if ENABLE_CHARSET_HANDSHAKE
+    if (!Utf8 && !Ibm && !Iso8859 && !Mac && !Force_sf7)
+        (void) select_charset();
+#endif
     if (Rookie_mode && !Alternate_intro) {
     display_intro();
     wait_for_intro_continue();

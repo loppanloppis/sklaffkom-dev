@@ -157,7 +157,7 @@ set_flags(char *flags)
             i++;
             Header = atoi(i);
         } else
-            Header = 1;
+            Header = 0; /* default off */
 
         p = strstr(flags, "presbeep");
         if (p) {
@@ -198,7 +198,13 @@ set_flags(char *flags)
             Utf8 = atoi(i);
         } else
             Utf8 = 0;  /* default off */
-
+        p = strstr(flags, "force_sf7");
+        if (p) {
+            i = strchr(p, '=');
+            i++;
+            Force_sf7 = atoi(i);
+         } else
+            Force_sf7 = 0;
         p = strstr(flags, "alternate_intro");
         if (p) {
             i = strchr(p, '=');
@@ -214,6 +220,13 @@ set_flags(char *flags)
             Rookie_mode = atoi(i);
         } else
             Rookie_mode = 1;  /* default on */
+        p = strstr(flags, "start_mailbox");
+        if (p) {
+            i = strchr(p, '=');
+            i++;
+            Start_mailbox = atoi(i);
+        } else
+            Start_mailbox = 0; /* default off */
     } else {
         Shout = 1;
         Say = 1;
@@ -229,15 +242,101 @@ set_flags(char *flags)
         Date = 0;
         Beep = 1;
         Clear = 0;
-        Header = 1;
+        Header = 0;
         Special = 0;
         Presbeep = 0;
         Old_who = 0;
         Ansi_output = 0;
         Utf8 = 0;
+        Force_sf7 = 0;
         Alternate_intro = 0;
         Rookie_mode = 1;
+        Start_mailbox = 0;
     }
+}
+
+/*
+ * save_flags - save the current global flag values to the user's sklaffrc
+ * ret: success (0) or failure (-1)
+ */
+
+int
+save_flags(void)
+{
+    struct SKLAFFRC *rc;
+    int n;
+    int ret;
+
+    rc = read_sklaffrc(Uid);
+    if (rc == NULL)
+        return -1;
+
+    n = snprintf(rc->flags, sizeof(rc->flags),
+        "say = %d\n"
+        "shout = %d\n"
+        "present = %d\n"
+        "ibm = %d\n"
+        "iso8859 = %d\n"
+        "mac = %d\n"
+        "subject_change = %d\n"
+        "end_default = %d\n"
+        "space = %d\n"
+        "copy = %d\n"
+        "author = %d\n"
+        "date = %d\n"
+        "beep = %d\n"
+        "clear = %d\n"
+        "header = %d\n"
+        "strip = %d\n"
+        "presbeep = %d\n"
+        "oldwho = %d\n"
+        "ansi = %d\n"
+        "utf8 = %d\n"
+        "force_sf7 = %d\n"
+        "alternate_intro = %d\n"
+        "rookie_mode = %d\n"
+        "start_mailbox = %d\n",
+        Say,
+        Shout,
+        Present,
+        Ibm,
+        Iso8859,
+        Mac,
+        Subject_change,
+        End_default,
+        Space,
+        Copy,
+        Author,
+        Date,
+        Beep,
+        Clear,
+        Header,
+        Special,
+        Presbeep,
+        Old_who,
+        Ansi_output,
+        Utf8,
+        Force_sf7,
+        Alternate_intro,
+        Rookie_mode,
+        Start_mailbox);
+
+    if (n < 0 || (size_t)n >= sizeof(rc->flags)) {
+        debuglog("save_flags: flags buffer too small", 1);
+        free(rc);
+        return -1;
+    }
+
+    ret = write_sklaffrc(Uid, rc);
+
+    /*
+     * write_sklaffrc() currently frees rc on failure, but not on success.
+     * Only free it here after a successful write.
+     */
+    if (ret == 0)
+        free(rc);
+
+    return ret;
 }
 
 /*
@@ -263,16 +362,14 @@ check_flag(char *flags, char *flag)
 /*
  * turn_flag - set flag on or off
  * args: new value of flag (mode), flagname (flag)
- * ret: always 0
+ * ret: success (0) or failure (-1)
  */
 
 int
 turn_flag(int mode, char *flag)
 {
     int i;
-    LINE flags[22], outline, tmpline;
-    static HUGE_LINE newflags;
-    struct SKLAFFRC *rc;
+    LINE flags[23], outline;
 
     strcpy(flags[0], MSG_FLAG0);
     strcpy(flags[1], MSG_FLAG1);
@@ -296,6 +393,7 @@ turn_flag(int mode, char *flag)
     strcpy(flags[19], MSG_FLAG19);
     strcpy(flags[20], MSG_FLAG20);
     strcpy(flags[21], MSG_FLAG21);
+    strcpy(flags[22], MSG_FLAG22);
     if (!flag || (*flag == '\0')) {
         output("\n%s\n\n", MSG_NOFLAG);
         return 0;
@@ -316,6 +414,8 @@ turn_flag(int mode, char *flag)
             }
         }
         Ibm = mode;
+        if (mode)
+            Force_sf7 = 0;
         strcpy(outline, MSG_FLAG0F);
     } else if ((strstr(flags[1], flag) == flags[1]) && (i >= MSG_FLAG1N)) {
         if (mode && (Ibm || Mac || Utf8)) {
@@ -331,6 +431,8 @@ turn_flag(int mode, char *flag)
             }
         }
         Iso8859 = mode;
+        if (mode)
+            Force_sf7 = 0;
         strcpy(outline, MSG_FLAG1F);
     } else if ((strstr(flags[2], flag) == flags[2]) && (i >= MSG_FLAG2N)) {
         if (mode && (Ibm || Iso8859 || Utf8)) {
@@ -346,6 +448,8 @@ turn_flag(int mode, char *flag)
             }
         }
         Mac = mode;
+        if (mode)
+            Force_sf7 = 0;
         strcpy(outline, MSG_FLAG2F);
     } else if ((strstr(flags[3], flag) == flags[3]) && (i > MSG_FLAG3N)) {
         Present = mode;
@@ -409,6 +513,8 @@ turn_flag(int mode, char *flag)
             }
         }
         Utf8 = mode;
+        if (mode)
+            Force_sf7 = 0;
         strcpy(outline, MSG_FLAG19F);
 
     } else if ((strstr(flags[20], flag) == flags[20]) && (i >= MSG_FLAG20N)) {
@@ -417,59 +523,16 @@ turn_flag(int mode, char *flag)
     } else if ((strstr(flags[21], flag) == flags[21]) && (i >= MSG_FLAG21N)) {
         Rookie_mode = mode;
         strcpy(outline, MSG_FLAG21F);
-
+    } else if ((strstr(flags[22], flag) == flags[22]) && (i >= MSG_FLAG22N)) {
+        Start_mailbox = mode;
+        strcpy(outline, MSG_FLAG22F);
     } else {
         output("\n%s\n\n", MSG_BADFLAG);
         return 0;
     }
 
-    rc = read_sklaffrc(Uid);
-
-    sprintf(newflags, "say = %d\n", Say);
-    sprintf(tmpline, "shout = %d\n", Shout);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "present = %d\n", Present);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "ibm = %d\n", Ibm);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "iso8859 = %d\n", Iso8859);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "mac = %d\n", Mac);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "subject_change = %d\n", Subject_change);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "end_default = %d\n", End_default);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "space = %d\n", Space);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "copy = %d\n", Copy);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "author = %d\n", Author);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "date = %d\n", Date);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "beep = %d\n", Beep);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "clear = %d\n", Clear);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "header = %d\n", Header);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "strip = %d\n", Special);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "presbeep = %d\n", Presbeep);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "oldwho = %d\n", Old_who);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "ansi = %d\n", Ansi_output);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "utf8 = %d\n", Utf8);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "alternate_intro = %d\n", Alternate_intro);
-    strcat(newflags, tmpline);
-    sprintf(tmpline, "rookie_mode = %d\n", Rookie_mode);
-    strcat(newflags, tmpline);
-    strcpy(rc->flags, newflags);
-    write_sklaffrc(Uid, rc);
+    if (save_flags() == -1)
+        return -1;
     output("\n%s %s ", MSG_FLAG, outline);
     if (mode) {
         output("%s\n\n", MSG_FLON);
