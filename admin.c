@@ -519,7 +519,7 @@ display_welcome(void)
     */
 #if ENABLE_CHARSET_HANDSHAKE
     if (!Utf8 && !Ibm && !Iso8859 && !Mac && !Force_sf7)
-        (void) select_charset();
+        (void) select_charset(1);
 #endif
     if (Rookie_mode && !Alternate_intro) {
     display_intro();

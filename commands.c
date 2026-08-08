@@ -8233,3 +8233,20 @@ cmd_block_user(char *args)
 
     return 0;
 }
+
+/*
+ * cmd_change_charset - change terminal character set
+ * args: none
+ * ret: success (0) or failure (-1)
+ */
+
+int
+cmd_change_charset(char *args)
+{
+    if (args && *args) {
+        output("\n%s\n\n", MSG_NOARG);
+        return 0;
+    }
+
+    return select_charset(0);
+}

@@ -484,7 +484,7 @@ first_answer_char(const char *answer)
  */
 
 int
-select_charset(void)
+select_charset(int login_mode)
 {
     LINE answer;
     int choice;
@@ -492,10 +492,19 @@ select_charset(void)
 
     for (;;) {
         /*
-         * The menu must always be emitted without SF7 conversion.
+         * We do not trust the currently selected character set here.
+         * The user may have started this command precisely because it
+         * is wrong. Everything before the test line must therefore be
+         * plain ASCII.
          */
         reset_charset_flags();
-        clear_screen();
+
+        if (login_mode) {
+            clear_screen();
+            output("%s", MSG_CHARSET_LOGIN_INTRO);
+        } else {
+            output("\n%s\n\n", MSG_CHARSET_CHANGE_INTRO);
+        }
 
         output("%s", MSG_CHARSET_MENU);
 
@@ -506,7 +515,7 @@ select_charset(void)
             c = first_answer_char(answer);
 
             if (c == '\0') {
-                choice = 1;             /* ENTER defaults to UTF-8 */
+                choice = 1;
                 break;
             }
 
@@ -518,18 +527,9 @@ select_charset(void)
             output("\n%s\n\n", MSG_CHARSET_BAD_CHOICE);
         }
 
-        /*
-         * output() now converts SF7 according to the selected flag.
-         */
         set_charset_choice(choice);
 
         output("\n%s\n\n", MSG_CHARSET_TEST);
-
-        /*
-         * SF7:
-         *   } = å   { = ä   | = ö
-         *   ] = Å   [ = Ä   \ = Ö
-         */
         output("  } { |   ] [ %c\n\n", '\\');
 
         for (;;) {
@@ -538,9 +538,6 @@ select_charset(void)
 
             c = first_answer_char(answer);
 
-            /*
-             * Accept both Swedish and English answers in either build.
-             */
             if (c == 'j' || c == 'y') {
                 if (save_flags() == -1) {
                     output("\n%s\n\n", MSG_CHARSET_SAVE_FAILED);
@@ -548,14 +545,22 @@ select_charset(void)
                 }
 
                 output("\n%s\n", MSG_CHARSET_OK);
-                sleep(1);
-                clear_screen();
+
+                if (login_mode) {
+                    sleep(1);
+                    clear_screen();
+                } else {
+                    output("\n");
+                }
                 return 0;
             }
 
             if (c == 'n') {
-                output("\n%s\n", MSG_CHARSET_RETRY);
-                sleep(1);
+                output("\n%s\n\n", MSG_CHARSET_RETRY);
+ 
+                if (login_mode)
+                    sleep(1);
+              
                 break;
             }
 

@@ -9,6 +9,7 @@ Addera r{ttigheter:cmd_add_rights:Addera r{ttigheter f|r en anv{ndare i aktuellt
 Antal rader:cmd_mod_numlines: [ndra din sk{rml{ngd
 Avhylla (text):cmd_unlike: ]ngrar en texthyllning du har gjort
 Beskriv (fil):cmd_describe:Beskriv en fil i m|tets filarea
+Byt teckentabell:cmd_change_charset:Byt teckentabell för din terminal
 Avprioritera (m|te):cmd_deprio:Avprioritera m|te
 (Skriv) brev:cmd_mail:Skicka brev till anv{ndare
 Backa:cmd_back_text:Backar ett antal texter

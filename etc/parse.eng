@@ -12,6 +12,7 @@ Back:cmd_back_text:Unreads latest read <number of articles> articles
 Block:cmd_block_user:Edit your list of blocked users
 Clear:cmd_cls:Clear screen
 Cls:cmd_cls:Same as Clear (clear screen)
+Change character set:cmd_change_charset:Change the character set used by your terminal
 Change loginscript:cmd_mod_login:Change commands executed at login
 Change note:cmd_mod_note:Change your "note"
 Change password:cmd_change_passwd:Change your password

@@ -8,6 +8,7 @@ const struct COMMAND_ENTRY command_list[] = {
     { "cmd_bbslink", cmd_bbslink, },
     { "cmd_block_user", cmd_block_user, },
 	{ "cmd_change_cdesc", cmd_change_cdesc,},
+    { "cmd_change_charset", cmd_change_charset,},
     { "cmd_change_cname", cmd_change_cname, },
     { "cmd_change_comc", cmd_change_comc, },
     { "cmd_change_conf", cmd_change_conf, },

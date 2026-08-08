@@ -1,0 +1,35 @@
+Parameter:
+  None.
+
+Description:
+  Changes the character set used for your terminal.
+
+  SklaffKOM shows a small menu where you can choose between UTF-8,
+  IBM CP437, ISO-8859-1, and classic SF7.
+
+  After making your choice, a short test line with Swedish characters
+  is displayed.
+
+  If the characters look right, answer Yes. Your choice is saved and
+  will be used automatically the next time you log in.
+
+  If things look a little strange, answer No and you can try again.
+
+Please note:
+  UTF-8 is the best choice for most modern terminals, SSH sessions,
+  and telnet clients.
+
+  IBM CP437 is commonly used by classic BBS clients such as SyncTERM
+  and NetRunner. ISO-8859-1 is often useful on systems such as Amiga.
+
+  SF7 is SklaffKOM's classic internal character set and remains
+  available for anyone wishing to keep one foot firmly in the 1990s.
+
+  Only one character set is used at a time.
+
+Background:
+  SklaffKOM stores text internally using SF7 and translates it to the
+  character set understood by your terminal.
+
+  This command exists so you do not have to manage the individual
+  character-set flags yourself.

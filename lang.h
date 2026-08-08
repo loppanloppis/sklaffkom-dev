@@ -123,10 +123,12 @@
 #define MSG_ALT_ROOKIE_TIP01 "Tips! Tryck ENTER f|r att l{sa ol{sta texter. Skriv hj{lp om du fastnar."
 
 /* Välja teckentabell vid login */
-#define MSG_CHARSET_MENU \
+#define MSG_CHARSET_LOGIN_INTRO \
     "Valkommen till SklaffKOM!\n\n" \
     "Innan vi borjar maste SklaffKOM och din terminal tala samma\n" \
-    "teckensprak.\n\n" \
+    "teckensprak.\n\n"
+#define MSG_CHARSET_CHANGE_INTRO "Ok, vi byter teckentabell."
+#define MSG_CHARSET_MENU \
     "  1. UTF-8\n" \
     "     Moderna terminaler, SSH och de flesta telnetklienter.\n\n" \
     "  2. IBM CP437\n" \
@@ -899,10 +901,12 @@
 #define MSG_ALT_DEDICATION "The program is dedicated to the memory of Staffan Bergstr|m."
 #define MSG_ALT_ROOKIE_TIP01 "Tip! Just press ENTER to read unread posts. Type help if you get stuck."
 /* charset during login */
-#define MSG_CHARSET_MENU \
+#define MSG_CHARSET_LOGIN_INTRO \
     "Welcome to SklaffKOM!\n\n" \
     "Before we begin, SklaffKOM and your terminal need to speak the\n" \
-    "same character language.\n\n" \
+    "same character language.\n\n"
+#define MSG_CHARSET_CHANGE_INTRO "Let's change the character set."
+#define MSG_CHARSET_MENU \
     "  1. UTF-8\n" \
     "     Modern terminals, SSH, and most telnet clients.\n\n" \
     "  2. IBM CP437\n" \
