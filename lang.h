@@ -121,7 +121,9 @@
 #define MSG_ALT_LICENSE "Skriv visa licens f|r fullst{ndiga villkor."
 #define MSG_ALT_DEDICATION "Programmet {r till{gnat Staffan Bergstr|ms minne."
 #define MSG_ALT_ROOKIE_TIP01 "Tips! Tryck ENTER f|r att l{sa ol{sta texter. Skriv hj{lp om du fastnar."
-
+/* cmd_show_status */
+#define MSG_FTNDOMAINCOL  "FTN-dom{n:     "
+#define MSG_FTNECHOAREA   "Echo-area:     "
 /* Välja teckentabell vid login */
 #define MSG_CHARSET_LOGIN_INTRO \
     "Valkommen till SklaffKOM!\n\n" \
@@ -263,7 +265,7 @@
 #define MSG_ONLYMEMBER	"Du {r enda medlemmen i din brevl}da."
 #define MSG_BADCONF	"Felaktigt m|te."
 #define MSG_FOLLMEM	"F|ljande personer {r medlemmar i"
-#define MSG_NOCHMBOX	"Du kan inte byta namn p} din brevl}da."
+#define MSG_NOCHMBOX	"Du kan inte {ndra inst{llningar i din brevl}da."
 #define MSG_NOTCREATOR	"Du {r inte skapare av"
 #define MSG_COMEXT	"M|tet {r ett kommentarsm|te till ett annat m|te."
 #define MSG_NEWNAME	"Nytt namn: "
@@ -375,7 +377,6 @@
 #define MSG_SSYSOP      "Sysop:"
 #define MSG_LANGNAME    "Svenska"
 #define MSG_UNKNOWN		"ok{nd"
-
 /* Nytt (Se) tiden-kommando */
 #define MSG_DISPTIME    "Klockan {r nu"
 #define MSG_IT          "den"
@@ -417,7 +418,14 @@
 #define MSG_DESCERROR01 "Ingen beskrivning att ta bort, eller fel vid radering."
 #define MSG_DESCCONFIRM "Beskrivningen {r nu uppdaterad."
 #define MSG_DESCERROR02 "Fel vid uppdatering av beskrivningen."
-
+/* Skapa möte och (nytt) ändra möte */
+#define MSG_FTNDOMAIN       "FTN-dom{n: "
+#define MSG_FTNTAG          "Echo-tag: "
+#define MSG_FTNFIELDREQ     "V{rdet m}ste anges."
+#define MSG_MODCONF_DESC     "M|tesbeskrivning: "
+#define MSG_MODCONF_BADFTN   "Befintlig FTN-konfiguration {r felaktig."
+#define MSG_MODCONF_SAVED    "M|tet har {ndrats."
+#define MSG_MODCONF_NOCHANGE "Inga {ndringar."
 /* conf.c */
 
 #define MSG_CONFSORT	"Sorterar m|teslistan..."
@@ -925,7 +933,9 @@
 #define MSG_CHARSET_SAVE_FAILED \
     "The choice could not be saved. It will be used for this session,\n" \
     "but you will be asked again next time."
-
+/* show_status function */
+#define MSG_FTNDOMAINCOL  "FTN domain:    "
+#define MSG_FTNECHOAREA   "Echo area:     "
 /* bbslink.c */
 #define MSG_BBSLINK01 "BBSLink is a door server with nearly 150 BBS'es connected."
 #define MSG_BBSLINK02 "Each game has its own unique 'game code'."
@@ -1039,7 +1049,7 @@
 #define MSG_ONLYMEMBER	"You are the sole member of your mailbox."
 #define MSG_BADCONF	"Wrong conference."
 #define MSG_FOLLMEM	"The following users subscribe to"
-#define MSG_NOCHMBOX	"You cannot change the name of your mailbox."
+#define MSG_NOCHMBOX	"You cannot edit the settings of your mailbox."
 #define MSG_NOTCREATOR	"You are not the creator of"
 #define MSG_COMEXT	"This conference is a reply conference to another conference."
 #define MSG_NEWNAME	"New name: "
@@ -1193,7 +1203,15 @@
 #define MSG_DESCERROR01 "Nothing remove. Or error. Contact SysOp!"
 #define MSG_DESCCONFIRM "Succesful submit of description."
 #define MSG_DESCERROR02 "Error when trying to update the description. Contact your SysOp!"
-
+/* cmd_create_conf and (new) cmd_change_conf */
+#define MSG_FTNDOMAIN       "FTN domain: "
+#define MSG_FTNTAG          "Echo tag: "
+#define MSG_FTNFIELDREQ     "A value is required."
+/* New modify meeting command */
+#define MSG_MODCONF_DESC     "Conference description: "
+#define MSG_MODCONF_BADFTN   "The existing FTN configuration is invalid."
+#define MSG_MODCONF_SAVED    "The conference has been changed."
+#define MSG_MODCONF_NOCHANGE "No changes."
 /* conf.c */
 
 #define MSG_CONFSORT	"Sorting conference list..."

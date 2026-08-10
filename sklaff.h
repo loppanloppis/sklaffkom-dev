@@ -548,6 +548,7 @@ int cmd_change_cdesc(char *args); /*2025-10-25 PL */
 int cmd_version(char *args); /*2026-06-02 PL */
 int cmd_block_user(char *args); /* 2026-06-16, PL */
 int cmd_change_charset(char *); /* 2026-08-07 PL */
+int cmd_mod_conf(char *); /* 2026-08-09 PL */
 
 /* admin.c */
 
@@ -610,7 +611,17 @@ long last_text(int, int);
 long first_text(int, int);
 struct CEN *sort_conf(struct CEL *, int);
 int list_news(int);
+struct CONF_FTN_CONFIG {
+    int version;
+    char type[32];
+    LINE domain;
+    LINE tag;
+}; /* PL 2026-08-09 */
+void conf_init_ftnconf(struct CONF_FTN_CONFIG *);
+int conf_load_ftnconf(int, struct CONF_FTN_CONFIG *, int *);
+int conf_write_ftnconf(int, const struct CONF_FTN_CONFIG *);
 struct CONF_ENTRY *get_all_confs(void);
+int conf_store_entry(struct CONF_ENTRY *);
 
 /* confxtra.c */
 char *get_conf_description(int confnum);												/* 2025-10-25 PL */

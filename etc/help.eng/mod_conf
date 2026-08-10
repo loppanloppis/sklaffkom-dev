@@ -1,0 +1,29 @@
+Argument:
+  <Conference name>
+
+Description:
+  Changes the settings of a conference.
+
+  If no conference name is given, the current conference is changed.
+
+  You can change the conference name, description and type. The
+  current settings are shown as defaults. Press ENTER to keep a
+  value unchanged.
+
+  The conference description may contain up to 80 characters. If
+  the entire description is erased, it is removed.
+
+  If the conference type is FTN, you can also change the FTN domain
+  and echo area. If an FTN configuration already exists, its current
+  values are shown as defaults.
+
+Note:
+  Only the creator of a conference may change its settings.
+
+  The mailbox cannot be changed with this command.
+
+Background:
+  This command replaces the previous separate commands for changing
+  the conference name and description, and collects the most
+  important conference settings in one place.
+

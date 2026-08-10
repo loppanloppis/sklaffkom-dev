@@ -1089,9 +1089,11 @@ show_status(int num, int flag, int st_type)
     static char tmp[512];
     struct SKLAFFRC *rc;
     struct CONF_ENTRY *ce;
+    struct CONF_FTN_CONFIG ftnconf;
     struct CONFS_ENTRY cse;
     struct ACTIVE_ENTRY ae;
     struct passwd *pw;
+    int ftn_found;
     time_t lastsess;
 
     if (num >= 0 && flag == USER) {
@@ -1328,6 +1330,20 @@ if (st_type == STATUS_EXTERNAL)
                 output("%s\n", MSG_UNKNOWNU);
                 break;
             }
+            /*
+             * Show FTN routing information when this is an FTN conference
+             * with a valid ftnconf file.
+             */
+            if (ce->type == FTN_CONF) {
+                ftn_found = 0;
+
+                if (conf_load_ftnconf(c_num, &ftnconf, &ftn_found) == 0 &&
+                    ftn_found) {
+                    output("%s%s\n", MSG_FTNDOMAINCOL, ftnconf.domain);
+                    output("%s%s\n", MSG_FTNECHOAREA, ftnconf.tag);
+                 }
+            }
+            
             if (ce->comconf)
                 output("%s%s\n", MSG_CONFCOM,
                     conf_name(ce->comconf, tmp));

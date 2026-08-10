@@ -26,10 +26,13 @@
  */
 
 #include <sys/stat.h>
+#include <errno.h>
+#include <unistd.h>
+#include <limits.h>
 
 #include "sklaff.h"
 #include "ext_globals.h"
-#include <limits.h>
+
 
 
 
@@ -300,6 +303,353 @@ stringify_confs_struct(struct CONFS_ENTRY * cse, char *buf)
 }
 
 /*
+ * conf_init_ftnconf - initialize a conference FTN configuration
+ */
+
+void
+conf_init_ftnconf(struct CONF_FTN_CONFIG *fc)
+{
+    if (fc == NULL)
+        return;
+
+    memset(fc, 0, sizeof(*fc));
+
+    fc->version = 1;
+    strlcpy(fc->type, "echomail", sizeof(fc->type));
+}
+
+
+/*
+ * conf_load_ftnconf - read a conference ftnconf file
+ *
+ * ret:
+ *   0  success, including when no ftnconf exists
+ *  -1  malformed file or read error
+ *
+ * *found is set to 1 when a valid ftnconf was found.
+ */
+
+int
+conf_load_ftnconf(int confnum, struct CONF_FTN_CONFIG *fc, int *found)
+{
+    FILE *fp;
+    char path[PATH_MAX];
+    char line[1024];
+    char section[32];
+    char *end;
+    char *ep;
+    long version;
+    int seen_version;
+    int seen_type;
+    int seen_domain;
+    int seen_tag;
+
+    if (confnum <= 0 || fc == NULL || found == NULL)
+        return -1;
+
+    conf_init_ftnconf(fc);
+
+    *found = 0;
+    section[0] = '\0';
+
+    seen_version = 0;
+    seen_type = 0;
+    seen_domain = 0;
+    seen_tag = 0;
+
+    if (snprintf(path, sizeof(path), "%s/%d/ftnconf",
+            SKLAFF_DB, confnum) >= (int)sizeof(path)) {
+        dlog(3, "conf_load_ftnconf: path too long for conference %d",
+            confnum);
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        if (errno == ENOENT)
+            return 0;
+
+        dlog(3, "conf_load_ftnconf: could not open conference %d ftnconf: %s",
+    confnum, strerror(errno));
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+    /*
+     * Remove CR/LF explicitly before parsing section headers.
+     * rtrim() is not responsible for stripping line endings.
+     */
+    line[strcspn(line, "\r\n")] = '\0';
+
+    ltrim(line);
+    rtrim(line);
+    
+        if (line[0] == '\0' || line[0] == '#')
+            continue;
+
+        /*
+         * Section header:
+         *
+         * ![version]
+         * ![type]
+         * ![domain]
+         * ![tag]
+         */
+        if (line[0] == '!' && line[1] == '[') {
+            end = strchr(line + 2, ']');
+
+            if (end == NULL || end[1] != '\0') {
+                dlog(3,
+                    "conf_load_ftnconf: malformed section header in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            *end = '\0';
+
+            if (strlen(line + 2) >= sizeof(section)) {
+                dlog(3,
+                    "conf_load_ftnconf: section name too long in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            strlcpy(section, line + 2, sizeof(section));
+            continue;
+        }
+
+        if (section[0] == '\0') {
+            dlog(3,
+                "conf_load_ftnconf: value outside section in conference %d",
+                confnum);
+            fclose(fp);
+            return -1;
+        }
+
+        if (strcasecmp(section, "version") == 0) {
+            if (seen_version) {
+                dlog(3,
+                    "conf_load_ftnconf: duplicate version in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            errno = 0;
+            ep = NULL;
+            version = strtol(line, &ep, 10);
+
+            if (errno != 0 || ep == line || *ep != '\0' ||
+                version < 0 || version > INT_MAX) {
+                dlog(3,
+                    "conf_load_ftnconf: invalid version in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            fc->version = (int)version;
+            seen_version = 1;
+
+        } else if (strcasecmp(section, "type") == 0) {
+            if (seen_type) {
+                dlog(3,
+                    "conf_load_ftnconf: duplicate type in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            strlcpy(fc->type, line, sizeof(fc->type));
+            seen_type = 1;
+
+        } else if (strcasecmp(section, "domain") == 0) {
+            if (seen_domain) {
+                dlog(3,
+                    "conf_load_ftnconf: duplicate domain in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            strlcpy(fc->domain, line, sizeof(fc->domain));
+            seen_domain = 1;
+
+        } else if (strcasecmp(section, "tag") == 0) {
+            if (seen_tag) {
+                dlog(3,
+                    "conf_load_ftnconf: duplicate tag in conference %d",
+                    confnum);
+                fclose(fp);
+                return -1;
+            }
+
+            strlcpy(fc->tag, line, sizeof(fc->tag));
+            seen_tag = 1;
+
+        } else {
+            dlog(3,
+                "conf_load_ftnconf: unknown section [%.31s] in conference %d",
+                section, confnum);
+            fclose(fp);
+            return -1;
+        }
+
+        section[0] = '\0';
+    }
+
+    if (ferror(fp)) {
+        dlog(3,
+            "conf_load_ftnconf: error while reading conference %d ftnconf",
+            confnum);
+    fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+
+    if (!seen_version || !seen_type ||
+        !seen_domain || !seen_tag) {
+        dlog(3,
+            "conf_load_ftnconf: incomplete configuration in conference %d",
+            confnum);
+        return -1;
+    }
+
+    if (fc->version != 1) {
+        dlog(3,
+            "conf_load_ftnconf: unsupported type [%.31s] in conference %d",
+            fc->type, confnum);
+        return -1;
+    }
+
+    if (strcasecmp(fc->type, "echomail") != 0) {
+        dlog(3,
+            "conf_load_ftnconf: domain or tag missing in conference %d",
+            confnum);
+        return -1;
+    }
+
+    if (fc->domain[0] == '\0' || fc->tag[0] == '\0') {
+        dlog(3,
+            "conf_load_ftnconf: domain or tag missing in conference %d",
+            confnum);
+        return -1;
+    }
+
+    *found = 1;
+    return 0;
+}
+
+/*
+ * conf_write_ftnconf - write a conference ftnconf atomically
+ */
+
+int
+conf_write_ftnconf(int confnum, const struct CONF_FTN_CONFIG *fc)
+{
+    char path[PATH_MAX];
+    char tmppath[PATH_MAX];
+    LONG_LINE data;
+    size_t len;
+    size_t off;
+    ssize_t written;
+    int fd;
+
+    if (confnum <= 0 || fc == NULL)
+        return -1;
+
+    if (fc->version != 1 ||
+        strcasecmp(fc->type, "echomail") != 0 ||
+        fc->domain[0] == '\0' ||
+        fc->tag[0] == '\0') {
+        return -1;
+    }
+
+    /*
+     * Do not allow values to create additional ftnconf lines.
+     */
+    if (strpbrk(fc->domain, "\r\n") != NULL ||
+        strpbrk(fc->tag, "\r\n") != NULL)
+        return -1;
+
+    if (snprintf(path, sizeof(path), "%s/%d/ftnconf",
+            SKLAFF_DB, confnum) >= (int)sizeof(path))
+        return -1;
+
+    if (snprintf(tmppath, sizeof(tmppath), "%s.tmp.%ld",
+            path, (long)getpid()) >= (int)sizeof(tmppath))
+        return -1;
+
+    if (snprintf(data, sizeof(data),
+            "![version]\n"
+            "%d\n"
+            "![type]\n"
+            "%s\n"
+            "![domain]\n"
+            "%s\n"
+            "![tag]\n"
+            "%s\n",
+            fc->version,
+            fc->type,
+            fc->domain,
+            fc->tag) >= (int)sizeof(data))
+        return -1;
+
+    critical();
+
+    fd = create_file(tmppath);
+    if (fd == -1) {
+        non_critical();
+        return -1;
+    }
+
+    len = strlen(data);
+    off = 0;
+
+    while (off < len) {
+        written = write(fd, data + off, len - off);
+
+        if (written < 0) {
+            if (errno == EINTR)
+                continue;
+
+            close_file(fd);
+            unlink(tmppath);
+            non_critical();
+            return -1;
+        }
+
+        if (written == 0) {
+            close_file(fd);
+            unlink(tmppath);
+            non_critical();
+            return -1;
+        }
+
+        off += (size_t)written;
+    }
+
+    if (close_file(fd) == -1) {
+        unlink(tmppath);
+        non_critical();
+        return -1;
+    }
+
+    if (rename(tmppath, path) == -1) {
+        unlink(tmppath);
+        non_critical();
+        return -1;
+    }
+
+    non_critical();
+
+    return 0;
+}
+
+/*
  * free_confs_entry - free malloc memory in CONFS_ENTRY
  * args: pointer to CONFS_ENTRY
  */
@@ -477,6 +827,72 @@ replace_conf(struct CONF_ENTRY *ce, char *buf)
     /* DO NOT free(obuf) here — caller owns original memory */
 
     return nbuf;
+}
+
+/*
+ * conf_store_entry - replace one conference entry in CONF_FILE
+ * args: conference entry to write
+ * ret: ok (0) or error (-1)
+ */
+
+int
+conf_store_entry(struct CONF_ENTRY *ce)
+{
+    int fd;
+    int rc;
+    char *buf;
+    char *newbuf;
+
+    if (ce == NULL)
+        return -1;
+
+    if ((fd = open_file(CONF_FILE, 0)) == -1)
+        return -1;
+
+    if ((buf = read_file(fd)) == NULL) {
+        close_file(fd);
+        return -1;
+    }
+
+    newbuf = replace_conf(ce, buf);
+    if (newbuf == NULL) {
+        free(buf);
+        close_file(fd);
+        return -1;
+    }
+
+    critical();
+
+    /*
+     * Important: write_file() frees newbuf itself on success.
+     */
+    rc = write_file(fd, newbuf);
+
+    if (rc != 0) {
+        /*
+         * write_file() does not free the buffer on failure.
+         */
+        free(newbuf);
+        free(buf);
+        close_file(fd);
+        non_critical();
+        return -1;
+    }
+
+    if (close_file(fd) == -1) {
+        free(buf);
+        non_critical();
+        return -1;
+    }
+
+    non_critical();
+
+    /*
+     * replace_conf() does not free the original read buffer.
+     */
+    free(buf);
+
+    return 0;
 }
 
 /*
