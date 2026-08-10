@@ -419,6 +419,7 @@
 #define MSG_DESCCONFIRM "Beskrivningen {r nu uppdaterad."
 #define MSG_DESCERROR02 "Fel vid uppdatering av beskrivningen."
 /* Skapa möte och (nytt) ändra möte */
+#define MSG_CONFDESCPROMPT "Beskrivning: "
 #define MSG_FTNDOMAIN       "FTN-dom{n: "
 #define MSG_FTNTAG          "Echo-tag: "
 #define MSG_FTNFIELDREQ     "V{rdet m}ste anges."
@@ -1204,6 +1205,7 @@
 #define MSG_DESCCONFIRM "Succesful submit of description."
 #define MSG_DESCERROR02 "Error when trying to update the description. Contact your SysOp!"
 /* cmd_create_conf and (new) cmd_change_conf */
+#define MSG_CONFDESCPROMPT "Description: "
 #define MSG_FTNDOMAIN       "FTN domain: "
 #define MSG_FTNTAG          "Echo tag: "
 #define MSG_FTNFIELDREQ     "A value is required."
