@@ -1504,7 +1504,7 @@ cmd_create_conf(char *args)
 {
     int fd, fd2, conf_type, confnum, i;
     char *buf, *oldbuf, *nbuf, *tmp;
-    LINE confname, newname;
+    LINE confname, confdesc, newname;
     LONG_LINE tmpbuf;
     struct CONF_ENTRY ce;
     struct CONF_FTN_CONFIG ftnconf;
@@ -1513,39 +1513,62 @@ cmd_create_conf(char *args)
     strlcpy(confname, args, sizeof(confname)); /* modified on 2026-06-08, PL */
 
     output("\n");
+
     if (*confname == '\0') {
         output(MSG_CNAMEASK);
         input("", confname, LINE_LEN, 0, 0, 0);
     }
+
     ltrim(confname);
 
-    if (conf_num(confname) > 0) { /* PL 2027-06-08, fixes collission check bug when creating new conferences (hopefully) */
-    output("%s\n\n", MSG_ERRCNAME);
-    return 0;
+    if (conf_num(confname) > 0) {
+        output("%s\n\n", MSG_ERRCNAME);
+        return 0;
     }
+
     if (*confname != '\0') {
 
-    conf_type = prompt_conf_type(OPEN_CONF);
+        /*
+         * Optional conference description.
+         *
+         * Keep this consistent with cmd_mod_conf(): descriptions
+         * are limited to 80 characters and trailing whitespace is
+         * removed.  An empty description is simply not stored.
+         */
+        output(MSG_CONFDESCPROMPT);
+        input("", confdesc, 80, 0, 0, 0);
+        rtrim(confdesc);
 
-    if (conf_type == FTN_CONF) {
-        conf_init_ftnconf(&ftnconf);
+        /*
+         * Conference type.
+         */
+        conf_type = prompt_conf_type(OPEN_CONF);
 
-        if (prompt_ftnconf(&ftnconf) != 0)
-            return -1;
-    }
+        /*
+         * FTN configuration is collected before anything is written.
+         */
+        if (conf_type == FTN_CONF) {
+            conf_init_ftnconf(&ftnconf);
+
+            if (prompt_ftnconf(&ftnconf) != 0)
+                return -1;
+        }
 
         if ((fd = open_file(CONF_FILE, 0)) == -1) {
             return -1;
         }
+
         if ((buf = read_file(fd)) == NULL) {
             return -1;
         }
+
         oldbuf = buf;
         ce.num = 0;
 
         for (;;) {
             confnum = ce.num;
             buf = get_conf_entry(buf, &ce);
+
             if (buf == NULL)
                 break;
         }
@@ -1556,6 +1579,7 @@ cmd_create_conf(char *args)
             ce.life = EXP_DEF_FTN;
         else
             ce.life = EXP_DEF;
+
         ce.num = confnum + 1;
         ce.last_text = 0;
         ce.creator = Uid;
@@ -1563,39 +1587,67 @@ cmd_create_conf(char *args)
         ce.time = time(0);
         ce.comconf = 0;
         strlcpy(ce.name, confname, sizeof(ce.name)); /* modified on 2026-06-08, PL */
+
         tmp = stringify_conf_struct(&ce, tmpbuf);
 
         i = strlen(oldbuf) + strlen(tmp) + 1;
-        nbuf = (char *) malloc(i);
+        nbuf = (char *)malloc(i);
+
         if (nbuf == NULL) {
             free(oldbuf);
             close_file(fd);
             return -1;
         }
+
         memset(nbuf, 0, i);
         strcpy(nbuf, oldbuf);
         strcat(nbuf, tmp);
 
         critical();
+
         if (write_file(fd, nbuf) == -1) {
             return -1;
         }
+
         if (close_file(fd) == -1) {
             return -1;
         }
-        snprintf(newname, sizeof(newname), "%s/%d", SKLAFF_DB, ce.num);
+
+        snprintf(newname, sizeof(newname), "%s/%d",
+            SKLAFF_DB, ce.num);
         mkdir(newname, NEW_DIR_MODE);
-        snprintf(newname, sizeof(newname), "%s/%d", FILE_DB, ce.num);
+
+        snprintf(newname, sizeof(newname), "%s/%d",
+            FILE_DB, ce.num);
         mkdir(newname, NEW_DIR_MODE);
-        snprintf(newname, sizeof(newname), "%s/%d%s", SKLAFF_DB, ce.num, CONFRC_FILE); /* modified on 2026-06-08, PL */
+
+        snprintf(newname, sizeof(newname), "%s/%d%s",
+            SKLAFF_DB, ce.num, CONFRC_FILE); /* modified on 2026-06-08, PL */
+
         if ((fd2 = open_file(newname, OPEN_CREATE | OPEN_QUIET)) == -1) {
             return -1;
         }
+
         if (close_file(fd2) == -1) {
             return -1;
         }
+
         non_critical();
 
+        /*
+         * Store the optional conference description now that the
+         * conference directory exists.
+         */
+        if (*confdesc != '\0') {
+            if (write_confxtra_section(ce.num, "desc", confdesc) != 0) {
+                output("\n" MSG_DESCERROR02 "\n\n");
+                return -1;
+            }
+        }
+
+        /*
+         * Store FTN configuration for FTN conferences.
+         */
         if (conf_type == FTN_CONF) {
             if (conf_write_ftnconf(ce.num, &ftnconf) != 0) {
                 dlog(2,
@@ -1606,21 +1658,25 @@ cmd_create_conf(char *args)
         }
 
         free(oldbuf);
-        output("\n%s %s %s\n", MSG_CONFNAME, confname, MSG_CREATED2);
+
+        output("\n%s %s %s\n",
+            MSG_CONFNAME, confname, MSG_CREATED2);
 
         /*
-         * ce.num is already the exact conference just created.  Avoid
+         * ce.num is already the exact conference just created. Avoid
          * sending its name through expand_name() again in cmd_subscribe().
          *
          * modified on 2026-08-09, PL
          */
         if (subscribe_conf_num(ce.num, confname) == -1)
             return -1;
-    } else
+
+    } else {
         output("\n%s\n\n", MSG_NOCONFNAME);
+    }
+
     return 0;
 }
-
 
 /*
  * subscribe_conf_num - subscribe to an already resolved conference
