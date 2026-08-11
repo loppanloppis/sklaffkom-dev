@@ -67,15 +67,17 @@ display_header(struct TEXT_HEADER * th, int edit_subject, int type, int dtype, c
     rfc2047_decode(username, from_dec, sizeof(from_dec));
 
     /*
-     * Imported FTN netmail may use "Name (zone:net/node)" as the visible
-     * sender.  Do not run that through extract_display_name(), since it
-     * treats parenthesized text as the display name for old-style e-mail
-     * addresses and would reduce "Chad Smith (21:3/219)" to "21:3/219".
+     * Imported FTN netmail may use "Name (zone:net/node@domain)" as the
+     * visible sender.  Do not run that through extract_display_name(),
+     * since it treats parenthesized text as the display name for old-style
+     * e-mail addresses and would reduce "Chad Smith (21:3/219@fsxnet)" to
+     * "21:3/219@fsxnet".
      *
-     * modified on 2026-07-10, PL
+     * Accept both legacy 4D and current 5D FTN sender strings.
+     *
+     * modified on 2026-08-10, PL
      */
     if (mailrec && type && th->author == 0 &&
-        strchr(from_dec, '@') == NULL &&
         strstr(from_dec, ":") != NULL &&
         strstr(from_dec, "/") != NULL) {
         snprintf(username, sizeof(username), "%.*s",

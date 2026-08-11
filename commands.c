@@ -2511,6 +2511,35 @@ write_mail_utf8(FILE *pipe, const char *from_addr, const char *to_addr,
     free(utf8_body);
 }
 
+/*
+ * make_ftn_mailcopy_recipient - format recipient for a local FTN netmail copy
+ * args: FTN name, 4D/5D address, destination buffer and size
+ *
+ * Keep both the human-readable FTN name and the routable address in new
+ * mailbox copies.  list_subj() can then show the name while the stored copy
+ * remains self-describing.
+ *
+ * modified on 2026-08-10, PL
+ */
+static void
+make_ftn_mailcopy_recipient(const char *name, const char *addr,
+    char *out, size_t outsz)
+{
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (addr == NULL || *addr == '\0')
+        return;
+
+    if (name != NULL && *name != '\0' && strcmp(name, addr) != 0) {
+        snprintf(out, outsz, "%s (%s)", name, addr);
+    } else {
+        strlcpy(out, addr, outsz);
+    }
+}
+
 int
 cmd_mail(char *args)
 {
@@ -2637,7 +2666,9 @@ cmd_mail(char *args)
                 /*
                  * Keep local copy in SklaffKOM's internal SF7 form.
                  */
-                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+                make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                    tmpstr, sizeof(tmpstr));
+                (void) save_mailcopy(tmpstr, th.subject, inbuf);
             }
 
             free(inbuf);
@@ -2937,7 +2968,9 @@ cmd_personal(char *args)
              *
              * modified on 2026-07-13, PL
              */
-            (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+            make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                tmpstr, sizeof(tmpstr));
+            (void) save_mailcopy(tmpstr, th.subject, inbuf);
         }
 
         free(inbuf);
@@ -3772,7 +3805,9 @@ cmd_comment(char *args)
                 /*
                  * Keep local mail copy in SklaffKOM's internal SF7 format.
                  */
-                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+                make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                    tmpstr, sizeof(tmpstr));
+                (void) save_mailcopy(tmpstr, th.subject, inbuf);
             }
 
             free(inbuf);
