@@ -103,6 +103,11 @@ struct export_one_args {
     long textnum;
 }; /* modified on 2026-06-14, PL */
 
+struct export_one_conf_args {
+    int confnum;
+    long textnum;
+}; /* modified on 2026-08-11, PL */
+
 struct import_netmail_args {
     const char *prefsfile;
 }; /* modified on 2026-07-16, PL */
@@ -145,6 +150,7 @@ static int write_fido_netmail_out(const char *path,
 static int export_test_ftn(const char *area);
 
 static int export_one_ftn(const char *area, long textnum); /* modified on 2026-06-14, PL */
+static int export_one_ftn_conf(int confnum, long textnum); /* modified on 2026-08-11, PL */
 static unsigned long make_export_one_serial(int confnum, long textnum); /* modified on 2026-06-14, PL */
 static int read_skom_export_text(int confnum, long textnum,
     long *out_uid, long *out_time, long *out_com,
@@ -177,6 +183,7 @@ static int load_echomail_area(const char *fallback_tag,
     const struct ftn_link **out_feed); /* modified on 2026-07-15, PL */
 
 static int find_ftn_conf(const char *name, struct ftn_conf_info *out_ce);
+static int find_ftn_conf_num(int confnum, struct ftn_conf_info *out_ce); /* modified on 2026-08-11, PL */
 static int is_msg_file(const char *name);
 static int scan_ftn_area(const char *area, const struct ftn_conf_info *ce);
 
@@ -245,6 +252,7 @@ static int run_import_all_areas_locked(void *arg);
 static int run_import_netmail_locked(void *arg); /* modified on 2026-07-09, PL */
 
 static int run_export_one_locked(void *arg); /* modified on 2026-06-14, PL */
+static int run_export_one_conf_locked(void *arg); /* modified on 2026-08-11, PL */
 static void make_skom_from_name(long uid, char *out, size_t outsz); /* modified on 2026-06-14, PL */
 
 static char *wrap_ftn_body_for_skom(const char *body);
@@ -1793,6 +1801,48 @@ find_ftn_conf(const char *name, struct ftn_conf_info *out_ce)
 }
 
 static int
+find_ftn_conf_num(int confnum, struct ftn_conf_info *out_ce)
+{
+    FILE *fp;
+    LONG_LINE line;
+    struct ftn_conf_info ce;
+
+    if (confnum <= 0 || out_ce == NULL)
+        return -1;
+
+    printf("Checking the SklaffKOM CONF_FILE: %s... ", CONF_FILE);
+    fflush(stdout);
+
+    fp = fopen(CONF_FILE, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "\n[ERROR] Could not open file '%s'\n", CONF_FILE);
+        perror("fopen");
+        return -1;
+    }
+
+    printf("OK!\n");
+    printf("Checking conference number: %d... ", confnum);
+    fflush(stdout);
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (parse_conf_line(line, &ce) != 0)
+            continue;
+
+        if (ce.num == confnum) {
+            *out_ce = ce;
+            fclose(fp);
+            printf("OK! (%s)\n", ce.name);
+            return 0;
+        }
+    }
+
+    fclose(fp);
+    fprintf(stderr, "\n[ERROR] Conference number %d not found in %s\n",
+        confnum, CONF_FILE);
+    return -1;
+}
+
+static int
 is_msg_file(const char *name)
 {
     const char *dot;
@@ -3172,7 +3222,7 @@ make_skom_from_name(long uid, char *out, size_t outsz)
 }
 
 static int
-export_one_ftn(const char *area, long textnum)
+export_one_ftn_loaded(const struct ftn_conf_info *source_ce, long textnum)
 {
     struct ftn_conf_info ce;
     struct ftn_config config;
@@ -3196,8 +3246,10 @@ export_one_ftn(const char *area, long textnum)
     unsigned long reply_serial;
     int rc;
 
-    if (area == NULL || *area == '\0' || textnum <= 0)
+    if (source_ce == NULL || source_ce->num <= 0 || textnum <= 0)
         return -1;
+
+    ce = *source_ce;
 
     ftn_config_init(&config);
     ftn_area = NULL;
@@ -3214,26 +3266,14 @@ export_one_ftn(const char *area, long textnum)
     printf("ftntoss export-one starting\n");
     printf("===========================\n\n");
 
-    printf("Checking conference: %s... ", area);
-    fflush(stdout);
-
-    if (find_ftn_conf(area, &ce) != 0) {
-        printf("FAILED\n");
-        fprintf(stderr,
-            "[ERROR] Could not find FTN conference '%s'\n", area);
-        goto cleanup;
-    }
-
-    printf("OK!\n");
-
     if (ce.type != FTN_CONF) {
         fprintf(stderr,
             "[ERROR] Conference '%s' exists, but is not FTN_CONF "
-            "(type=%d)\n", area, ce.type);
+            "(type=%d)\n", ce.name, ce.type);
         goto cleanup;
     }
 
-    if (load_echomail_area(area, &ce, &config, &ftn_area, &feed) != 0)
+    if (load_echomail_area(ce.name, &ce, &config, &ftn_area, &feed) != 0)
         goto cleanup;
 
     if (read_skom_export_text(ce.num, textnum, &uid, &when, &com,
@@ -3319,6 +3359,34 @@ cleanup:
     free(body);
     ftn_config_free(&config);
     return rc;
+}
+
+static int
+export_one_ftn(const char *area, long textnum)
+{
+    struct ftn_conf_info ce;
+
+    if (area == NULL || *area == '\0' || textnum <= 0)
+        return -1;
+
+    if (find_ftn_conf(area, &ce) != 0)
+        return -1;
+
+    return export_one_ftn_loaded(&ce, textnum);
+}
+
+static int
+export_one_ftn_conf(int confnum, long textnum)
+{
+    struct ftn_conf_info ce;
+
+    if (confnum <= 0 || textnum <= 0)
+        return -1;
+
+    if (find_ftn_conf_num(confnum, &ce) != 0)
+        return -1;
+
+    return export_one_ftn_loaded(&ce, textnum);
 }
 
 static int
@@ -4794,6 +4862,17 @@ run_export_one_locked(void *arg)
 }
 
 static int
+run_export_one_conf_locked(void *arg)
+{
+    struct export_one_conf_args *a = arg;
+
+    if (a == NULL)
+        return -1;
+
+    return export_one_ftn_conf(a->confnum, a->textnum);
+}
+
+static int
 run_import_one_locked(void *arg)
 {
     struct import_one_args *a = arg;
@@ -5272,6 +5351,33 @@ main(int argc, char **argv)
 
         return run_with_lock(run_export_one_locked, &a) == 0 ? 0 : 1;
     }
+
+    if (argc == 4 && strcmp(argv[1], "--export-one-conf") == 0) {
+        struct export_one_conf_args a;
+        char *endp;
+        long confnum;
+        long textnum;
+
+        errno = 0;
+        confnum = strtol(argv[2], &endp, 10);
+        if (errno != 0 || endp == argv[2] || *endp != '\0' ||
+            confnum <= 0 || confnum > INT_MAX) {
+            fprintf(stderr, "[ERROR] Invalid conference number: %s\n", argv[2]);
+            return 1;
+        }
+
+        errno = 0;
+        textnum = strtol(argv[3], &endp, 10);
+        if (errno != 0 || endp == argv[3] || *endp != '\0' || textnum <= 0) {
+            fprintf(stderr, "[ERROR] Invalid text number: %s\n", argv[3]);
+            return 1;
+        }
+
+        a.confnum = (int)confnum;
+        a.textnum = textnum;
+
+        return run_with_lock(run_export_one_conf_locked, &a) == 0 ? 0 : 1;
+    }
     
     if (argc == 3 && strcmp(argv[1], "--export-test") == 0) {
     return export_test_ftn(argv[2]) == 0 ? 0 : 1;
@@ -5380,6 +5486,7 @@ main(int argc, char **argv)
         fprintf(stderr, "       %s --import-all-areas --include-unsafe\n", argv[0]);
         fprintf(stderr, "       %s --export-test <FTN-area>\n", argv[0]);
         fprintf(stderr, "       %s --export-one <FTN-area> <textnum>\n", argv[0]);
+        fprintf(stderr, "       %s --export-one-conf <confnum> <textnum>\n", argv[0]);
         fprintf(stderr, "       %s --export-netmail-job <jobfile>\n", argv[0]);
         fprintf(stderr, "       %s --import-netmail <crashmail.prefs>\n", argv[0]);
         fprintf(stderr, "       %s --dump-ftn-config\n", argv[0]);
