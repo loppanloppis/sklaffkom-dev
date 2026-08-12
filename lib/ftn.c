@@ -551,7 +551,7 @@ export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum)
     if (ce == NULL || textnum <= 0)
         return;
 
-    if (ce->type != FTN_CONF)
+    if (!conf_is_ftn(ce->type))
         return;
 
     if (ce->num <= 0) {

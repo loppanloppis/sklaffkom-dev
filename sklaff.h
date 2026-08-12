@@ -320,6 +320,66 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 #define NEWS_CONF	3
 #define FTN_CONF	4
 
+#define NEWS_CLOSED_CONF	5
+#define NEWS_SECRET_CONF	6
+#define FTN_CLOSED_CONF	7
+#define FTN_SECRET_CONF	8
+
+/*
+ * Conference type is stored as one integer for backwards compatibility.
+ *
+ * Values 0..4 retain their historic meaning.  The helpers below separate
+ * the two concepts that are encoded in that integer:
+ *
+ *   transport: local / news / FTN
+ *   access:    open / closed / secret
+ */
+static inline int
+conf_access_type(int type)
+{
+    switch (type) {
+    case OPEN_CONF:
+    case NEWS_CONF:
+    case FTN_CONF:
+        return OPEN_CONF;
+
+    case CLOSED_CONF:
+    case NEWS_CLOSED_CONF:
+    case FTN_CLOSED_CONF:
+        return CLOSED_CONF;
+
+    case SECRET_CONF:
+    case NEWS_SECRET_CONF:
+    case FTN_SECRET_CONF:
+        return SECRET_CONF;
+
+    default:
+        return -1;
+    }
+}
+
+static inline int
+conf_is_news(int type)
+{
+    return type == NEWS_CONF ||
+           type == NEWS_CLOSED_CONF ||
+           type == NEWS_SECRET_CONF;
+}
+
+static inline int
+conf_is_ftn(int type)
+{
+    return type == FTN_CONF ||
+           type == FTN_CLOSED_CONF ||
+           type == FTN_SECRET_CONF;
+}
+
+static inline int
+conf_is_external(int type)
+{
+    return conf_is_news(type) || conf_is_ftn(type);
+}
+
 /* Defines for text types */
 
 #define TYPE_TEXT		0

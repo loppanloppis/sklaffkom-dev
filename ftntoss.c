@@ -3095,7 +3095,7 @@ export_test_ftn(const char *area)
 
     printf("OK!\n");
 
-    if (ce.type != FTN_CONF) {
+    if (!conf_is_ftn(ce.type)) {
         fprintf(stderr,
             "[ERROR] Conference '%s' exists, but is not FTN_CONF "
             "(type=%d)\n", area, ce.type);
@@ -3266,7 +3266,7 @@ export_one_ftn_loaded(const struct ftn_conf_info *source_ce, long textnum)
     printf("ftntoss export-one starting\n");
     printf("===========================\n\n");
 
-    if (ce.type != FTN_CONF) {
+    if (!conf_is_ftn(ce.type)) {
         fprintf(stderr,
             "[ERROR] Conference '%s' exists, but is not FTN_CONF "
             "(type=%d)\n", ce.name, ce.type);
@@ -3428,7 +3428,7 @@ import_one_ftn(const char *area, const char *filename)
     if (find_ftn_conf(area, &ce) != 0)
         goto cleanup;
 
-    if (ce.type != FTN_CONF) {
+    if (!conf_is_ftn(ce.type)) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
         goto cleanup;
@@ -3625,7 +3625,7 @@ import_all_ftn(const char *area, int include_unsafe)
     if (find_ftn_conf(area, &ce) != 0)
         goto cleanup;
 
-    if (ce.type != FTN_CONF) {
+    if (!conf_is_ftn(ce.type)) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
         goto cleanup;
@@ -3867,7 +3867,7 @@ import_all_areas_ftn(int include_unsafe)
         if (parse_conf_line(line, &ce) != 0)
             continue;
 
-        if (ce.type != FTN_CONF)
+        if (!conf_is_ftn(ce.type))
             continue;
 
         areas++;
@@ -3938,7 +3938,7 @@ diagnose_ftn(const char *area, int include_unsafe)
     if (find_ftn_conf(area, &ce) != 0)
         goto cleanup;
 
-    if (ce.type != FTN_CONF) {
+    if (!conf_is_ftn(ce.type)) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce.name, ce.type);
         goto cleanup;
@@ -4082,7 +4082,7 @@ dump_one_import(const char *area, const struct ftn_conf_info *ce,
     if (area == NULL || ce == NULL || filename == NULL)
         goto cleanup;
 
-    if (ce->type != FTN_CONF) {
+    if (!conf_is_ftn(ce->type)) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce->name, ce->type);
         goto cleanup;
@@ -4100,7 +4100,7 @@ dump_one_import(const char *area, const struct ftn_conf_info *ce,
     printf("Conf name:   %s\n", ce->name);
     printf("Conf num:    %d\n", ce->num);
     printf("Conf type:   %d", ce->type);
-    if (ce->type == FTN_CONF)
+    if (conf_is_ftn(ce->type))
         printf(" (FTN_CONF)");
     printf("\n");
     printf("Last text:   %ld\n", ce->last_text);
@@ -4508,7 +4508,7 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     if (area == NULL || ce == NULL)
         return -1;
 
-    if (ce->type != FTN_CONF) {
+    if (!conf_is_ftn(ce->type)) {
         fprintf(stderr, "[ERROR] Conference '%s' exists, but is not FTN_CONF (type=%d)\n",
             ce->name, ce->type);
         ftn_config_free(&config);
@@ -4527,7 +4527,7 @@ scan_ftn_area(const char *area, const struct ftn_conf_info *ce)
     printf("Conf name:   %s\n", ce->name);
     printf("Conf num:    %d\n", ce->num);
     printf("Conf type:   %d", ce->type);
-    if (ce->type == FTN_CONF)
+    if (conf_is_ftn(ce->type))
         printf(" (FTN_CONF)");
     printf("\n");
     printf("Last text:   %ld\n", ce->last_text);

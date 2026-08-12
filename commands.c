@@ -1341,7 +1341,7 @@ cmd_list_rights(char *args)
     ul = get_confrc_struct(confnum);
     ce = get_conf_struct(confnum);
 
-    if ((ce->type == OPEN_CONF) || (ce->type == NEWS_CONF)) {
+    if (conf_access_type(ce->type) == OPEN_CONF) {
         output("\n%s %s:\n\n", MSG_NORIGHTS, ce->name);
     } else {
         output("\n%s %s:\n\n", MSG_YESRIGHTS, ce->name);
@@ -1414,18 +1414,18 @@ conf_type_from_char(int c)
 static int
 conf_type_to_char(int type)
 {
-    switch (type) {
+    if (conf_is_news(type))
+        return MSG_CONFNEWS;
+
+    if (conf_is_ftn(type))
+        return MSG_CONFFTN;
+
+    switch (conf_access_type(type)) {
     case CLOSED_CONF:
         return MSG_CONFCLOSED;
 
     case SECRET_CONF:
         return MSG_CONFSECRET;
-
-    case NEWS_CONF:
-        return MSG_CONFNEWS;
-
-    case FTN_CONF:
-        return MSG_CONFFTN;
 
     case OPEN_CONF:
     default:
@@ -1448,6 +1448,15 @@ prompt_conf_type(int current_type)
     down_string(interact);
 
     if (*interact == '\0')
+        return current_type;
+
+    /*
+     * input() may return the displayed default character when ENTER is used.
+     * Preserve a combined NEWS/FTN access type when its transport did not
+     * actually change.  The separate transport/access UI comes in phase 2.
+     */
+    if ((interact[0] == MSG_CONFNEWS && conf_is_news(current_type)) ||
+        (interact[0] == MSG_CONFFTN && conf_is_ftn(current_type)))
         return current_type;
 
     return conf_type_from_char((unsigned char)interact[0]);
@@ -1547,7 +1556,7 @@ cmd_create_conf(char *args)
         /*
          * FTN configuration is collected before anything is written.
          */
-        if (conf_type == FTN_CONF) {
+        if (conf_is_ftn(conf_type)) {
             conf_init_ftnconf(&ftnconf);
 
             if (prompt_ftnconf(&ftnconf) != 0)
@@ -1573,9 +1582,9 @@ cmd_create_conf(char *args)
                 break;
         }
 
-        if (conf_type == NEWS_CONF)
+        if (conf_is_news(conf_type))
             ce.life = EXP_DEF_NEWS;
-        else if (conf_type == FTN_CONF)
+        else if (conf_is_ftn(conf_type))
             ce.life = EXP_DEF_FTN;
         else
             ce.life = EXP_DEF;
@@ -1648,7 +1657,7 @@ cmd_create_conf(char *args)
         /*
          * Store FTN configuration for FTN conferences.
          */
-        if (conf_type == FTN_CONF) {
+        if (conf_is_ftn(conf_type)) {
             if (conf_write_ftnconf(ce.num, &ftnconf) != 0) {
                 dlog(2,
                     "cmd_create_conf: could not write ftnconf for conference %d",
@@ -1961,7 +1970,7 @@ cmd_add_rights(char *args)
                     if ((nbuf = (char *) malloc(i)) == NULL)
                         return -1;
                     memset(nbuf, 0, i);
-                    if ((ce->type > 0) && (ce->type < 3)) {
+                    if (conf_access_type(ce->type) != OPEN_CONF) {
                         snprintf(newuid, sizeof(newuid), "%d\n", unum);
                         strcpy(nbuf, buf);
                         strcat(nbuf, newuid);
@@ -2035,7 +2044,7 @@ cmd_sub_rights(char *args)
                         if ((nbuf = (char *) malloc(i)) == NULL)
                             return -1;
                         memset(nbuf, 0, i);
-                        if ((ce->type > 0) && (ce->type < 3)) {
+                        if (conf_access_type(ce->type) != OPEN_CONF) {
                             while (ul) {
                                 if (ul->num != unum) {
                                     snprintf(newuid, sizeof(newuid), "%d\n", ul->num);
@@ -2799,7 +2808,7 @@ cmd_personal(char *args)
     ftn_fromline[0] = '\0';
 
     ce = get_conf_struct(Current_conf);
-    if (ce != NULL && ce->type == FTN_CONF)
+    if (ce != NULL && conf_is_ftn(ce->type))
         is_ftn_conf = 1;
 
     if (is_ftn_conf) {
@@ -3108,14 +3117,14 @@ cmd_post_text(char *args)
     th.author = Uid;
     ce = get_conf_struct(confid);
 #ifndef POSTING_OK
-    if (ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+    if (conf_is_external(ce->type)) {
         dlog(5, "cmd_post_text: external conf but POSTING_OK not defined -> MSG_NONEWS");
         output("\n%s\n\n", MSG_NONEWS);
         return 0;
     }
 #endif
 #ifdef POSTING_OK
-    if (ce->type == NEWS_CONF) {
+    if (conf_is_news(ce->type)) {
         struct passwd *pw = getpwuid(Uid);
         snprintf(uname, sizeof(uname), "%s <%s@%s>",
     		user_name(Uid, tmp), pw->pw_name, MACHINE_NAME);
@@ -3137,9 +3146,9 @@ cmd_post_text(char *args)
     strcat(fname, EDIT_FILE);
     dlog(7, "cmd_post_text: edit file path=[%s]", fname);
     output("\n");
-    if (ce->type == NEWS_CONF)
+    if (conf_is_news(ce->type))
         show_post_warning(POST_INFO, "POST_INFO");
-    else if (ce->type == FTN_CONF)
+    else if (conf_is_ftn(ce->type))
         show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     display_header(&th, 1, confid, 0, un);
     dlog(7, "cmd_post_text: header done, subject=[%s]", th.subject);
@@ -3566,14 +3575,14 @@ cmd_comment(char *args)
     thtmp = &te.th;
     commenttext = thtmp->num;
     commentuid = thtmp->author;
-	is_ftn_reply = 0;
+    is_ftn_reply = 0;
 
-	if (Current_conf > 0) {
-    	ce = get_conf_struct(Current_conf);
-    	if (ce != NULL) {
-        	is_ftn_reply = (ce->type == FTN_CONF);
-    	}
-	}
+    if (Current_conf > 0) {
+        ce = get_conf_struct(Current_conf);
+        if (ce != NULL) {
+            is_ftn_reply = conf_is_ftn(ce->type);
+        }
+    }
     dlog(6, "cmd_comment: replying to text=%ld author=%d subject=[%s]",
          commenttext, commentuid, thtmp->subject);
 
@@ -3732,7 +3741,7 @@ cmd_comment(char *args)
 #ifndef POSTING_OK
     if (nc > 0) {
         ce = get_conf_struct(nc);
-        if (ce != NULL && (ce->type == NEWS_CONF || ce->type == FTN_CONF)) {
+        if (ce != NULL && conf_is_external(ce->type)) {
             dlog(5, "cmd_comment: external conf but POSTING_OK not defined -> MSG_NONEWS");
             output("\n%s\n\n", MSG_NONEWS);
             return 0;
@@ -3744,9 +3753,9 @@ cmd_comment(char *args)
     if (nc > 0) {
         ce = get_conf_struct(nc);
 
-        if (ce != NULL && ce->type == NEWS_CONF)
+        if (ce != NULL && conf_is_news(ce->type))
             show_post_warning(POST_INFO, "POST_INFO");
-        else if (ce != NULL && ce->type == FTN_CONF)
+        else if (ce != NULL && conf_is_ftn(ce->type))
             show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     }
 #endif
@@ -3764,7 +3773,7 @@ cmd_comment(char *args)
     /* News comment or local/mail branches */
     if (nc > 0) {
         ce = get_conf_struct(nc);
-        if (ce->type == NEWS_CONF) {
+        if (conf_is_news(ce->type)) {
             th.author = 0;
             dlog(6, "cmd_comment: NEWS reply mode (author=0)");
         }
@@ -7184,7 +7193,7 @@ cmd_post_survey(char *args)
     }
     th.author = Uid;
     ce = get_conf_struct(confid);
-    if (ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+    if (conf_is_external(ce->type)) {
         output("\n%s\n\n", MSG_NONEWS);
         return 0;
     }
@@ -7804,7 +7813,7 @@ cmd_footnote(char *args)
 
     struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
 
-    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+    if (!ce || conf_is_external(ce->type)) {
         output("\n" MSG_FOOTINLOCAL "\n\n");
         return 0;
     }
@@ -8003,7 +8012,7 @@ cmd_like(char *args)
 
     struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
 
-    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+    if (!ce || conf_is_external(ce->type)) {
         output("\n" MSG_PRAISELOCAL "\n\n");
         return 0;
     }
@@ -8149,7 +8158,7 @@ cmd_unlike(char *args)
 
     struct CONF_ENTRY *ce = get_conf_struct(Current_conf);
 
-    if (!ce || ce->type == NEWS_CONF || ce->type == FTN_CONF) {
+    if (!ce || conf_is_external(ce->type)) {
         output("\n" MSG_PRAISELOCAL "\n\n");
         return 0;
     }
@@ -8648,7 +8657,7 @@ cmd_mod_conf(char *args)
     ftn_found = 0;
     ftn_changed = 0;
 
-    if (new_type == FTN_CONF) {
+    if (conf_is_ftn(new_type)) {
         if (conf_load_ftnconf(c_num, &ftnconf, &ftn_found) != 0) {
             output("\n%s\n\n", MSG_MODCONF_BADFTN);
             return 0;
@@ -8710,7 +8719,7 @@ cmd_mod_conf(char *args)
     /*
      * Only rewrite ftnconf when its contents actually changed.
      */
-    if (new_type == FTN_CONF && ftn_changed) {
+    if (conf_is_ftn(new_type) && ftn_changed) {
         if (conf_write_ftnconf(c_num, &ftnconf) != 0) {
             dlog(2,
                 "cmd_mod_conf: could not write ftnconf for conference %d",
