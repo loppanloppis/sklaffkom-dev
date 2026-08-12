@@ -2639,6 +2639,102 @@ strip_eol(char *s)
     }
 }
 
+/*
+ * load_user_signature - read ![sig] directly from user's sklaffrc
+ * args: user id
+ * ret: malloced signature or NULL if none
+ *
+ * modified on 2026-08-12, PL
+ */
+static char *
+load_user_signature(int uid)
+{
+    FILE *fp;
+    char path[PATH_MAX];
+    char line[4096];
+    char *sig;
+    size_t len;
+    size_t cap;
+    int in_sig;
+
+    if (uid <= 0)
+        return NULL;
+
+    if (snprintf(path, sizeof(path), "%s/%d%s",
+            USER_DB, uid, SKLAFFRC_FILE) >= (int)sizeof(path))
+        return NULL;
+
+    fp = fopen(path, "r");
+    if (fp == NULL)
+        return NULL;
+
+    sig = NULL;
+    len = 0;
+    cap = 0;
+    in_sig = 0;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        size_t line_len;
+
+        if (strncmp(line, "![", 2) == 0) {
+            char heading[4096];
+
+            strlcpy(heading, line, sizeof(heading));
+            strip_eol(heading);
+
+            if (in_sig)
+                break;
+
+            if (strcmp(heading, "![sig]") == 0)
+                in_sig = 1;
+
+            continue;
+        }
+
+        if (!in_sig)
+            continue;
+
+        line_len = strlen(line);
+
+        if (len + line_len + 1 > cap) {
+            char *new_sig;
+            size_t new_cap;
+
+            new_cap = cap ? cap * 2 : 4096;
+            while (new_cap < len + line_len + 1)
+                new_cap *= 2;
+
+            new_sig = realloc(sig, new_cap);
+            if (new_sig == NULL) {
+                free(sig);
+                fclose(fp);
+                return NULL;
+            }
+
+            sig = new_sig;
+            cap = new_cap;
+        }
+
+        memcpy(sig + len, line, line_len);
+        len += line_len;
+        sig[len] = '\0';
+    }
+
+    fclose(fp);
+
+    if (sig == NULL)
+        return NULL;
+
+    strip_eol(sig);
+
+    if (sig[0] == '\0') {
+        free(sig);
+        return NULL;
+    }
+
+    return sig;
+}
+
 static int
 ftntoss_get_sklaff_ids(uid_t *uid, gid_t *gid)
 {
@@ -3293,6 +3389,63 @@ export_one_ftn_loaded(const struct ftn_conf_info *source_ce, long textnum)
         fprintf(stderr,
             "[ERROR] Could not convert outgoing FTN text from SF7 to UTF-8\n");
         goto cleanup;
+    }
+
+    /*
+     * Add the user's SklaffKOM signature to outgoing FTN echomail.
+     * The signature is stored as SF7 and must therefore be converted
+     * to UTF-8 before being appended to the outgoing body.
+     *
+     * modified on 2026-08-12, PL
+     */
+    /*
+     * Add the user's SklaffKOM signature to outgoing FTN echomail.
+     *
+     * modified on 2026-08-12, PL
+     */
+    if (uid > 0) {
+        char *sig;
+        char *utf8_sig;
+
+        sig = load_user_signature((int)uid);
+        if (sig != NULL) {
+            char *new_body;
+            size_t body_len;
+            size_t sig_len;
+
+            utf8_sig = sf7_to_utf8_dup(sig);
+            free(sig);
+
+            if (utf8_sig == NULL) {
+                fprintf(stderr,
+                    "[ERROR] Could not convert outgoing FTN "
+                    "signature from SF7 to UTF-8\n");
+                goto cleanup;
+            }
+
+            strip_eol(utf8_body);
+            strip_eol(utf8_sig);
+
+            body_len = strlen(utf8_body);
+            sig_len = strlen(utf8_sig);
+
+            new_body = realloc(utf8_body,
+                body_len + sig_len + 3);
+            if (new_body == NULL) {
+                free(utf8_sig);
+                fprintf(stderr,
+                    "[ERROR] Could not allocate outgoing "
+                    "FTN message with signature\n");
+                goto cleanup;
+            }
+
+            utf8_body = new_body;
+            memcpy(utf8_body + body_len, "\n\n", 2);
+            memcpy(utf8_body + body_len + 2,
+                utf8_sig, sig_len + 1);
+
+            free(utf8_sig);
+        }
     }
 
     make_skom_from_name(uid, from, sizeof(from));
