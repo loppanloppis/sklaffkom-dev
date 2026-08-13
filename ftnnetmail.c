@@ -42,6 +42,8 @@ static int parse_mailbox_conf_line(const char *line, struct mailbox_conf_entry *
 static int read_mailbox_last_text(int uid, long *last_text);
 static int rewrite_mailbox_last_text(int uid, long *new_textnum);
 static long count_lines(const char *s);
+static int ftn_chrs_is_utf8(const char *chrs);
+static char *netmail_to_sf7_dup(const char *src, const char *chrs);
 static int netmail_already_imported(int uid, const char *domain,
     const char *msgid);
 static void ftn_msgid_origin(const char *msgid, char *out, size_t outsz);
@@ -389,6 +391,55 @@ count_lines(const char *s)
 }
 
 static int
+ftn_chrs_is_utf8(const char *chrs)
+{
+    const char *p;
+
+    if (chrs == NULL)
+        return 0;
+
+    p = chrs;
+    while (*p == ' ' || *p == '\t')
+        p++;
+
+    /*
+     * CHRS commonly arrives as "UTF-8 4".  Accept UTF8 as well, but do
+     * not guess when CHRS is missing or declares another character set.
+     *
+     * modified on 2026-08-10, PL
+     */
+    if (strncasecmp(p, "UTF-8", 5) == 0 &&
+        (p[5] == '\0' || isspace((unsigned char)p[5])))
+        return 1;
+
+    if (strncasecmp(p, "UTF8", 4) == 0 &&
+        (p[4] == '\0' || isspace((unsigned char)p[4])))
+        return 1;
+
+    return 0;
+}
+
+static char *
+netmail_to_sf7_dup(const char *src, const char *chrs)
+{
+    if (src == NULL)
+        src = "";
+
+    /*
+     * SklaffKOM mailbox texts are still stored internally as SF7.  Convert
+     * declared UTF-8 netmail at the import boundary, just like mailtoss does
+     * for ordinary Internet mail.  Unknown/legacy FTN character sets are
+     * preserved for now rather than guessed incorrectly.
+     *
+     * modified on 2026-08-10, PL
+     */
+    if (ftn_chrs_is_utf8(chrs))
+        return utf8_to_sf7_dup(src);
+
+    return strdup(src);
+}
+
+static int
 netmail_already_imported(int uid, const char *domain, const char *msgid)
 {
     char dir[PATH_MAX];
@@ -526,6 +577,10 @@ build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
     const char *body;
     size_t need;
     char *mbuf;
+    char *from_sf7;
+    char *to_sf7;
+    char *subject_sf7;
+    char *body_sf7;
 
     if (msg == NULL)
         return NULL;
@@ -535,6 +590,29 @@ build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
         body = msg->raw_body;
     if (body == NULL)
         body = "";
+
+    /*
+     * The FTN parser deliberately leaves message bytes in their declared
+     * external charset.  Mailbox storage, however, still follows SklaffKOM's
+     * internal SF7 convention.  Normalize user-visible UTF-8 fields here, at
+     * the import boundary, while leaving routing metadata untouched.
+     *
+     * modified on 2026-08-10, PL
+     */
+    from_sf7 = netmail_to_sf7_dup(
+        msg->from[0] ? msg->from : "(unknown)", msg->chrs);
+    to_sf7 = netmail_to_sf7_dup(msg->to, msg->chrs);
+    subject_sf7 = netmail_to_sf7_dup(msg->subject, msg->chrs);
+    body_sf7 = netmail_to_sf7_dup(body, msg->chrs);
+
+    if (from_sf7 == NULL || to_sf7 == NULL ||
+        subject_sf7 == NULL || body_sf7 == NULL) {
+        free(from_sf7);
+        free(to_sf7);
+        free(subject_sf7);
+        free(body_sf7);
+        return NULL;
+    }
 
     ftn_msgid_origin(msg->msgid, fromaddr4d, sizeof(fromaddr4d));
     make_ftn_5d_addr(fromaddr4d, domain, fromaddr, sizeof(fromaddr));
@@ -549,29 +627,33 @@ build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
      */
     if (fromaddr[0] != '\0') {
         snprintf(fromline, sizeof(fromline), "%s (%s)",
-            msg->from[0] ? msg->from : "(unknown)", fromaddr);
+            from_sf7, fromaddr);
     } else {
-        snprintf(fromline, sizeof(fromline), "%s",
-            msg->from[0] ? msg->from : "(unknown)");
+        snprintf(fromline, sizeof(fromline), "%s", from_sf7);
     }
 
     need = 1024;
-    need += strlen(msg->from);
-    need += strlen(msg->to);
-    need += strlen(msg->subject);
+    need += strlen(fromline);
+    need += strlen(to_sf7);
+    need += strlen(subject_sf7);
     need += strlen(msg->date);
     need += strlen(msg->msgid);
     need += strlen(msg->reply);
     need += strlen(msg->chrs);
     need += strlen(fromaddr);
     need += strlen(toaddr);
-    need += strlen(body);
+    need += strlen(body_sf7);
     if (domain != NULL)
         need += strlen(domain);
 
     mbuf = calloc(1, need);
-    if (mbuf == NULL)
+    if (mbuf == NULL) {
+        free(from_sf7);
+        free(to_sf7);
+        free(subject_sf7);
+        free(body_sf7);
         return NULL;
+    }
 
     snprintf(mbuf, need,
         "From: %s\n"
@@ -580,8 +662,8 @@ build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
         "Date: %s\n"
         "FTN-Netmail: yes\n",
         fromline,
-        msg->to,
-        msg->subject,
+        to_sf7,
+        subject_sf7,
         msg->date);
 
     if (domain != NULL && *domain != '\0') {
@@ -621,7 +703,12 @@ build_netmail_mbuf(const struct fido_msg *msg, const char *domain,
     }
 
     strlcat(mbuf, "\n", need);
-    strlcat(mbuf, body, need);
+    strlcat(mbuf, body_sf7, need);
+
+    free(from_sf7);
+    free(to_sf7);
+    free(subject_sf7);
+    free(body_sf7);
 
     return mbuf;
 }
@@ -634,6 +721,7 @@ send_netmail_with_context(int uid, const struct fido_msg *msg,
     char dir[PATH_MAX];
     char textfile[PATH_MAX];
     char *mbuf;
+    char *subject_sf7;
     long new_textnum = 0;
     long size;
     struct passwd *pw;
@@ -647,25 +735,36 @@ send_netmail_with_context(int uid, const struct fido_msg *msg,
     if (mbuf == NULL)
         return -1;
 
+    subject_sf7 = netmail_to_sf7_dup(
+        msg->subject[0] ? msg->subject : "(no subject)", msg->chrs);
+    if (subject_sf7 == NULL) {
+        free(mbuf);
+        return -1;
+    }
+
     size = count_lines(mbuf);
 
     if (rewrite_mailbox_last_text(uid, &new_textnum) != 0) {
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
     if (mailbox_dir_for_uid(uid, dir, sizeof(dir)) != 0) {
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
     if (snprintf(textfile, sizeof(textfile), "%s%ld", dir, new_textnum) >= (int)sizeof(textfile)) {
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
     fp = fopen(textfile, "w");
     if (fp == NULL) {
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
@@ -673,27 +772,32 @@ send_netmail_with_context(int uid, const struct fido_msg *msg,
     if (fprintf(fp, "%ld:%d:%ld:%ld:%d:%d:%ld\n",
             new_textnum, 0, (long)time(NULL), 0L, 0, 0, size) < 0) {
         fclose(fp);
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
-    if (fprintf(fp, "%s\n", msg->subject[0] ? msg->subject : "(no subject)") < 0) {
+    if (fprintf(fp, "%s\n", subject_sf7) < 0) {
         fclose(fp);
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
     if (fputs(mbuf, fp) == EOF) {
         fclose(fp);
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
     if (fclose(fp) != 0) {
+        free(subject_sf7);
         free(mbuf);
         return -1;
     }
 
+    free(subject_sf7);
     free(mbuf);
 
     owner = getuid();

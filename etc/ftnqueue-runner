@@ -15,14 +15,7 @@ trap 'rmdir "$LOCK"' EXIT HUP INT TERM
 for job in "$PENDING"/*; do
     [ -f "$job" ] || continue
 
-    IFS=: read area textnum created < "$job" || continue
-
-    case "$area" in
-        ''|*[!A-Za-z0-9_.-]*)
-            mv "$job" "$job.bad" 2>/dev/null || rm -f "$job"
-            continue
-            ;;
-    esac
+    IFS=: read conf_or_area textnum created < "$job" || continue
 
     case "$textnum" in
         ''|*[!0-9]*)
@@ -31,9 +24,35 @@ for job in "$PENDING"/*; do
             ;;
     esac
 
-    if "$SKLAFFBIN/ftntoss" --export-one "$area" "$textnum" >/dev/null 2>&1; then
-        rm -f "$job"
-    fi
+    case "$conf_or_area" in
+        ''|*[!0-9]*)
+            #
+            # Backward compatibility for queue jobs created before
+            # conference ids replaced local conference names in the queue.
+            # Old jobs could only contain the legacy safe area characters.
+            #
+            # modified on 2026-08-11, PL
+            #
+            case "$conf_or_area" in
+                ''|*[!A-Za-z0-9_.-]*)
+                    mv "$job" "$job.bad" 2>/dev/null || rm -f "$job"
+                    continue
+                    ;;
+            esac
+
+            if "$SKLAFFBIN/ftntoss" --export-one "$conf_or_area" "$textnum" >/dev/null 2>&1; then
+                rm -f "$job"
+            fi
+            ;;
+        0)
+            mv "$job" "$job.bad" 2>/dev/null || rm -f "$job"
+            ;;
+        *)
+            if "$SKLAFFBIN/ftntoss" --export-one-conf "$conf_or_area" "$textnum" >/dev/null 2>&1; then
+                rm -f "$job"
+            fi
+            ;;
+    esac
 done
 
 NETMAIL_PENDING="$QUEUE/netmail/pending"

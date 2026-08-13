@@ -1,0 +1,35 @@
+Argument:
+  Inga.
+
+Beskrivning:
+  Byter teckentabell f|r din terminal.
+
+  SklaffKOM visar en liten meny d{r du kan v{lja mellan UTF-8,
+  IBM CP437, ISO-8859-1 och klassiskt SF7.
+
+  N{r du har gjort ditt val visas en provrad med svenska tecken:
+
+    } { |   ] [ \
+
+  Om tecknen ser riktiga ut svarar du Ja. Valet sparas och anv{nds
+  automatiskt n{sta g}ng du loggar in.
+
+  Om det ser tokigt ut svarar du Nej, s} f}r du prova igen.
+
+Observera:
+  UTF-8 passar de flesta moderna terminaler, SSH och telnetklienter.
+
+  IBM CP437 anv{nds ofta av klassiska BBS-klienter som SyncTERM och
+  NetRunner. ISO-8859-1 {r vanligt p} bland annat Amiga.
+
+  SF7 {r SklaffKOMs klassiska interna teckenspr}k och finns kvar f|r
+  den som vill leva kvar i det glada 1990-talet.
+
+  Bara en teckentabell anv{nds }t g}ngen.
+
+Bakgrund:
+  SklaffKOM anv{nder internt teckenupps{ttningen SF7 och |vers{tter
+  texten till den teckentabell som din terminal f|rst}r.
+
+  Kommandot finns f|r att du ska slippa h}lla reda p} de enskilda
+  teckentabellsflaggorna sj{lv.

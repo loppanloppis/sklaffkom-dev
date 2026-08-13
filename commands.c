@@ -826,6 +826,10 @@ cmd_where(char *args)
 
     return 0;
 }
+
+/* Subscribe without running conference-name expansion a second time. */
+static int subscribe_conf_num(int conf, const char *confname);
+
 /*
  * cmd_change_conf - change conference
  * args: user arguments (args)
@@ -837,7 +841,7 @@ cmd_change_conf(char *args)
 {
     char *newname;
     int conf;
-    LINE answer, arg2;
+    LINE answer;
 
     if (*args) {
         newname = expand_name(args, CONF, 0, NULL);
@@ -849,8 +853,16 @@ cmd_change_conf(char *args)
                 input(MSG_YES, answer, 4, 0, 0, 0);
                 down_string(answer);
                 if (*answer && (answer[0] == MSG_YESANSWER)) {
-                    strcpy(arg2, newname);
-                    cmd_subscribe(arg2);
+                    /*
+                     * newname has already been resolved by expand_name().
+                     * Subscribe by conference number so an exact name that
+                     * is also a prefix of another conference is not expanded
+                     * a second time.
+                     *
+                     * modified on 2026-08-09, PL
+                     */
+                    if (subscribe_conf_num(conf, newname) == -1)
+                        return -1;
                 } else {
                     output("\n");
                     return 0;
@@ -1380,6 +1392,106 @@ cmd_list_rights(char *args)
     return 0;
 }
 
+static int
+conf_type_from_char(int c)
+{
+    if (c == MSG_CONFCLOSED)
+        return CLOSED_CONF;
+
+    if (c == MSG_CONFSECRET)
+        return SECRET_CONF;
+
+    if (c == MSG_CONFNEWS)
+        return NEWS_CONF;
+
+    if (c == MSG_CONFFTN)
+        return FTN_CONF;
+
+    return OPEN_CONF;
+}
+
+
+static int
+conf_type_to_char(int type)
+{
+    switch (type) {
+    case CLOSED_CONF:
+        return MSG_CONFCLOSED;
+
+    case SECRET_CONF:
+        return MSG_CONFSECRET;
+
+    case NEWS_CONF:
+        return MSG_CONFNEWS;
+
+    case FTN_CONF:
+        return MSG_CONFFTN;
+
+    case OPEN_CONF:
+    default:
+        return MSG_CONFOPEN;
+    }
+}
+
+
+static int
+prompt_conf_type(int current_type)
+{
+    LINE interact;
+    char def[2];
+
+    def[0] = (char)conf_type_to_char(current_type);
+    def[1] = '\0';
+
+    output(MSG_CONFTPROMPT);
+    input(def, interact, LINE_LEN, 0, 0, 0);
+    down_string(interact);
+
+    if (*interact == '\0')
+        return current_type;
+
+    return conf_type_from_char((unsigned char)interact[0]);
+}
+
+
+static int
+prompt_ftnconf(struct CONF_FTN_CONFIG *fc)
+{
+    LINE answer;
+
+    if (fc == NULL)
+        return -1;
+
+    for (;;) {
+        output(MSG_FTNDOMAIN);
+        input(fc->domain, answer, LINE_LEN, 0, 0, 0);
+        ltrim(answer);
+        rtrim(answer);
+
+        if (*answer != '\0') {
+            strlcpy(fc->domain, answer, sizeof(fc->domain));
+            break;
+        }
+
+        output("\n%s\n", MSG_FTNFIELDREQ);
+    }
+
+    for (;;) {
+        output(MSG_FTNTAG);
+        input(fc->tag, answer, LINE_LEN, 0, 0, 0);
+        ltrim(answer);
+        rtrim(answer);
+
+        if (*answer != '\0') {
+            strlcpy(fc->tag, answer, sizeof(fc->tag));
+            break;
+        }
+
+        output("\n%s\n", MSG_FTNFIELDREQ);
+    }
+
+    return 0;
+}
 
 /*
  * cmd_create_conf - create new conference
@@ -1392,56 +1504,71 @@ cmd_create_conf(char *args)
 {
     int fd, fd2, conf_type, confnum, i;
     char *buf, *oldbuf, *nbuf, *tmp;
-    LINE confname, interact, newname;
+    LINE confname, confdesc, newname;
     LONG_LINE tmpbuf;
     struct CONF_ENTRY ce;
+    struct CONF_FTN_CONFIG ftnconf;
 
     conf_type = OPEN_CONF;
     strlcpy(confname, args, sizeof(confname)); /* modified on 2026-06-08, PL */
 
     output("\n");
+
     if (*confname == '\0') {
         output(MSG_CNAMEASK);
         input("", confname, LINE_LEN, 0, 0, 0);
     }
+
     ltrim(confname);
 
-    if (conf_num(confname) > 0) { /* PL 2027-06-08, fixes collission check bug when creating new conferences (hopefully) */
-    output("%s\n\n", MSG_ERRCNAME);
-    return 0;
+    if (conf_num(confname) > 0) {
+        output("%s\n\n", MSG_ERRCNAME);
+        return 0;
     }
+
     if (*confname != '\0') {
 
-        output(MSG_CONFTPROMPT);
-        input(MSG_CONFDEFAULT, interact, LINE_LEN, 0, 0, 0);
-        down_string(interact);
-        if (*interact) {
-            if (*interact == MSG_CONFCLOSED)
-                conf_type = CLOSED_CONF;
-            else if (*interact == MSG_CONFSECRET)
-                conf_type = SECRET_CONF;
-            else if (*interact == MSG_CONFNEWS)
-                conf_type = NEWS_CONF;
-            else if (*interact == MSG_CONFFTN)
-                conf_type = FTN_CONF;
-            else
-                conf_type = OPEN_CONF;
-        } else {
-            conf_type = OPEN_CONF;
+        /*
+         * Optional conference description.
+         *
+         * Keep this consistent with cmd_mod_conf(): descriptions
+         * are limited to 80 characters and trailing whitespace is
+         * removed.  An empty description is simply not stored.
+         */
+        output(MSG_CONFDESCPROMPT);
+        input("", confdesc, 80, 0, 0, 0);
+        rtrim(confdesc);
+
+        /*
+         * Conference type.
+         */
+        conf_type = prompt_conf_type(OPEN_CONF);
+
+        /*
+         * FTN configuration is collected before anything is written.
+         */
+        if (conf_type == FTN_CONF) {
+            conf_init_ftnconf(&ftnconf);
+
+            if (prompt_ftnconf(&ftnconf) != 0)
+                return -1;
         }
 
         if ((fd = open_file(CONF_FILE, 0)) == -1) {
             return -1;
         }
+
         if ((buf = read_file(fd)) == NULL) {
             return -1;
         }
+
         oldbuf = buf;
         ce.num = 0;
 
         for (;;) {
             confnum = ce.num;
             buf = get_conf_entry(buf, &ce);
+
             if (buf == NULL)
                 break;
         }
@@ -1452,6 +1579,7 @@ cmd_create_conf(char *args)
             ce.life = EXP_DEF_FTN;
         else
             ce.life = EXP_DEF;
+
         ce.num = confnum + 1;
         ce.last_text = 0;
         ce.creator = Uid;
@@ -1459,47 +1587,170 @@ cmd_create_conf(char *args)
         ce.time = time(0);
         ce.comconf = 0;
         strlcpy(ce.name, confname, sizeof(ce.name)); /* modified on 2026-06-08, PL */
+
         tmp = stringify_conf_struct(&ce, tmpbuf);
 
         i = strlen(oldbuf) + strlen(tmp) + 1;
-        nbuf = (char *) malloc(i);
+        nbuf = (char *)malloc(i);
+
         if (nbuf == NULL) {
             free(oldbuf);
             close_file(fd);
             return -1;
         }
+
         memset(nbuf, 0, i);
         strcpy(nbuf, oldbuf);
         strcat(nbuf, tmp);
 
         critical();
+
         if (write_file(fd, nbuf) == -1) {
             return -1;
         }
+
         if (close_file(fd) == -1) {
             return -1;
         }
-        snprintf(newname, sizeof(newname), "%s/%d", SKLAFF_DB, ce.num);
+
+        snprintf(newname, sizeof(newname), "%s/%d",
+            SKLAFF_DB, ce.num);
         mkdir(newname, NEW_DIR_MODE);
-        snprintf(newname, sizeof(newname), "%s/%d", FILE_DB, ce.num);
+
+        snprintf(newname, sizeof(newname), "%s/%d",
+            FILE_DB, ce.num);
         mkdir(newname, NEW_DIR_MODE);
-        snprintf(newname, sizeof(newname), "%s/%d%s", SKLAFF_DB, ce.num, CONFRC_FILE); /* modified on 2026-06-08, PL */
+
+        snprintf(newname, sizeof(newname), "%s/%d%s",
+            SKLAFF_DB, ce.num, CONFRC_FILE); /* modified on 2026-06-08, PL */
+
         if ((fd2 = open_file(newname, OPEN_CREATE | OPEN_QUIET)) == -1) {
             return -1;
         }
+
         if (close_file(fd2) == -1) {
             return -1;
         }
+
         non_critical();
 
+        /*
+         * Store the optional conference description now that the
+         * conference directory exists.
+         */
+        if (*confdesc != '\0') {
+            if (write_confxtra_section(ce.num, "desc", confdesc) != 0) {
+                output("\n" MSG_DESCERROR02 "\n\n");
+                return -1;
+            }
+        }
+
+        /*
+         * Store FTN configuration for FTN conferences.
+         */
+        if (conf_type == FTN_CONF) {
+            if (conf_write_ftnconf(ce.num, &ftnconf) != 0) {
+                dlog(2,
+                    "cmd_create_conf: could not write ftnconf for conference %d",
+                    ce.num);
+                return -1;
+            }
+        }
+
         free(oldbuf);
-        output("\n%s %s %s\n", MSG_CONFNAME, confname, MSG_CREATED2);
-        cmd_subscribe(confname);
-    } else
+
+        output("\n%s %s %s\n",
+            MSG_CONFNAME, confname, MSG_CREATED2);
+
+        /*
+         * ce.num is already the exact conference just created. Avoid
+         * sending its name through expand_name() again in cmd_subscribe().
+         *
+         * modified on 2026-08-09, PL
+         */
+        if (subscribe_conf_num(ce.num, confname) == -1)
+            return -1;
+
+    } else {
         output("\n%s\n\n", MSG_NOCONFNAME);
+    }
+
     return 0;
 }
 
+/*
+ * subscribe_conf_num - subscribe to an already resolved conference
+ * args: conference number and display name
+ * ret: ok (0) or error (-1)
+ */
+
+static int
+subscribe_conf_num(int conf, const char *confname)
+{
+    LINE userstr, confsname;
+    char *buf, *nbuf;
+    int fd2, right, i;
+    long first;
+    struct USER_LIST *ul;
+    struct CONF_ENTRY *ce;
+
+    Change_prompt = 1;
+
+    if (member_of(Uid, conf)) {
+        output("\n%s\n\n", MSG_ALREADYSUB);
+        return 0;
+    }
+
+    ul = get_confrc_struct(conf);
+    ce = get_conf_struct(conf);
+    right = conf_right(ul, Uid, ce->type, ce->creator);
+    free_userlist(ul);
+
+    if (right != 0) {
+        output("\n%s\n\n", MSG_NOTALLOW);
+        return 0;
+    }
+
+    strcpy(confsname, Home);
+    strcat(confsname, CONFS_FILE);
+
+    if ((fd2 = open_file(confsname, 0)) == -1)
+        return -1;
+
+    if ((buf = read_file(fd2)) == NULL)
+        return -1;
+
+    i = strlen(buf) + LINE_LEN + 1;
+    nbuf = (char *) malloc(i);
+    if (!nbuf) {
+        free(buf);
+        sys_error("subscribe_conf_num", 1, "malloc");
+        return -1;
+    }
+
+    memset(nbuf, 0, i);
+    strcpy(nbuf, buf);
+    free(buf);
+
+    first = first_text(conf, Uid);
+    if (first > 1) {
+        snprintf(userstr, sizeof(userstr), "%d:1-%ld\n", conf,
+            (first - 1));
+    } else {
+        snprintf(userstr, sizeof(userstr), "%d:\n", conf);
+    }
+    strcat(nbuf, userstr);
+
+    critical();
+    if (write_file(fd2, nbuf) == -1)
+        return -1;
+    if (close_file(fd2) == -1)
+        return -1;
+    non_critical();
+
+    output("\n%s %s.\n\n", MSG_SUBOK, confname);
+    return 0;
+}
 
 /*
  * cmd_subscribe - subscribe to a conference
@@ -1510,65 +1761,30 @@ cmd_create_conf(char *args)
 int
 cmd_subscribe(char *args)
 {
-    LINE confname, userstr, confsname;
-    char *exp_confname, *buf, *nbuf;
-    int fd2, conf, right, i;
-    long first;
-    struct USER_LIST *ul;
-    struct CONF_ENTRY *ce;
+    LINE confname;
+    char *exp_confname;
+    int conf;
 
     Change_prompt = 1;
+
     if (args && *args) {
         strcpy(confname, args);
     } else {
         output("\n%s\n\n", MSG_NOCONFNAME);
         return 0;
     }
+
+    /*
+     * The interactive command keeps normal KOM-style abbreviation and
+     * ambiguity handling.  Once resolved, the helper works only with the
+     * exact conference number.
+     */
     exp_confname = expand_name(confname, UNSUBSCRIBED, 0, NULL);
-    if (exp_confname) {
-        conf = conf_num(exp_confname);
-        if (!member_of(Uid, conf)) {
-            ul = get_confrc_struct(conf);
-            ce = get_conf_struct(conf);
-            right = conf_right(ul, Uid, ce->type, ce->creator);
-            free_userlist(ul);
-            if (right == 0) {
-                strcpy(confsname, Home);
-                strcat(confsname, CONFS_FILE);
-                if ((fd2 = open_file(confsname, 0)) == -1)
-                    return -1;
-                if ((buf = read_file(fd2)) == NULL)
-                    return -1;
-                i = strlen(buf) + LINE_LEN + 1;
-                nbuf = (char *) malloc(i);
-                if (!nbuf) {
-                    sys_error("cmd_subscribe", 1, "malloc");
-                    return -1;
-                }
-                memset(nbuf, 0, i);
-                strcpy(nbuf, buf);
-                free(buf);
-                first = first_text(conf, Uid);
-                if (first > 1) {
-                    snprintf(userstr, sizeof(userstr), "%d:1-%ld\n", conf,
-                        (first - 1));
-                } else {
-                    snprintf(userstr, sizeof(userstr), "%d:\n", conf);
-                }
-                strcat(nbuf, userstr);
-                critical();
-                if (write_file(fd2, nbuf) == -1)
-                    return -1;
-                if (close_file(fd2) == -1)
-                    return -1;
-                non_critical();
-                output("\n%s %s.\n\n", MSG_SUBOK, exp_confname);
-            } else
-                output("\n%s\n\n", MSG_NOTALLOW);
-        } else
-            output("\n%s\n\n", MSG_ALREADYSUB);
-    }
-    return 0;
+    if (!exp_confname)
+        return 0;
+
+    conf = conf_num(exp_confname);
+    return subscribe_conf_num(conf, exp_confname);
 }
 
 /*
@@ -2295,6 +2511,35 @@ write_mail_utf8(FILE *pipe, const char *from_addr, const char *to_addr,
     free(utf8_body);
 }
 
+/*
+ * make_ftn_mailcopy_recipient - format recipient for a local FTN netmail copy
+ * args: FTN name, 4D/5D address, destination buffer and size
+ *
+ * Keep both the human-readable FTN name and the routable address in new
+ * mailbox copies.  list_subj() can then show the name while the stored copy
+ * remains self-describing.
+ *
+ * modified on 2026-08-10, PL
+ */
+static void
+make_ftn_mailcopy_recipient(const char *name, const char *addr,
+    char *out, size_t outsz)
+{
+    if (out == NULL || outsz == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (addr == NULL || *addr == '\0')
+        return;
+
+    if (name != NULL && *name != '\0' && strcmp(name, addr) != 0) {
+        snprintf(out, outsz, "%s (%s)", name, addr);
+    } else {
+        strlcpy(out, addr, outsz);
+    }
+}
+
 int
 cmd_mail(char *args)
 {
@@ -2421,7 +2666,9 @@ cmd_mail(char *args)
                 /*
                  * Keep local copy in SklaffKOM's internal SF7 form.
                  */
-                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+                make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                    tmpstr, sizeof(tmpstr));
+                (void) save_mailcopy(tmpstr, th.subject, inbuf);
             }
 
             free(inbuf);
@@ -2721,7 +2968,9 @@ cmd_personal(char *args)
              *
              * modified on 2026-07-13, PL
              */
-            (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+            make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                tmpstr, sizeof(tmpstr));
+            (void) save_mailcopy(tmpstr, th.subject, inbuf);
         }
 
         free(inbuf);
@@ -3556,7 +3805,9 @@ cmd_comment(char *args)
                 /*
                  * Keep local mail copy in SklaffKOM's internal SF7 format.
                  */
-                (void) save_mailcopy(ftn_to_addr, th.subject, inbuf);
+                make_ftn_mailcopy_recipient(ftn_to_name, ftn_to_addr,
+                    tmpstr, sizeof(tmpstr));
+                (void) save_mailcopy(tmpstr, th.subject, inbuf);
             }
 
             free(inbuf);
@@ -8230,6 +8481,277 @@ cmd_block_user(char *args)
          * modified on 2026-06-16, PL
          */
     }
+
+    return 0;
+}
+
+/*
+ * cmd_change_charset - change terminal character set
+ * args: none
+ * ret: success (0) or failure (-1)
+ */
+
+int
+cmd_change_charset(char *args)
+{
+    if (args && *args) {
+        output("\n%s\n\n", MSG_NOARG);
+        return 0;
+    }
+
+    return select_charset(0);
+}
+
+/*
+ * cmd_mod_conf - change conference properties
+ *
+ * Changes:
+ *   - conference name
+ *   - description
+ *   - conference type
+ *   - FTN domain/tag for FTN conferences
+ *
+ * args: conference name, or current conference if empty
+ * ret: ok (0) or error (-1)
+ */
+
+int
+cmd_mod_conf(char *args)
+{
+    int c_num;
+    int existing_num;
+    int new_type;
+    int ftn_found;
+    int desc_changed;
+    int ftn_changed;
+    int entry_changed;
+    int changed;
+    char *expanded;
+    char *current_desc;
+    struct CONF_ENTRY *cep;
+    struct CONF_ENTRY ce;
+    struct CONF_FTN_CONFIG ftnconf;
+    struct CONF_FTN_CONFIG old_ftnconf;
+    LINE oldname;
+    LINE newname;
+    LINE olddesc;
+    LINE newdesc;
+
+    /*
+     * Resolve conference.
+     */
+    if (args == NULL || *args == '\0') {
+        c_num = Current_conf;
+    } else {
+        expanded = expand_name(args, CONF, 0, NULL);
+        if (expanded == NULL)
+            return 0;
+
+        c_num = conf_num(expanded);
+        if (c_num < 0)
+            return 0;
+    }
+
+    if (!c_num) {
+        output("\n%s\n\n", MSG_NOCHMBOX);
+        return 0;
+    }
+
+    /*
+     * Keep the same permission rule as the old conference
+     * modification commands.
+     */
+    if (!is_conf_creator(Uid, c_num)) {
+        conf_name(c_num, oldname);
+        output("\n%s %s.\n\n", MSG_NOTCREATOR, oldname);
+        return 0;
+    }
+
+    cep = get_conf_struct(c_num);
+    if (cep == NULL) {
+        output("\n%s\n\n", MSG_CONFMISSING);
+        return -1;
+    }
+
+    /*
+     * get_conf_struct() returns a pointer to static storage.
+     * Work on our own copy while asking the questions.
+     */
+    memcpy(&ce, cep, sizeof(ce));
+    strlcpy(oldname, ce.name, sizeof(oldname));
+
+    /*
+     * Read current description.
+     *
+     * get_conf_description() returns the stored line including its
+     * line ending.  Remove that before using it as an editable
+     * default string for input().
+     */
+    olddesc[0] = '\0';
+
+    current_desc = get_conf_description(c_num);
+    if (current_desc != NULL) {
+        strlcpy(olddesc, current_desc, sizeof(olddesc));
+        olddesc[strcspn(olddesc, "\r\n")] = '\0';
+        free(current_desc);
+    }
+
+    output("\n");
+
+    /*
+     * Conference name.
+     *
+     * Same behaviour as cmd_change_cname(): the current value is
+     * pre-filled and duplicate conference names are rejected.
+     */
+    output("%s", MSG_NEWNAME);
+    input(oldname, newname, LINE_LEN, 0, 0, 0);
+    ltrim(newname);
+
+    if (*newname == '\0') {
+        output("\n%s\n\n", MSG_NOCHNAME);
+        return 0;
+    }
+
+    existing_num = conf_num(newname);
+
+    if (existing_num > 0 && existing_num != c_num) {
+        output("\n%s\n\n", MSG_ERRCNAME);
+        return 0;
+    }
+
+    /*
+     * Description.
+     *
+     * The current description is pre-filled.  Clearing the entire
+     * line removes the description.
+     */
+    output("%s", MSG_MODCONF_DESC);
+    input(olddesc, newdesc, 80, 0, 0, 0);
+    rtrim(newdesc);
+
+    /*
+     * Conference type.
+     */
+    new_type = prompt_conf_type(ce.type);
+
+    /*
+     * FTN configuration is only asked for when the resulting
+     * conference type is FTN.
+     *
+     * Existing ftnconf is loaded and used as the editable default.
+     * If no ftnconf exists, start with the standard values.
+     *
+     * Dormant ftnconf files are deliberately kept when changing
+     * a conference away from FTN.
+     */
+    ftn_found = 0;
+    ftn_changed = 0;
+
+    if (new_type == FTN_CONF) {
+        if (conf_load_ftnconf(c_num, &ftnconf, &ftn_found) != 0) {
+            output("\n%s\n\n", MSG_MODCONF_BADFTN);
+            return 0;
+        }
+
+        if (ftn_found) {
+            old_ftnconf = ftnconf;
+        } else {
+            conf_init_ftnconf(&ftnconf);
+        }
+
+        if (prompt_ftnconf(&ftnconf) != 0)
+            return -1;
+
+        /*
+         * A previously missing ftnconf is itself a change, even if
+         * the user accepts all newly entered/default values.
+         */
+        if (!ftn_found) {
+            ftn_changed = 1;
+        } else if (
+            old_ftnconf.version != ftnconf.version ||
+            strcmp(old_ftnconf.type, ftnconf.type) != 0 ||
+            strcmp(old_ftnconf.domain, ftnconf.domain) != 0 ||
+            strcmp(old_ftnconf.tag, ftnconf.tag) != 0) {
+            ftn_changed = 1;
+        }
+    }
+
+    /*
+     * Determine what actually changed before writing anything.
+     */
+    desc_changed = (strcmp(olddesc, newdesc) != 0);
+
+    entry_changed =
+        strcmp(oldname, newname) != 0 ||
+        ce.type != new_type;
+
+    changed =
+        entry_changed ||
+        desc_changed ||
+        ftn_changed;
+
+    if (!changed) {
+        output("\n%s\n\n", MSG_MODCONF_NOCHANGE);
+        return 0;
+    }
+
+    /*
+     * Update our in-memory conference entry.
+     *
+     * Do NOT silently change ce.life here.  Conference lifetime is
+     * an independent stored property and is outside the scope of
+     * "Ändra möte".
+     */
+    strlcpy(ce.name, newname, sizeof(ce.name));
+    ce.type = new_type;
+
+    /*
+     * Only rewrite ftnconf when its contents actually changed.
+     */
+    if (new_type == FTN_CONF && ftn_changed) {
+        if (conf_write_ftnconf(c_num, &ftnconf) != 0) {
+            dlog(2,
+                "cmd_mod_conf: could not write ftnconf for conference %d",
+                c_num);
+            return -1;
+        }
+    }
+
+    /*
+     * Update description only if it actually changed.
+     */
+    if (desc_changed) {
+        if (*newdesc == '\0') {
+            /*
+             * Only remove the section if a description existed before.
+             */
+            if (*olddesc != '\0') {
+                if (remove_confxtra_section(c_num, "desc") != 0) {
+                    output("\n" MSG_DESCERROR01 "\n\n");
+                    return -1;
+                }
+            }
+        } else {
+            if (write_confxtra_section(c_num, "desc", newdesc) != 0) {
+                output("\n" MSG_DESCERROR02 "\n\n");
+                return -1;
+            }
+        }
+    }
+
+    /*
+     * Only rewrite CONF_FILE if name or conference type changed.
+     */
+    if (entry_changed) {
+        if (conf_store_entry(&ce) != 0) {
+            output("\n%s\n\n", MSG_CONFMISSING);
+            return -1;
+        }
+    }
+
+    output("\n%s\n\n", MSG_MODCONF_SAVED);
 
     return 0;
 }

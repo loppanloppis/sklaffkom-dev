@@ -1,0 +1,28 @@
+Argument:
+  <m|tesnamn>
+
+Beskrivning:
+  [ndrar inst{llningarna f|r ett m|te.
+
+  Om inget m|tesnamn anges {ndras det m|te du befinner dig i.
+
+  Du kan {ndra m|tets namn, beskrivning och typ. De nuvarande
+  inst{llningarna visas som f|rval. Tryck ENTER f|r att beh}lla
+  ett v{rde of|r{ndrat.
+
+  M|tesbeskrivningen f}r vara h|gst 80 tecken. Om hela
+  beskrivningen suddas ut tas den bort.
+
+  Om m|testypen {r FTN kan du dessutom {ndra FTN-dom{n och
+  echo-area. Finns det redan en FTN-konfiguration visas de
+  nuvarande v{rdena som f|rval.
+
+Observera:
+  Endast den som skapade m|tet kan {ndra dess inst{llningar.
+
+  Brevl}dan kan inte {ndras med detta kommando.
+
+Bakgrund:
+  Kommandot ers{tter de tidigare separata kommandona f|r att
+  {ndra m|tesnamn och m|tesbeskrivning, och samlar m|tets
+  viktigaste inst{llningar p} ett st{lle.

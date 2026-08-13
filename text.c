@@ -1738,6 +1738,47 @@ tree_top(long text)
 }
 
 /*
+ * list_ftn_name_only - reduce "Name (zone:net/node@domain)" to "Name"
+ * args: string to modify in place
+ *
+ * Used for the compact To/From column in list_subj().  Legacy copies that
+ * contain only an FTN address are left unchanged.
+ *
+ * modified on 2026-08-10, PL
+ */
+static void
+list_ftn_name_only(char *s)
+{
+    char *lp;
+    char *rp;
+    char *colon;
+    char *slash;
+    size_t n;
+
+    if (s == NULL || *s == '\0')
+        return;
+
+    lp = strrchr(s, '(');
+    rp = strrchr(s, ')');
+
+    if (lp == NULL || rp == NULL || rp <= lp)
+        return;
+
+    colon = strchr(lp, ':');
+    slash = strchr(lp, '/');
+
+    if (colon == NULL || colon >= rp ||
+        slash == NULL || slash >= rp)
+        return;
+
+    n = (size_t)(lp - s);
+    while (n > 0 && isspace((unsigned char)s[n - 1]))
+        n--;
+
+    s[n] = '\0';
+}
+
+/*
  * list_subj - list text subjects
  * args: pointer to string searched for
  * ret: ok (0) or failure (-1)
@@ -1806,6 +1847,13 @@ list_subj(char *str)
     			size_t len = strlen(author);
     			if (len > 0)
         		author[len - 1] = '\0';  /* remove trailing quote or newline safely */
+
+                /*
+                 * New FTN netmail copies store "Name (5D-address)".
+                 * Keep the full value in the mailbox, but show only the
+                 * human-readable name in this compact listing.
+                 */
+                list_ftn_name_only(author);
     			from = 1;
                 } else
                     user_name(th->author, author);
@@ -1826,8 +1874,44 @@ list_subj(char *str)
 /* 2025-08-10, PL: humanize From: for listing (prefer display name) */
 {
     LINE from_dec, disp;
+    char *lp, *rp, *colon, *slash;
+
     rfc2047_decode(ptr2, from_dec, sizeof(from_dec));
-    extract_display_name(from_dec, disp, sizeof(disp));
+
+    /*
+     * Imported FTN netmail uses:
+     *
+     *   Name (zone:net/node@domain)
+     *
+     * extract_display_name() treats parenthesized text as an old-style
+     * e-mail display name and would therefore return the FTN address.
+     * In the compact subject list, prefer the human name before the
+     * parenthesized 4D/5D address.
+     *
+     * modified on 2026-08-10, PL
+     */
+    lp = strrchr(from_dec, '(');
+    rp = strrchr(from_dec, ')');
+    colon = (lp != NULL) ? strchr(lp, ':') : NULL;
+    slash = (lp != NULL) ? strchr(lp, '/') : NULL;
+
+    if (lp != NULL && rp != NULL && rp > lp &&
+        colon != NULL && colon < rp &&
+        slash != NULL && slash < rp) {
+        size_t n = (size_t)(lp - from_dec);
+
+        while (n > 0 && isspace((unsigned char)from_dec[n - 1]))
+            n--;
+
+        if (n >= sizeof(disp))
+            n = sizeof(disp) - 1;
+
+        memcpy(disp, from_dec, n);
+        disp[n] = '\0';
+    } else {
+        extract_display_name(from_dec, disp, sizeof(disp));
+    }
+
     /* strip surrounding quotes */
     size_t L__ = strlen(disp);
     if (L__ >= 2 && disp[0] == '"' && disp[L__-1] == '"') {

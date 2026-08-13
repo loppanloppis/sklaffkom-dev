@@ -38,7 +38,7 @@
 /* Enable (1) or disable (0) the character-set handshake at login. */
 
 #ifndef ENABLE_CHARSET_HANDSHAKE
-#define ENABLE_CHARSET_HANDSHAKE 0
+#define ENABLE_CHARSET_HANDSHAKE 1
 #endif
 
 /* Define full path to crashmail.prefs */
@@ -443,7 +443,7 @@ const char *time_string_static(time_t t);                                       
 const char *month_name_sv(const char *mon);												/* 2026-06-04 PL nicer output in new "version" command */
 int sender_is_blocked(const char *blocklist, const char *sender); /* modified on 2026-06-16, PL */
 void display_credits(void);											/* 2026-08-01 display SklaffKOM authors etc inside "version" command and during logout */
-int select_charset(void);											/* 2026-08-05 lets user select charset during login */
+int select_charset(int login_mode);											/* 2026-08-05 lets user select charset during login */
 // enable the function below when ready and uncomment in conf.c
 //int has_file_area(int confnum);															/* 2025-11-11 PL */
 
@@ -546,7 +546,9 @@ int cmd_like(char *args); /*2025-10-18 PL */
 int cmd_unlike(char *args); /*2025-10-24 PL */
 int cmd_change_cdesc(char *args); /*2025-10-25 PL */
 int cmd_version(char *args); /*2026-06-02 PL */
-int cmd_block_user(char *args); /* modified on 2026-06-16, PL */
+int cmd_block_user(char *args); /* 2026-06-16, PL */
+int cmd_change_charset(char *); /* 2026-08-07 PL */
+int cmd_mod_conf(char *); /* 2026-08-09 PL */
 
 /* admin.c */
 
@@ -609,7 +611,17 @@ long last_text(int, int);
 long first_text(int, int);
 struct CEN *sort_conf(struct CEL *, int);
 int list_news(int);
+struct CONF_FTN_CONFIG {
+    int version;
+    char type[32];
+    LINE domain;
+    LINE tag;
+}; /* PL 2026-08-09 */
+void conf_init_ftnconf(struct CONF_FTN_CONFIG *);
+int conf_load_ftnconf(int, struct CONF_FTN_CONFIG *, int *);
+int conf_write_ftnconf(int, const struct CONF_FTN_CONFIG *);
 struct CONF_ENTRY *get_all_confs(void);
+int conf_store_entry(struct CONF_ENTRY *);
 
 /* confxtra.c */
 char *get_conf_description(int confnum);												/* 2025-10-25 PL */

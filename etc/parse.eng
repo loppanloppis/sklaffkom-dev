@@ -12,11 +12,13 @@ Back:cmd_back_text:Unreads latest read <number of articles> articles
 Block:cmd_block_user:Edit your list of blocked users
 Clear:cmd_cls:Clear screen
 Cls:cmd_cls:Same as Clear (clear screen)
+Change character set:cmd_change_charset:Change the character set used by your terminal
 Change loginscript:cmd_mod_login:Change commands executed at login
 Change note:cmd_mod_note:Change your "note"
 Change password:cmd_change_passwd:Change your password
-Change conferencedescription:cmd_change_cdesc:Change conference description
-Change conferencename:cmd_change_cname:Change conference name
+Change conference:cmd_mod_conf:Edit conference settings
+#Change conferencedescription:cmd_change_cdesc:Change conference description
+#Change conferencename:cmd_change_cname:Edit conference settings
 Change replyconference:cmd_change_comc:Change reply conference
 Change personal (information):cmd_mod_pinfo:Change personal information
 Change plan:cmd_mod_sig:Change your plan file

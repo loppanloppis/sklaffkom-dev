@@ -142,22 +142,6 @@ ftn_netmail_address_needs_domain(const char *addr)
 }
 
 static int
-is_safe_ftn_area_name(const char *area)
-{
-    const unsigned char *p;
-
-    if (area == NULL || *area == '\0')
-        return 0;
-
-    for (p = (const unsigned char *)area; *p != '\0'; p++) {
-        if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
-            return 0;
-    }
-
-    return 1;
-}
-
-static int
 is_safe_ftn_queue_header_value(const char *s)
 {
     const unsigned char *p;
@@ -346,7 +330,7 @@ parse_ftn_netmail_recipient(const char *s, char *name, size_t namesz,
 }
 
 static int
-queue_ftn_export(const char *area, long textnum)
+queue_ftn_export(int confnum, long textnum)
 {
     char tmpfile[4096];
     char pendingfile[4096];
@@ -354,31 +338,36 @@ queue_ftn_export(const char *area, long textnum)
     FILE *fp;
     int n;
 
-    if (area == NULL || *area == '\0' || textnum <= 0)
+    if (confnum <= 0 || textnum <= 0)
         return -1;
 
     now = (long)time(NULL);
 
     /*
-     * Queue format follows the traditional SklaffKOM style:
+     * Echomail queue jobs identify the local SklaffKOM conference by its
+     * numeric id, not by its display name or FTN echo tag:
      *
-     *   AREA:TEXTNUM:TIMESTAMP
+     *   CONFNUM:TEXTNUM:TIMESTAMP
+     *
+     * Conference names may contain spaces and ':' and are allowed to change.
+     * The FTN domain/tag is resolved later by ftntoss from the conference's
+     * ftnconf file.
      *
      * Write to tmp first and then rename into pending.  This makes queue
      * creation atomic, so the cron runner never sees a half-written job.
      *
-     * modified on 2026-06-14, PL
+     * modified on 2026-08-11, PL
      */
-    n = snprintf(tmpfile, sizeof(tmpfile), "%s/%s.%ld.%ld.tmp",
-        FTNQUEUE_TMP, area, textnum, (long)getpid());
+    n = snprintf(tmpfile, sizeof(tmpfile), "%s/%d.%ld.%ld.tmp",
+        FTNQUEUE_TMP, confnum, textnum, (long)getpid());
 
     if (n < 0 || (size_t)n >= sizeof(tmpfile)) {
         dlog(2, "queue_ftn_export: tmp filename too long");
         return -1;
     }
 
-    n = snprintf(pendingfile, sizeof(pendingfile), "%s/%s.%ld.%ld",
-        FTNQUEUE_PENDING, area, textnum, now);
+    n = snprintf(pendingfile, sizeof(pendingfile), "%s/%d.%ld.%ld",
+        FTNQUEUE_PENDING, confnum, textnum, now);
 
     if (n < 0 || (size_t)n >= sizeof(pendingfile)) {
         dlog(2, "queue_ftn_export: pending filename too long");
@@ -387,35 +376,35 @@ queue_ftn_export(const char *area, long textnum)
 
     fp = fopen(tmpfile, "w");
     if (fp == NULL) {
-        dlog(2, "queue_ftn_export: fopen failed for area [%s] text %ld, errno=%d",
-            area, textnum, errno);
+        dlog(2, "queue_ftn_export: fopen failed for conf %d text %ld, errno=%d",
+            confnum, textnum, errno);
         return -1;
     }
 
-    if (fprintf(fp, "%s:%ld:%ld\n", area, textnum, now) < 0) {
-		dlog(2, "queue_ftn_export: fprintf failed for area [%s] text %ld, errno=%d",
-            area, textnum, errno);
+    if (fprintf(fp, "%d:%ld:%ld\n", confnum, textnum, now) < 0) {
+        dlog(2, "queue_ftn_export: fprintf failed for conf %d text %ld, errno=%d",
+            confnum, textnum, errno);
         fclose(fp);
         unlink(tmpfile);
         return -1;
     }
 
     if (fclose(fp) != 0) {
-        dlog(2, "queue_ftn_export: fclose failed for area [%s] text %ld, errno=%d",
-            area, textnum, errno);
+        dlog(2, "queue_ftn_export: fclose failed for conf %d text %ld, errno=%d",
+            confnum, textnum, errno);
         unlink(tmpfile);
         return -1;
     }
 
     if (rename(tmpfile, pendingfile) != 0) {
-        dlog(2, "queue_ftn_export: rename failed for area [%s] text %ld, errno=%d",
-            area, textnum, errno);
+        dlog(2, "queue_ftn_export: rename failed for conf %d text %ld, errno=%d",
+            confnum, textnum, errno);
         unlink(tmpfile);
         return -1;
     }
 
-    dlog(6, "queue_ftn_export: queued FTN export [%s:%ld:%ld]",
-        area, textnum, now);
+    dlog(6, "queue_ftn_export: queued FTN export [conf=%d text=%ld created=%ld]",
+        confnum, textnum, now);
 
     return 0;
 }
@@ -565,9 +554,9 @@ export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum)
     if (ce->type != FTN_CONF)
         return;
 
-    if (!is_safe_ftn_area_name(ce->name)) {
-        dlog(2, "export_ftn_post_if_needed: unsafe FTN area name [%s]",
-            ce->name ? ce->name : "(null)");
+    if (ce->num <= 0) {
+        dlog(2, "export_ftn_post_if_needed: invalid conference number %d",
+            ce->num);
         return;
     }
 
@@ -579,8 +568,8 @@ export_ftn_post_if_needed(struct CONF_ENTRY *ce, long textnum)
      *
      * modified on 2026-06-14, PL
      */
-    if (queue_ftn_export(ce->name, textnum) != 0) {
-        dlog(2, "export_ftn_post_if_needed: failed to queue text %ld for area [%s]",
-            textnum, ce->name);
+    if (queue_ftn_export(ce->num, textnum) != 0) {
+        dlog(2, "export_ftn_post_if_needed: failed to queue text %ld for conf %d [%s]",
+            textnum, ce->num, ce->name ? ce->name : "(null)");
     }
 }
