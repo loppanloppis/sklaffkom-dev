@@ -427,6 +427,16 @@
 #define MSG_MODCONF_BADFTN   "Befintlig FTN-konfiguration {r felaktig."
 #define MSG_MODCONF_SAVED    "M|tet har {ndrats."
 #define MSG_MODCONF_NOCHANGE "Inga {ndringar."
+/* Väggen */
+#define MSG_IBOL_HEADER "Senaste fr}n InterBBS-v{ggen:"
+#define MSG_IBOL_AT     "p}"
+#define MSG_IBOL_DISABLED "InterBBS-v{ggen {r inte aktiverad av systemoperat|ren."
+#define MSG_IBOL_WRITE_PROMPT "Vill du skriva en rad? (j/n) "
+#define MSG_IBOL_LINE_PROMPT  "Din rad: "
+#define MSG_IBOL_EMPTY        "Du skrev ingen rad."
+#define MSG_IBOL_SENT         "Raden {r k|ad f|r utskick."
+#define MSG_IBOL_SEND_ERROR   "Raden kunde inte k|as f|r utskick."
+
 /* conf.c */
 
 #define MSG_CONFSORT	"Sorterar m|teslistan..."
@@ -1214,6 +1224,16 @@
 #define MSG_MODCONF_BADFTN   "The existing FTN configuration is invalid."
 #define MSG_MODCONF_SAVED    "The conference has been changed."
 #define MSG_MODCONF_NOCHANGE "No changes."
+/* The wall */
+#define MSG_IBOL_HEADER "Latest from the InterBBS wall:"
+#define MSG_IBOL_AT     "at"
+#define MSG_IBOL_DISABLED "The InterBBS wall has not been enabled by the sysop."
+#define MSG_IBOL_WRITE_PROMPT "Do you want to write a line? (y/n) "
+#define MSG_IBOL_LINE_PROMPT  "Your line: "
+#define MSG_IBOL_EMPTY        "You did not write a line."
+#define MSG_IBOL_SENT         "The line has been queued for sending."
+#define MSG_IBOL_SEND_ERROR   "The line could not be queued for sending."
+
 /* conf.c */
 
 #define MSG_CONFSORT	"Sorting conference list..."

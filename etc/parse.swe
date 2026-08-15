@@ -94,6 +94,7 @@ Var (befinner jag mig):cmd_where:Visa aktuellt m|te
 Version:cmd_version:Visa aktuell SklaffKOM-version
 Vilka ({r inloggade):cmd_who:Se vilka som k|r SklaffKOM just nu
 Visa licens:cmd_licens:Visa licensfilen f|r SklaffKOM
+V{ggen:cmd_wall:Visar InterBBS-v{ggen
 #]terse (text):cmd_read_text:Synonymt med 'L{sa (text)'
 ]terse kommenterad (text):cmd_display_commented:Synonymt med 'L{sa kommenterad (text)'
 ]terse senaste (text):cmd_read_last_text:Synonymt med 'L{sa senaste (text)'

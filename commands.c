@@ -8764,3 +8764,23 @@ cmd_mod_conf(char *args)
 
     return 0;
 }
+
+int
+cmd_wall(char *args)
+{
+    if (args && *args) {
+        output("\n%s\n\n", MSG_NOARG);
+        return 0;
+    }
+
+
+    if (IBOL_LOGOUT_COUNT <= 0) {
+        output("\n%s\n\n", MSG_IBOL_DISABLED);
+        return 0;
+    }
+
+    if (display_ibol_entries(IBOL_LOGOUT_COUNT) >= 0)
+        (void)prompt_ibol_oneliner();
+
+    return 0;
+}

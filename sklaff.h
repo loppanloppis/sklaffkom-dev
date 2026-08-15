@@ -41,6 +41,14 @@
 #define ENABLE_CHARSET_HANDSHAKE 1
 #endif
 
+/* Number of InterBBS Oneliners displayed at checkout. 0 to disable. */
+#define IBOL_LOGOUT_COUNT 0
+
+/* InterBBS Oneliner (IBOL) transport settings. */
+#define IBOL_ONELINER_MAX 65
+#define IBOL_FTN_DOMAIN   "fsxnet"
+#define IBOL_FTN_AREA     "FSX_DAT"
+
 /* Define full path to crashmail.prefs */
 #ifndef CRASHMAIL_PREFS_FILE
 #define CRASHMAIL_PREFS_FILE "/ftn/etc/crashmail.prefs"
@@ -470,6 +478,7 @@ int  detect_terminal_lines(void);														/* 2025-08-10 PL */
 /* lib/ui.c */
 
 int  output_ansi_fmt(const char *ansi_fmt, const char *plain_fmt, ...); 				/* 2025-07-30 PL */
+int output_ansi_raw_fmt(const char *ansi_fmt, const char *plain_fmt, ...);				/* 2026-08-13 PL */
 void clear_prompt(int num); 															/* Little helper to avoid extra '(') 2025-08-26 PL */
 void clear_prompt_cols(int cols);														/* 2025-08-30 PL */
 void clear_screen(void);                                                                     /* More sophisticated cls to use outside of commands.c */
@@ -609,6 +618,7 @@ int cmd_version(char *args); /*2026-06-02 PL */
 int cmd_block_user(char *args); /* 2026-06-16, PL */
 int cmd_change_charset(char *); /* 2026-08-07 PL */
 int cmd_mod_conf(char *); /* 2026-08-09 PL */
+int cmd_wall(char *args); /* 2026-08-12 PL */
 
 /* admin.c */
 
@@ -718,6 +728,11 @@ int save_flags(void);	/* PL 2026-08-05 improved save_flags procedure */
 /* footnote.c */
 
 void show_footnote_block(int conf, long num, char *home, int has_comments);					/* 2025-10-15 helper to render the footnote (if there is one) */
+
+/* ibolview.c */
+int display_ibol_entries(int count);
+int prompt_ibol_oneliner(void); /* 2026-08-13 PL */
+int queue_ibol_oneliner(int fromuid, const char *author, const char *text); /* 2026-08-13 PL */
 
 /* mailparse.c */
 

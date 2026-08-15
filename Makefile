@@ -53,7 +53,9 @@ OBJS = \
 	file.o \
 	footnote.o \
 	flag.o \
-	msg.o \
+    iboldb.o \
+    ibolview.o \
+    msg.o \
 	newsparse.o \
 	parse.o\
 	praise.o\
