@@ -2006,6 +2006,11 @@ find_ftn_conf(const char *name, struct ftn_conf_info *out_ce)
     FILE *fp;
     LONG_LINE line;
     struct ftn_conf_info ce;
+    struct ftn_conf_info tag_match;
+    size_t tag_matches;
+
+    if (name == NULL || *name == '\0' || out_ce == NULL)
+        return -1;
 
     printf("Checking the SklaffKOM CONF_FILE: %s... ", CONF_FILE);
     fflush(stdout);
@@ -2021,6 +2026,12 @@ find_ftn_conf(const char *name, struct ftn_conf_info *out_ce)
     printf("Checking conference: %s... ", name);
     fflush(stdout);
 
+    /*
+     * Preserve the old behaviour first: an exact SklaffKOM conference
+     * name always wins over an FTN echotag.
+     *
+     * modified on 2026-08-15, PL
+     */
     while (fgets(line, sizeof(line), fp) != NULL) {
         if (parse_conf_line(line, &ce) != 0)
             continue;
@@ -2033,8 +2044,63 @@ find_ftn_conf(const char *name, struct ftn_conf_info *out_ce)
         }
     }
 
+    /*
+     * New conference layout: the FTN tag is stored in
+     *   SKLAFF_DB/<confnum>/ftnconf
+     * rather than being required to equal the SklaffKOM conference name.
+     * If no conference name matched, resolve the supplied value as an
+     * echotag.  Tags are case-insensitive in FTN configuration.
+     *
+     * modified on 2026-08-15, PL
+     */
+    rewind(fp);
+    tag_matches = 0;
+    memset(&tag_match, 0, sizeof(tag_match));
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        struct meeting_ftn_config meeting;
+        int has_ftnconf;
+
+        if (parse_conf_line(line, &ce) != 0)
+            continue;
+
+        if (!conf_is_ftn(ce.type))
+            continue;
+
+        has_ftnconf = 0;
+        if (load_meeting_ftnconf(&ce, &meeting, &has_ftnconf) != 0) {
+            fclose(fp);
+            return -1;
+        }
+
+        if (!has_ftnconf)
+            continue;
+
+        if (strcasecmp(name, meeting.tag) != 0)
+            continue;
+
+        tag_match = ce;
+        tag_matches++;
+    }
+
     fclose(fp);
-    fprintf(stderr, "\n[ERROR] Conference '%s' not found in %s\n", name, CONF_FILE);
+
+    if (tag_matches == 1) {
+        *out_ce = tag_match;
+        printf("OK! (%s, echotag)\n", tag_match.name);
+        return 0;
+    }
+
+    if (tag_matches > 1) {
+        fprintf(stderr,
+            "\n[ERROR] Echotag '%s' matches more than one FTN conference\n",
+            name);
+        return -1;
+    }
+
+    fprintf(stderr,
+        "\n[ERROR] Conference or FTN echotag '%s' not found in %s\n",
+        name, CONF_FILE);
     return -1;
 }
 
