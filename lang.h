@@ -187,8 +187,10 @@
 #define MSG_NORIGHTS	"F|ljande anv{ndare har inte r{ttigheter i"
 #define MSG_CNAMEASK	"M|tets namn: "
 #define MSG_ERRCNAME	"M|tesnamnet krockar med ett annat m|tesnamn."
-#define MSG_CONFTPROMPT	"Typ av m|te, (|)ppet, (s)lutet, (h)emligt, (n)ews, (f)tn: "
+#define MSG_CONFTPROMPT	"Typ av m|te, (l)okalt, (n)ews, (f)tn: "
+#define MSG_CONFACCESSPROMPT	"(|)ppet, (s)lutet, (h)emligt: "
 #define MSG_CONFDEFAULT	"|ppet"
+#define MSG_CONFLOCAL	'l'
 #define MSG_CONFOPEN	'|'
 #define MSG_CONFCLOSED	's'
 #define MSG_CONFSECRET	'h'
@@ -982,8 +984,10 @@
 #define MSG_NORIGHTS	"The following users have no permissions to"
 #define MSG_CNAMEASK	"Conference name: "
 #define MSG_ERRCNAME	"That name collides with another conference name."
-#define MSG_CONFTPROMPT	"Type of conference, (o)pen, (c)losed, (s)ecret, (n)ews, (f)tn: "
+#define MSG_CONFTPROMPT	"Type of conference, (l)ocal, (n)ews, (f)tn: "
+#define MSG_CONFACCESSPROMPT	"(o)pen, (c)losed, (s)ecret: "
 #define MSG_CONFDEFAULT	"open"
+#define MSG_CONFLOCAL	'l'
 #define MSG_CONFOPEN	'o'
 #define MSG_CONFCLOSED	'c'
 #define MSG_CONFSECRET	's'

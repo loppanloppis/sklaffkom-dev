@@ -1393,14 +1393,8 @@ cmd_list_rights(char *args)
 }
 
 static int
-conf_type_from_char(int c)
+conf_transport_from_char(int c)
 {
-    if (c == MSG_CONFCLOSED)
-        return CLOSED_CONF;
-
-    if (c == MSG_CONFSECRET)
-        return SECRET_CONF;
-
     if (c == MSG_CONFNEWS)
         return NEWS_CONF;
 
@@ -1412,35 +1406,51 @@ conf_type_from_char(int c)
 
 
 static int
-conf_type_to_char(int type)
+conf_transport_to_char(int transport)
 {
-    if (conf_is_news(type))
+    if (transport == NEWS_CONF)
         return MSG_CONFNEWS;
 
-    if (conf_is_ftn(type))
+    if (transport == FTN_CONF)
         return MSG_CONFFTN;
 
-    switch (conf_access_type(type)) {
-    case CLOSED_CONF:
-        return MSG_CONFCLOSED;
-
-    case SECRET_CONF:
-        return MSG_CONFSECRET;
-
-    case OPEN_CONF:
-    default:
-        return MSG_CONFOPEN;
-    }
+    return MSG_CONFLOCAL;
 }
 
 
 static int
-prompt_conf_type(int current_type)
+conf_access_from_char(int c)
+{
+    if (c == MSG_CONFCLOSED)
+        return CLOSED_CONF;
+
+    if (c == MSG_CONFSECRET)
+        return SECRET_CONF;
+
+    return OPEN_CONF;
+}
+
+
+static int
+conf_access_to_char(int access)
+{
+    if (access == CLOSED_CONF)
+        return MSG_CONFCLOSED;
+
+    if (access == SECRET_CONF)
+        return MSG_CONFSECRET;
+
+    return MSG_CONFOPEN;
+}
+
+
+static int
+prompt_conf_transport(int current_transport)
 {
     LINE interact;
     char def[2];
 
-    def[0] = (char)conf_type_to_char(current_type);
+    def[0] = (char)conf_transport_to_char(current_transport);
     def[1] = '\0';
 
     output(MSG_CONFTPROMPT);
@@ -1448,18 +1458,57 @@ prompt_conf_type(int current_type)
     down_string(interact);
 
     if (*interact == '\0')
-        return current_type;
+        return current_transport;
 
-    /*
-     * input() may return the displayed default character when ENTER is used.
-     * Preserve a combined NEWS/FTN access type when its transport did not
-     * actually change.  The separate transport/access UI comes in phase 2.
-     */
-    if ((interact[0] == MSG_CONFNEWS && conf_is_news(current_type)) ||
-        (interact[0] == MSG_CONFFTN && conf_is_ftn(current_type)))
-        return current_type;
+    return conf_transport_from_char((unsigned char)interact[0]);
+}
 
-    return conf_type_from_char((unsigned char)interact[0]);
+
+static int
+prompt_conf_access(int current_access)
+{
+    LINE interact;
+    char def[2];
+
+    def[0] = (char)conf_access_to_char(current_access);
+    def[1] = '\0';
+
+    output(MSG_CONFACCESSPROMPT);
+    input(def, interact, LINE_LEN, 0, 0, 0);
+    down_string(interact);
+
+    if (*interact == '\0')
+        return current_access;
+
+    return conf_access_from_char((unsigned char)interact[0]);
+}
+
+
+static int
+prompt_conf_type(int current_type)
+{
+    int transport;
+    int access;
+    int type;
+
+    transport = conf_transport_type(current_type);
+    access = conf_access_type(current_type);
+
+    if (transport < 0)
+        transport = OPEN_CONF;
+
+    if (access < 0)
+        access = OPEN_CONF;
+
+    transport = prompt_conf_transport(transport);
+    access = prompt_conf_access(access);
+
+    type = conf_make_type(transport, access);
+
+    if (type < 0)
+        return OPEN_CONF;
+
+    return type;
 }
 
 
