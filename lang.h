@@ -361,6 +361,7 @@
 #define MSG_BLOCKINTRO1	"Redigera blockerade avs{ndare, en per rad."
 #define MSG_BLOCKINTRO2	"Tomma rader och rader som b|rjar med # ignoreras."
 #define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avs}ndare)"
+#define MSG_JUMPUSERLOCAL "Detta kommando fungerar endast i lokala m|ten."
 /* Nytt Version-kommando */
 #define MSG_VERSIONH1	"UPPHOVSR[TT"
 #define MSG_VERSIONH1U	"==========="
@@ -792,10 +793,10 @@
 #define MSG_ADMHELP17	"   up - Till}ter inloggning i SklaffKOM.\n\n"
 
 /* sklaffacct.c */
-/* Let's do UTF-8 because at least we'll have a higher hitrate than SF7 */
-#define MSG_INNAME	"För och efternamn      : "
+/* Let's do plain ASCII here */
+#define MSG_INNAME	"For och efternamn      : "
 #define MSG_INLOGIN	"Inloggningsnamn        : "
-#define MSG_INPASSWD	"Önskat lösenord        : "
+#define MSG_INPASSWD	"Onskat losenord        : "
 #define MSG_INMODEM	"Modempools-tillgång    : "
 #define MSG_INPOST	"E-postadress           : "
 #define MSG_INTELE	"Telefonnummer          : "
@@ -806,8 +807,8 @@
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSPOST	"\nE-post   : "
 #define MSG_INSTELE	"\nTelefon  : "
-#define MSG_APPLIED	"Tackar för det! \nDin ansökan är registrerad och vi hör snart av oss.\nVälkommen åter.\n\n"
-#define MSG_UIDINUSE	"Inloggningsnamn kan ej anv{ndas. Vänligen välj annat."
+#define MSG_APPLIED	"Tackar för det! \nDin ansokan är registrerad och vi hor snart av oss.\nValkommen tillbaks!.\n\n"
+#define MSG_UIDINUSE	"Inloggningsnamn upptaget. Vanligen valj annat."
 
 /* mailtoss.c */
 
@@ -1158,6 +1159,7 @@
 #define MSG_BLOCKINTRO1 "Enter your list of blocked users, one per row."
 #define MSG_BLOCKINTRO2 "Empty lines, and lines starting with # are ignored."
 #define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
+#define MSG_JUMPUSERLOCAL "This command only works in local conferences."
 
 /* New version command */
 #define MSG_VERSIONH1	"COPYRIGHT"

@@ -6943,6 +6943,20 @@ cmd_jumpuser(char *args)
     long num, count;
     int fd, jumpuid;
     struct TEXT_ENTRY te;
+    struct CONF_ENTRY *ce;
+
+    /*
+     * External authors are not represented by ordinary local user IDs.
+     * Until cmd_jumpuser knows how to handle News/FTN authors properly,
+     * only allow it in local conferences.
+     */
+    if (Current_conf > 0) {
+        ce = get_conf_struct(Current_conf);
+        if (ce != NULL && conf_is_external(ce->type)) {
+            output("\n%s\n\n", MSG_JUMPUSERLOCAL);
+            return 0;
+        }
+    }
 
     if (args && *args) {
         expname = expand_name(args, USER, 0, NULL);
