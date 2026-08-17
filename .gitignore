@@ -16,3 +16,4 @@ color-test.sh
 htmlmsgdump
 ibolmsgdump
 ibolimport
+dist/
