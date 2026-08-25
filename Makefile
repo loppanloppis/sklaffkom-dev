@@ -75,6 +75,7 @@ SURVREPOBJ=survreport.o
 FTCOBJ=forwardtoconf.o
 FTYOBJ=forwardtoyell.o
 IBOLIMPORTOBJ=ibolimport.o ibol.o iboldb.o ftnmsg.o
+IBOLMSGDUMPOBJ=ibolmsgdump.o ibol.o ftnmsg.o
 
 SKLAFFLIB=lib/libsklaff.a
 
@@ -143,7 +144,10 @@ forwardtoyell: $(SKLAFFLIB) $(FTYOBJ) $(OBJS)
 
 ibolimport: $(IBOLIMPORTOBJ)
 	$(CC) -o ibolimport $(IBOLIMPORTOBJ)
-	
+
+ibolmsgdump: $(IBOLMSGDUMPOBJ)
+	$(CC) -o ibolmsgdump $(IBOLMSGDUMPOBJ)
+
 version.c:
 	@./version.sh
 
