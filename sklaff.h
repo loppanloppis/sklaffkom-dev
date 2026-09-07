@@ -875,6 +875,7 @@ long age_to_textno(long);
 
 int plan_ensure(int);
 int plan_write(int, const char *);
+int plan_read(int, char **);
 
 /* user.c */
 
