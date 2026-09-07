@@ -554,6 +554,14 @@ plan_ensure(int uid)
 int
 plan_write(int uid, const char *text)
 {
+    if (text == NULL)
+        text = "";
+
+    if (strlen(text) > PLAN_MAX_SIZE) {
+        dlog(3, ".plan too large for uid %d", uid);
+        return -1;
+    }
+
     return plan_run(uid, text, 1);
 }
 
