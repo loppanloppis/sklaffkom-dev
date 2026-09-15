@@ -655,7 +655,7 @@
 #define MSG_IDLEWARNING "inaktiv sedan"
 
 /* forwardtoconf */
-#define MSG_FTCINFO  "Syntax: forwardtoconf <fil> <möte>"
+#define MSG_FTCINFO       "Syntax: forwardtoconf <fil> <möte>"
 #define MSG_FTCNOCONF     "M|tet '%s' finns inte."
 #define MSG_FTCNOACCOUNT  "Kan inte hitta SklaffKOM-kontot '%s'."
 #define MSG_FTCOPEN       "Kan inte |ppna filen '%s'."
@@ -665,6 +665,7 @@
 #define MSG_FTCPOSTFAIL   "Kunde inte vidarebefordra meddelandet till m|tet '%s'."
 #define MSG_FTCOKONE      "Ett meddelande vidarebefordrades till m|tet '%s'."
 #define MSG_FTCOKMANY     "%d meddelanden vidarebefordrades till m|tet '%s'."
+#define MSG_FTCUNLINK     "Meddelandet importerades, men filen '%s' kunde inte raderas."
 
 /* parse.c */
 
@@ -1484,7 +1485,7 @@
 #define MSG_FLOFF	"turned off."
 
 /* forwardtoconf */
-#define MSG_FTCINFO  "Syntax: forwardtoconf <file> <conference>"
+#define MSG_FTCINFO       "Syntax: forwardtoconf <file> <conference>"
 #define MSG_FTCNOCONF     "Conference '%s' does not exist."
 #define MSG_FTCNOACCOUNT  "Cannot find the SklaffKOM account '%s'."
 #define MSG_FTCOPEN       "Cannot open file '%s'."
@@ -1494,7 +1495,7 @@
 #define MSG_FTCPOSTFAIL   "Could not forward the message to conference '%s'."
 #define MSG_FTCOKONE      "One message was forwarded to conference '%s'."
 #define MSG_FTCOKMANY     "%d messages were forwarded to conference '%s'."
-
+#define MSG_FTCUNLINK     "The message was imported, but file '%s' could not be removed."
 /* parse.c */
 
 #define MSG_TEXTPROMPT2	"Read"

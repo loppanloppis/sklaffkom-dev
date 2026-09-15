@@ -58,8 +58,6 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    unlink(argv[1]);
-
     if (strlen(buf) < 50) {
         fprintf(stderr, "\n");
         fprintf(stderr, MSG_FTCEMPTY, argv[1]);
@@ -110,6 +108,13 @@ main(int argc, char *argv[])
     free(oldbuf);
 
     notify_all_processes(SIGNAL_NEW_TEXT);
+
+    if (unlink(argv[1]) == -1) {
+        fprintf(stderr, "\n");
+        fprintf(stderr, MSG_FTCUNLINK, argv[1]);
+        fprintf(stderr, "\n\n");
+        exit(1);
+    }
 
     printf("\n");
     if (count == 1)
