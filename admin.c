@@ -341,9 +341,6 @@ display_rookie_tip(void)
     if (!Rookie_mode)
         return;
 
-    if (Alternate_intro)
-        output("\n");
-
     left = num_unread(Uid, Current_conf,
         last_text(Current_conf, Uid));
 
@@ -390,7 +387,7 @@ display_alternative_intro_finish(void)
             left,
             MSG_ALT_UNREADTEXTS);
     }
-
+    output("\n");
 /*
     output_ansi_fmt("\n" YELLOW "%s%s, %s.\n" DOT,
         "\n%s%s, %s.\n",
