@@ -126,6 +126,11 @@ cmd_sendbatch(char *args)
     } info;
     struct tm tim;
 
+    if (!ENABLE_QWK) {
+        output("\n%s\n\n", MSG_QWK_OFF);
+        return 0;
+    }
+
     Change_prompt = 1;
     Change_msg = 1;
     set_avail(Uid, 1);
