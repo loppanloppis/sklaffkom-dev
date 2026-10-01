@@ -7077,6 +7077,11 @@ cmd_nethack(char *args)
     FILE *which_fp;
     char which_buf[256];
 
+    if (!ENABLE_NETHACK) {
+        output("\n%s\n\n", MSG_NETHACK_OFF);
+        return 0;
+    }
+
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -8005,6 +8010,11 @@ cmd_zork(char *args)
     char frotz_path[PATH_MAX];
     const char *zname = NULL;
 
+    if (!ENABLE_ZORK) {
+        output("\n%s\n\n", MSG_ZORK_OFF);
+        return 0;
+    }
+
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -8148,6 +8158,11 @@ cmd_bbslink(char *args)
     char uid_buf[16];
     char game_code[64];
     char script_path[256];
+
+    if (!ENABLE_BBSLINK) {
+        output("\n" MSG_BBSLINK_OFF "\n\n");
+        return 0;
+    }
 
     Change_msg = 1;
     Change_prompt = 1;
