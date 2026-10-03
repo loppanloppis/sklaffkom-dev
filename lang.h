@@ -159,7 +159,7 @@
 #define MSG_BBSLINK01 "BBSLink {r en slags 'door server' dit ett hundratal BBS'er {r anslutna."
 #define MSG_BBSLINK02 "Varje spel har en unik 'spelkod' som man anger f|r att spela."
 #define MSG_BBSLINK03 "Exempel : 'spela usrp' starar spelet Usurper."
-#define MSG_BBSLINK_OFF "Sysop har inte konfigurerat BBSLink p{ detta system"
+#define MSG_BBSLINK_OFF "Sysop har inte konfigurerat BBSLink p} detta system"
 
 /* commands.c */
 
@@ -871,6 +871,10 @@
 #define MSG_QWK_OFF 	"QWK-st|d {r inte aktiverat p} detta system."
 #define MSG_ZORK_OFF 	"Zork {r inte aktiverat p} detta system."
 #define MSG_NETHACK_OFF "Nethack {r inte aktiverat p} detta system."
+
+/* sklaff_dependencies.h */
+
+#define MSG_DEP_MISSING "N|dv{ndigt externt program saknas: %s."
 
 #else
 
@@ -1711,5 +1715,8 @@
 #define MSG_QWK_OFF "QWK support is not enabled on this system."
 #define MSG_ZORK_OFF "Zork is not enabled on this system."
 #define MSG_NETHACK_OFF "Nethack is not enabled on this system."
+
+/* sklaff_dependencies.h */
+#define MSG_DEP_MISSING "Required external program is unavailable: %s."
 
 #endif

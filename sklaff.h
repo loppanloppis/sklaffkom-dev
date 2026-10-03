@@ -31,7 +31,13 @@
 #include <stdio.h>
 #include <time.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "sklaff_features.h"
+#include "sklaff_dependencies.h"
+
 /* Define language desired, one of: SWEDISH or ENGLISH */
 #define SWEDISH
 //#define ENGLISH

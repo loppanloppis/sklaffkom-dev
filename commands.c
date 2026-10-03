@@ -7082,6 +7082,11 @@ cmd_nethack(char *args)
         return 0;
     }
 
+    if (!HAVE_NETHACK) {
+        output("\n" MSG_DEP_MISSING "\n\n", "nethack");
+        return 0;
+    }
+
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -8015,6 +8020,11 @@ cmd_zork(char *args)
         return 0;
     }
 
+    if (!HAVE_FROTZ) {
+        output("\n" MSG_DEP_MISSING "\n\n", "frotz");
+        return 0;
+    }
+
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -8161,6 +8171,11 @@ cmd_bbslink(char *args)
 
     if (!ENABLE_BBSLINK) {
         output("\n" MSG_BBSLINK_OFF "\n\n");
+        return 0;
+    }
+
+    if (Utf8 && !HAVE_CP437_WRAPPER) {
+        output("\n" MSG_DEP_MISSING "\n\n", "cp437");
         return 0;
     }
 
