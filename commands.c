@@ -7073,7 +7073,7 @@ int
 cmd_nethack(char *args)
 {
     sigset_t sigmask, oldsigmask;
-    char nethack_path[256] = DEFAULT_NETHACK_PATH; /* Now set in sklaff.h as it should be, 2025-09-24 PL */
+    char nethack_path[256] = NETHACK_BIN;
     FILE *which_fp;
     char which_buf[256];
 

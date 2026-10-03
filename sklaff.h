@@ -119,7 +119,7 @@
 #define GREPOPT		"-i -F" /* option to grep */
 #define SKLAFFAT 	"/usr/bin/at"
 #define SKLAFFECHO 	"/bin/echo"
-#define DEFAULT_NETHACK_PATH 	"/usr/local/bin/nethack"  /* default Nethack path */
+#define NETHACK_BIN "/usr/local/bin/nethack"  /* path to nethack bin */
 
 /* Everything related to Frotz and Zork */
 #define FROTZ_BIN       "/usr/local/bin/frotz"        /* Path to frotz binary */
