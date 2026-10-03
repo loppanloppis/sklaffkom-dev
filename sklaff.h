@@ -37,6 +37,7 @@
 
 #include "sklaff_features.h"
 #include "sklaff_dependencies.h"
+#include "sklaff_programs.h"
 
 /* Define language desired, one of: SWEDISH or ENGLISH */
 #define SWEDISH
@@ -119,10 +120,8 @@
 #define GREPOPT		"-i -F" /* option to grep */
 #define SKLAFFAT 	"/usr/bin/at"
 #define SKLAFFECHO 	"/bin/echo"
-#define NETHACK_BIN "/usr/local/bin/nethack"  /* path to nethack bin */
 
-/* Everything related to Frotz and Zork */
-#define FROTZ_BIN       "/usr/local/bin/frotz"        /* Path to frotz binary */
+/* Settings related to Frotz and Zork */
 #define FROTZ_ARGS      "-D 0 -Z 0 -R "               /* Disable colors on top, report 0 errors, saves in ./data dir */
 #define FROTZ_HOME      DOORDIR "/frotz"              /* -> /doors/frotz on a standard install */
 #define FROTZ_ZORK1     "zork1.z3"
@@ -130,7 +129,6 @@
 #define FROTZ_ZORK3     "zork3.z3"
 
 /* OTHER NEW (2025) external commands */
-#define CP437_WRAPPER 			"/usr/local/bin/cp437"
 #define DEFAULT_BBSLINK_PATH    "/doors/bbslink"
 #define BBSLINK_INTRO           SKLAFFDIR "/etc/bbslink"
 
