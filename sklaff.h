@@ -36,9 +36,7 @@
 #endif
 
 #include "sklaff_features.h"
-#include "sklaff_dependencies.h"
 #include "sklaff_programs.h"
-
 /* Define language desired, one of: SWEDISH or ENGLISH */
 #define SWEDISH
 //#define ENGLISH
@@ -121,8 +119,7 @@
 #define SKLAFFAT 	"/usr/bin/at"
 #define SKLAFFECHO 	"/bin/echo"
 
-/* Settings related to Frotz and Zork */
-#define FROTZ_ARGS      "-D 0 -Z 0 -R "               /* Disable colors on top, report 0 errors, saves in ./data dir */
+/* Everything related to Frotz and Zork */
 #define FROTZ_HOME      DOORDIR "/frotz"              /* -> /doors/frotz on a standard install */
 #define FROTZ_ZORK1     "zork1.z3"
 #define FROTZ_ZORK2     "zork2.z3"
@@ -132,22 +129,10 @@
 #define DEFAULT_BBSLINK_PATH    "/doors/bbslink"
 #define BBSLINK_INTRO           SKLAFFDIR "/etc/bbslink"
 
-/* Software for uploads and downloads. 
-Please read item 18 for instructions here: 
-https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
-
-#define UPLOADPRGM      "/usr/local/bin/lrz" /* recommended : "/usr/local/bin/lrz" */
-#define ULOPT1          "-Eq"
-#define DOWNLOADPRGM    "/usr/local/bin/lsz" /* recommended : "/usr/local/bin/lsz" */
-#define DLOPT1          "-Eq"
-#define DLOPT2          ""
-#define DLOPT3          ""
-#define ZIPPRGM		"/usr/bin/zip -9"
 #define LSPRGM		"/bin/ls"
 #define LSOPT		"-1"    /* option to make one column */
 #define MVPRGM		"/bin/mv"
 #define MAILPRGM	"/usr/sbin/sendmail"
-#define NEWSPRGM	"/usr/local/bin/inews -h -S -P" /*-h needed!  */
 #define HTMLPRGM	"/usr/bin/lynx" /* lynx browser / HTML-to-text renderer */
 #define SURVREPORT 	SKLAFFBIN "/srep"
 

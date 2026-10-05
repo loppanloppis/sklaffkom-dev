@@ -588,7 +588,13 @@ cmd_sendbatch(char *args)
 
     /* Pack QWK-file */
 
-    strcpy(sbuf, ZIPPRGM);
+    strcpy(sbuf, ZIP_BIN);
+
+    if (ZIP_ARGS[0]) {
+        strcat(sbuf, " ");
+        strcat(sbuf, ZIP_ARGS);
+    }
+
     strcat(sbuf, " ");
     strcat(sbuf, package);
     strcat(sbuf, ".qwk control.dat messages.dat *.ndx > /dev/null");
@@ -616,9 +622,24 @@ cmd_sendbatch(char *args)
     output("%s\n", MSG_FINPACK);
 
     snprintf(cmdline, sizeof(cmdline), "%d.qwk", getpid());
+
     if (!fork()) {
+        char *args_exec[4];
+        int i = 0;
+
         sig_reset();
-        execl(DOWNLOADPRGM, DOWNLOADPRGM, DLOPT1, DLOPT2, DLOPT3, cmdline, NULL); /* TODO : POSSIBLY BROKEN */
+
+        args_exec[i++] = (char *)LSZ_BIN;
+
+        if (LSZ_ARGS[0])
+            args_exec[i++] = (char *)LSZ_ARGS;
+
+        args_exec[i++] = cmdline;
+        args_exec[i] = NULL;
+
+        execvp(LSZ_BIN, args_exec);
+
+        _exit(127);
     } else {
         wait(NULL);
     }
@@ -3313,11 +3334,25 @@ cmd_post_text(char *args)
     if (un) {
         /* Build inews command line; capture stderr if LOGLEVEL >= 8 */
 #if defined(LOGLEVEL) && (LOGLEVEL >= 8)
-        snprintf(cmdline, sizeof(cmdline), "%s 2>/tmp/inews.err.%d", NEWSPRGM, getpid());
+        if (INEWS_ARGS[0]) {
+            snprintf(cmdline, sizeof(cmdline),
+                     "%s %s 2>/tmp/inews.err.%d",
+                     INEWS_BIN, INEWS_ARGS, getpid());
+        } else {
+            snprintf(cmdline, sizeof(cmdline),
+                     "%s 2>/tmp/inews.err.%d",
+                     INEWS_BIN, getpid());
+        }
 #else
-        snprintf(cmdline, sizeof(cmdline), "%s", NEWSPRGM);
+        if (INEWS_ARGS[0]) {
+            snprintf(cmdline, sizeof(cmdline), "%s %s",
+                     INEWS_BIN, INEWS_ARGS);
+        } else {
+            snprintf(cmdline, sizeof(cmdline), "%s", INEWS_BIN);
+        }
 #endif
-        dlog(6, "cmd_post_text: inews NEWSPRGM=[%s]", NEWSPRGM);
+        dlog(6, "cmd_post_text: inews INEWS_BIN=[%s]", INEWS_BIN);
+        dlog(6, "cmd_post_text: inews INEWS_ARGS=[%s]", INEWS_ARGS);
         dlog(6, "cmd_post_text: inews cmdline=[%s]", cmdline);
         dlog(7, "cmd_post_text: env SERVER=[%s] NNTPSERVER=[%s] PATH=[%s]",
              getenv("SERVER") ? getenv("SERVER") : "(unset)",
@@ -4036,11 +4071,25 @@ cmd_comment(char *args)
 
         /* Build inews command; capture stderr if LOGLEVEL >= 8 */
 #if defined(LOGLEVEL) && (LOGLEVEL >= 8)
-        snprintf(cmdline, sizeof(cmdline), "%s 2>/tmp/inews.err.%d", NEWSPRGM, getpid());
+        if (INEWS_ARGS[0]) {
+            snprintf(cmdline, sizeof(cmdline),
+                     "%s %s 2>/tmp/inews.err.%d",
+                     INEWS_BIN, INEWS_ARGS, getpid());
+        } else {
+            snprintf(cmdline, sizeof(cmdline),
+                     "%s 2>/tmp/inews.err.%d",
+                     INEWS_BIN, getpid());
+        }
 #else
-        snprintf(cmdline, sizeof(cmdline), "%s", NEWSPRGM);
+        if (INEWS_ARGS[0]) {
+            snprintf(cmdline, sizeof(cmdline), "%s %s",
+                     INEWS_BIN, INEWS_ARGS);
+        } else {
+            snprintf(cmdline, sizeof(cmdline), "%s", INEWS_BIN);
+        }
 #endif
-        dlog(6, "cmd_comment: inews NEWSPRGM=[%s]", NEWSPRGM);
+        dlog(6, "cmd_comment: inews INEWS_BIN=[%s]", INEWS_BIN);
+        dlog(6, "cmd_comment: inews INEWS_ARGS=[%s]", INEWS_ARGS);
         dlog(6, "cmd_comment: inews cmdline=[%s]", cmdline);
         dlog(7, "cmd_comment: env SERVER=[%s] NNTPSERVER=[%s] PATH=[%s]",
              getenv("SERVER") ? getenv("SERVER") : "(unset)",
@@ -6073,36 +6122,41 @@ cmd_upload(char *args)
     LONG_LINE filed;
     int status;  /* wait() status */
 
-    dlog(6, "cmd_upload: enter args=[%s]", (args && *args) ? args : "(empty)");
+    dlog(6, "cmd_upload: enter args=[%s]",
+         (args && *args) ? args : "(empty)");
 
     Change_msg = 1;
     Change_prompt = 1;
-    
-	if (UPLOADPRGM == NULL || *UPLOADPRGM == '\0') {
-    dlog(3, "cmd_upload: UPLOADPRGM is empty");
-    output(MSG_FILES_OFF "\n\n");
-    return 0;
-}
 
-	if (!Current_conf) {
+    if (LRZ_BIN[0] == '\0') {
+        dlog(3, "cmd_upload: LRZ_BIN is empty");
+        output(MSG_FILES_OFF "\n\n");
+        return 0;
+    }
+
+    if (!Current_conf) {
         dlog(4, "cmd_upload: not in mailbox -> MSG_NOTINMBOX");
         output("\n%s\n\n", MSG_NOTINMBOX);
         return 0;
     }
+
     set_avail(Uid, 1);
     output("\n");
+
     if (getcwd(cwd, LINE_LEN) == NULL) {
         dlog(3, "cmd_upload: getcwd failed");
         return 0;
     }
+
     dlog(7, "cmd_upload: cwd=[%s]", cwd);
 
     signal(SIGNAL_NEW_TEXT, SIG_IGN);
     signal(SIGNAL_NEW_MSG, SIG_IGN);
+
     snprintf(filed, sizeof(filed), "%s/%d", FILE_DB, Current_conf);
     dlog(6, "cmd_upload: target dir=[%s]", filed);
-    
-     /*
+
+    /*
      * Sanity check: FILE_DB itself must exist and be usable.
      */
     if (access(FILE_DB, F_OK) == -1) {
@@ -6116,20 +6170,9 @@ cmd_upload(char *args)
     }
 
     if (access(FILE_DB, W_OK | X_OK) == -1) {
-        dlog(3, "cmd_upload: FILE_DB not writable/searchable: %s", FILE_DB);
-        output("\n"MSG_FILE_DB_ER"\n\n");
-
-        signal(SIGNAL_NEW_TEXT, baffo);
-        signal(SIGNAL_NEW_MSG, newmsg);
-        set_avail(Uid, 0);
-        return 0;
-    }
-	 /*
-     * Sanity check: upload program must be configured.
-     */
-    if (UPLOADPRGM == NULL || *UPLOADPRGM == '\0') {
-        dlog(3, "cmd_upload: UPLOADPRGM is empty");
-        output("\n"MSG_FILES_OFF"\n\n");
+        dlog(3, "cmd_upload: FILE_DB not writable/searchable: %s",
+             FILE_DB);
+        output("\n" MSG_FILE_DB_ER "\n\n");
 
         signal(SIGNAL_NEW_TEXT, baffo);
         signal(SIGNAL_NEW_MSG, newmsg);
@@ -6138,23 +6181,29 @@ cmd_upload(char *args)
     }
 
     /*
-     * If UPLOADPRGM contains a slash, verify it directly.
-     * If it is just "rz", execvp() will later search PATH.
+     * If LRZ_BIN contains a slash, verify it directly.
+     * If it is just "lrz", execvp() will later search PATH.
      */
-    if (strchr(UPLOADPRGM, '/') != NULL && access(UPLOADPRGM, X_OK) == -1) {
-        dlog(3, "cmd_upload: UPLOADPRGM not executable: %s", UPLOADPRGM);
-        output(MSG_ULPRGMERROR"\n\n");
+    if (strchr(LRZ_BIN, '/') != NULL &&
+        access(LRZ_BIN, X_OK) == -1) {
+        dlog(3, "cmd_upload: LRZ_BIN not executable: %s", LRZ_BIN);
+        output(MSG_ULPRGMERROR "\n\n");
 
         signal(SIGNAL_NEW_TEXT, baffo);
         signal(SIGNAL_NEW_MSG, newmsg);
         set_avail(Uid, 0);
         return 0;
     }
-    
-    /* Ensure upload dir within files root directory exists, if not create it */
+
+    /*
+     * Ensure upload dir within files root directory exists,
+     * if not create it.
+     */
     if (access(filed, F_OK) == -1) {
-        dlog(7, "cmd_upload: dir missing, creating %s (mode 0775)", filed);
-       if (mkdir(filed, 0775) == -1) {
+        dlog(7, "cmd_upload: dir missing, creating %s (mode 0775)",
+             filed);
+
+        if (mkdir(filed, 0775) == -1) {
             dlog(3, "cmd_upload: mkdir failed for %s", filed);
             output(MSG_FILE_DB_ER "\n\n");
 
@@ -6163,12 +6212,15 @@ cmd_upload(char *args)
             set_avail(Uid, 0);
             return 0;
         }
+
         if (chown(filed, getuid(), getgid()) == -1) {
-            dlog(5, "cmd_upload: chown failed (non-fatal) for %s", filed);
+            dlog(5,
+                 "cmd_upload: chown failed (non-fatal) for %s",
+                 filed);
         }
     }
 
-     if (chdir(filed) == -1) {
+    if (chdir(filed) == -1) {
         dlog(3, "cmd_upload: chdir failed to %s", filed);
         output(MSG_FILE_DB_ER "\n\n");
 
@@ -6177,14 +6229,18 @@ cmd_upload(char *args)
         set_avail(Uid, 0);
         return 0;
     }
+
     dlog(7, "cmd_upload: chdir -> %s", filed);
 
     pid_t pid = fork();
-       if (pid < 0) {
+
+    if (pid < 0) {
         dlog_with("files", 2, "cmd_upload: fork failed");
 
         if (chdir(cwd) == -1) {
-            dlog_errno_with("files", 3, "cmd_upload: chdir back to cwd after fork failure");
+            dlog_errno_with(
+                "files", 3,
+                "cmd_upload: chdir back to cwd after fork failure");
         }
 
         signal(SIGNAL_NEW_TEXT, baffo);
@@ -6195,17 +6251,24 @@ cmd_upload(char *args)
 
     if (pid > 0) {
         /* parent */
-        dlog(6, "cmd_upload: parent waiting for child pid=%d", (int)pid);
+        dlog(6, "cmd_upload: parent waiting for child pid=%d",
+             (int)pid);
+
         (void) wait(&status);
+
 #ifdef WIFEXITED
         if (WIFEXITED(status)) {
-            dlog(7, "cmd_upload: child exit=%d", WEXITSTATUS(status));
+            dlog(7, "cmd_upload: child exit=%d",
+                 WEXITSTATUS(status));
 
             if (WEXITSTATUS(status) == 127) {
-                output("\n"MSG_ULPRGMERROR"\n\n");
+                output("\n" MSG_ULPRGMERROR "\n\n");
 
                 if (chdir(cwd) == -1) {
-                    dlog(3, "cmd_upload: chdir back to cwd failed after exec failure: %s", cwd);
+                    dlog(3,
+                         "cmd_upload: chdir back to cwd failed "
+                         "after exec failure: %s",
+                         cwd);
                 }
 
                 signal(SIGNAL_NEW_TEXT, baffo);
@@ -6216,25 +6279,36 @@ cmd_upload(char *args)
         }
 
         if (WIFSIGNALED(status))
-            dlog(3, "cmd_upload: child signaled sig=%d", WTERMSIG(status));
+            dlog(3, "cmd_upload: child signaled sig=%d",
+                 WTERMSIG(status));
 #endif
+
     } else {
         /* child */
+        char *execv_args[3];
+        int i = 0;
+
         sig_reset();
 
-        /* Build args and exec */
-        char *execv_args[] = { (char*)UPLOADPRGM, (char*)ULOPT1, NULL };
+        /*
+         * Build argument list dynamically so an empty LRZ_ARGS
+         * does not become an empty argv entry.
+         */
+        execv_args[i++] = (char *)LRZ_BIN;
 
-        dlog(6, "cmd_upload: execvp %s %s (euid=%d)",
-             UPLOADPRGM, ULOPT1, (int)geteuid());
+        if (LRZ_ARGS[0])
+            execv_args[i++] = (char *)LRZ_ARGS;
 
-#if defined(LOGLEVEL) && (LOGLEVEL >= 8)
-        /* We can capture stderr here */
-#endif
+        execv_args[i] = NULL;
 
-        execvp(UPLOADPRGM, execv_args);
+        dlog(6,
+             "cmd_upload: execvp %s args=[%s] (euid=%d)",
+             LRZ_BIN, LRZ_ARGS, (int)geteuid());
+
+        execvp(LRZ_BIN, execv_args);
+
         /* If we get here, exec failed */
-        dlog(2, "cmd_upload: execvp failed for %s", UPLOADPRGM);
+        dlog(2, "cmd_upload: execvp failed for %s", LRZ_BIN);
         _exit(127);
     }
 
@@ -6242,6 +6316,7 @@ cmd_upload(char *args)
         dlog(3, "cmd_upload: chdir back to cwd failed: %s", cwd);
         return 0;
     }
+
     dlog(7, "cmd_upload: chdir back -> %s", cwd);
 
     signal(SIGNAL_NEW_TEXT, baffo);
@@ -6249,18 +6324,20 @@ cmd_upload(char *args)
 
     /* Rebuild index after upload */
     dlog(6, "cmd_upload: rebuild_index_file()");
+
     if (rebuild_index_file() == -1) {
         dlog(3, "cmd_upload: rebuild_index_file FAILED");
-        output("\n%s\n\n", "Failed to rebuild index file."); /* original stderr line, but visible to user now */
+        output("\n%s\n\n", "Failed to rebuild index file.");
         set_avail(Uid, 0);
         return -1;
     }
 
     /* Tell user to describe file */
-    output(MSG_SUCCESSUL"\n\n");
+    output(MSG_SUCCESSUL "\n\n");
 
     set_avail(Uid, 0);
     dlog(6, "cmd_upload: leave OK");
+
     return 0;
 }
 
@@ -6277,22 +6354,24 @@ cmd_download(char *args)
     LONG_LINE filed;
     sigset_t sigmask, oldsigmask;
 
-    dlog(6, "cmd_download: enter args=[%s]", (args && *args) ? args : "(empty)");
+    dlog(6, "cmd_download: enter args=[%s]",
+         (args && *args) ? args : "(empty)");
 
     Change_msg = 1;
     Change_prompt = 1;
-    
-	    if (DOWNLOADPRGM == NULL || *DOWNLOADPRGM == '\0') {
-        dlog(4, "cmd_download: DOWNLOADPRGM is empty, download disabled");
+
+    if (LSZ_BIN[0] == '\0') {
+        dlog(4, "cmd_download: LSZ_BIN is empty, download disabled");
         output("\n%s\n\n", MSG_FILES_OFF);
         return 0;
     }
 
-	if (!Current_conf) {
+    if (!Current_conf) {
         dlog(4, "cmd_download: not in mailbox -> MSG_NOTINMBOX");
         output("\n%s\n\n", MSG_NOTINMBOX);
         return 0;
     }
+
     output("\n");
 
     if (*args == '\0') {
@@ -6308,95 +6387,134 @@ cmd_download(char *args)
         return 0;
     }
 
-    if (strchr(fname, '/') || strchr(fname, ';') || strchr(fname, ':') ||
-        strchr(fname, '<') || strchr(fname, '>') || strchr(fname, '?') ||
-        strchr(fname, '*') || strchr(fname, '|') || strchr(fname, '&')) {
+    if (strchr(fname, '/') ||
+        strchr(fname, ';') ||
+        strchr(fname, ':') ||
+        strchr(fname, '<') ||
+        strchr(fname, '>') ||
+        strchr(fname, '?') ||
+        strchr(fname, '*') ||
+        strchr(fname, '|') ||
+        strchr(fname, '&')) {
+
         dlog(5, "cmd_download: bad filename rejected: [%s]", fname);
         output("%s\n\n", MSG_BADFNAME);
         return 0;
     }
+
     if (getcwd(cwd, LINE_LEN) == NULL) {
         dlog(3, "cmd_download: getcwd failed");
         return 0;
     }
+
     dlog(7, "cmd_download: cwd=[%s] file=[%s]", cwd, fname);
 
     sigemptyset(&sigmask);
     sigaddset(&sigmask, SIGNAL_NEW_TEXT);
     sigaddset(&sigmask, SIGNAL_NEW_MSG);
     sigprocmask(SIG_BLOCK, &sigmask, &oldsigmask);
+
     signal(SIGNAL_NEW_TEXT, SIG_IGN);
     signal(SIGNAL_NEW_MSG, SIG_IGN);
+
     set_avail(Uid, 1);
-    snprintf(filed, sizeof(filed), "%s/%d", FILE_DB, Current_conf);
+
+    snprintf(filed, sizeof(filed), "%s/%d",
+             FILE_DB, Current_conf);
+
     dlog(6, "cmd_download: file dir=[%s]", filed);
+
     if (chdir(filed) == -1) {
         dlog(3, "cmd_download: chdir failed to %s", filed);
         sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
         return 0;
     }
+
     dlog(7, "cmd_download: chdir -> %s", filed);
 
     pid_t pid = fork();
-	if (pid < 0) {
-    dlog_with("files", 2, "cmd_download: fork failed");
-    if (chdir(cwd) == -1) {
-        dlog_errno_with("files", 3, "cmd_download: chdir back to cwd after fork failure");
+
+    if (pid < 0) {
+        dlog_with("files", 2, "cmd_download: fork failed");
+
+        if (chdir(cwd) == -1) {
+            dlog_errno_with(
+                "files", 3,
+                "cmd_download: chdir back to cwd after fork failure");
+        }
+
+        sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
+        return -1;
     }
-    sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
-    return -1;
-	}
 
     if (pid == 0) {
         /* child */
+        char *args_exec[4];
+        int i = 0;
+
         sig_reset();
 
-        /* Build argument list dynamically, omitting empty args */
-        char *args_exec[10];
-        int i = 0;
-        args_exec[i++] = (char*)DOWNLOADPRGM;
-        if (DLOPT1[0]) args_exec[i++] = (char*)DLOPT1;
-        if (DLOPT2[0]) args_exec[i++] = (char*)DLOPT2;
-        if (DLOPT3[0]) args_exec[i++] = (char*)DLOPT3;
+        /*
+         * Build argument list dynamically so an empty LSZ_ARGS
+         * does not become an empty argv entry.
+         */
+        args_exec[i++] = (char *)LSZ_BIN;
+
+        if (LSZ_ARGS[0])
+            args_exec[i++] = (char *)LSZ_ARGS;
+
         args_exec[i++] = fname;
-        args_exec[i]   = NULL;
+        args_exec[i] = NULL;
 
-        dlog(6, "cmd_download: execvp %s (euid=%d) with file=[%s]",
-             DOWNLOADPRGM, (int)geteuid(), fname);
-#if defined(LOGLEVEL) && (LOGLEVEL >= 8)
-        /* If we later want to redirect stderr, we can exec /bin/sh -c here */
-#endif
+        dlog(6,
+             "cmd_download: execvp %s args=[%s] "
+             "(euid=%d) with file=[%s]",
+             LSZ_BIN, LSZ_ARGS, (int)geteuid(), fname);
 
-        execvp(DOWNLOADPRGM, args_exec);
-        dlog(2, "cmd_download: execvp failed for %s", DOWNLOADPRGM);
+        execvp(LSZ_BIN, args_exec);
+
+        dlog(2, "cmd_download: execvp failed for %s", LSZ_BIN);
         _exit(127);
+
     } else {
         int status = 0;
-        dlog(6, "cmd_download: parent waiting pid=%d", (int)pid);
+
+        dlog(6, "cmd_download: parent waiting pid=%d",
+             (int)pid);
+
         waitpid(pid, &status, 0);
+
 #ifdef WIFEXITED
         if (WIFEXITED(status))
-            dlog(7, "cmd_download: child exit=%d", WEXITSTATUS(status));
+            dlog(7, "cmd_download: child exit=%d",
+                 WEXITSTATUS(status));
+
         if (WIFSIGNALED(status))
-            dlog(3, "cmd_download: child signaled sig=%d", WTERMSIG(status));
+            dlog(3, "cmd_download: child signaled sig=%d",
+                 WTERMSIG(status));
 #endif
     }
 
     tty_raw();
+
     signal(SIGNAL_NEW_TEXT, baffo);
     signal(SIGNAL_NEW_MSG, newmsg);
     sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
 
- 	  if (chdir(cwd) == -1) {
-    dlog(3, "cmd_download: chdir back failed to %s", cwd);
-    return 0;
-	}
+    if (chdir(cwd) == -1) {
+        dlog(3, "cmd_download: chdir back failed to %s", cwd);
+        return 0;
+    }
+
     dlog(7, "cmd_download: chdir back -> %s", cwd);
 
     tty_raw();
     output("\n");
+
     set_avail(Uid, 0);
+
     dlog(6, "cmd_download: leave OK");
+
     return 0;
 }
 
@@ -7079,11 +7197,6 @@ cmd_nethack(char *args)
 
     if (!ENABLE_NETHACK) {
         output("\n%s\n\n", MSG_NETHACK_OFF);
-        return 0;
-    }
-
-    if (!HAVE_NETHACK) {
-        output("\n" MSG_DEP_MISSING "\n\n", "nethack");
         return 0;
     }
 
@@ -8020,11 +8133,6 @@ cmd_zork(char *args)
         return 0;
     }
 
-    if (!HAVE_FROTZ) {
-        output("\n" MSG_DEP_MISSING "\n\n", "frotz");
-        return 0;
-    }
-
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -8171,11 +8279,6 @@ cmd_bbslink(char *args)
 
     if (!ENABLE_BBSLINK) {
         output("\n" MSG_BBSLINK_OFF "\n\n");
-        return 0;
-    }
-
-    if (Utf8 && !HAVE_CP437_WRAPPER) {
-        output("\n" MSG_DEP_MISSING "\n\n", "cp437");
         return 0;
     }
 
