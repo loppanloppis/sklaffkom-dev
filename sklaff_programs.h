@@ -4,6 +4,7 @@
  *
  * These defaults preserve legacy behaviour when SklaffKOM is built
  * without ./configure. A generated config.h may override them.
+ * 2026-10-06 PL 
  */
 
 #ifndef SKLAFF_PROGRAMS_H
@@ -64,6 +65,54 @@ https://github.com/joakimmelin/sklaffkom/wiki/Install-Instructions */
 
 #ifndef LSZ_ARGS
 #define LSZ_ARGS "-Eq"
+#endif
+
+/* Search for text strings in articles*/
+
+#ifndef GREP_BIN
+#define GREP_BIN "/usr/bin/grep"
+#endif
+
+#ifndef GREP_ARGS
+#define GREP_ARGS "-i -F"
+#endif
+
+/* File listings */
+
+#ifndef LS_BIN
+#define LS_BIN "/bin/ls"
+#endif
+
+#ifndef LS_ARGS
+#define LS_ARGS "-1"
+#endif
+
+/* Send e-mail */
+
+#ifndef SENDMAIL_BIN
+#define SENDMAIL_BIN "/usr/sbin/sendmail"
+#endif
+
+/* Schedule commands for later execution */
+
+#ifndef AT_BIN
+#define AT_BIN "/usr/bin/at"
+#endif
+
+/* Print text to standard output */
+
+#ifndef ECHO_BIN
+#define ECHO_BIN "/bin/echo"
+#endif
+
+/* Render HTML as terminal-friendly text */
+#ifndef LYNX_BIN
+#define LYNX_BIN "/usr/bin/lynx"
+#endif
+
+/* Change user password */
+#ifndef PASSWD_BIN
+#define PASSWD_BIN "/usr/bin/passwd"
 #endif
 
 #endif /* SKLAFF_PROGRAMS_H */

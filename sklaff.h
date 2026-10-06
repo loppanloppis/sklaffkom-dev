@@ -48,7 +48,7 @@
 #endif
 
 /* Number of InterBBS Oneliners displayed at logout. 0 to disable. */
-#define IBOL_LOGOUT_COUNT 0
+#define IBOL_LOGOUT_COUNT 5
 
 /* InterBBS Oneliner (IBOL) transport settings. */
 #define IBOL_ONELINER_MAX 65
@@ -101,40 +101,24 @@
 #define EXP_DEF_NEWS	10      /* News confs	  */
 #define EXP_DEF_FTN     10      /* FTN confs */     
 
-/* System files used by SklaffKOM */
+/* System files and paths used by SklaffKOM */
 
 #define UTMP_REC 	"/var/run/utmp"
-#define MAIL_LIB	"/var/mail"
+#define MAIL_SPOOL	"/var/mail"
 #define NEWS_SPOOL	"/usr/local/news/spool/articles"
 #define NEWS_GROUPS	"/usr/local/news/db/active"
 #define FTN_SPOOL 	"/usr/local/ftn/echomail"    /* modified on 2026-06-09, PL */
 #define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail" /* modified on 2026-07-06, PL */
 
 /* Programs used by SklaffKOM */
+#define SURVREPORT 	SKLAFFBIN "/srep"
 
-#define SKLAFFSHELL	"/bin/sh"
-#define SKLAFFPASSWD 	"/usr/bin/passwd"
-#define SKLAFFGREP 	"/usr/bin/grep"
-#define GREPOPT		"-i -F" /* option to grep */
-#define SKLAFFAT 	"/usr/bin/at"
-#define SKLAFFECHO 	"/bin/echo"
-
-/* Everything related to Frotz and Zork */
+/* Some games settings misplaced here for now ;) */
 #define FROTZ_HOME      DOORDIR "/frotz"              /* -> /doors/frotz on a standard install */
 #define FROTZ_ZORK1     "zork1.z3"
 #define FROTZ_ZORK2     "zork2.z3"
 #define FROTZ_ZORK3     "zork3.z3"
-
-/* OTHER NEW (2025) external commands */
-#define DEFAULT_BBSLINK_PATH    "/doors/bbslink"
 #define BBSLINK_INTRO           SKLAFFDIR "/etc/bbslink"
-
-#define LSPRGM		"/bin/ls"
-#define LSOPT		"-1"    /* option to make one column */
-#define MVPRGM		"/bin/mv"
-#define MAILPRGM	"/usr/sbin/sendmail"
-#define HTMLPRGM	"/usr/bin/lynx" /* lynx browser / HTML-to-text renderer */
-#define SURVREPORT 	SKLAFFBIN "/srep"
 
 /* SklaffKOM-files */
 
@@ -144,6 +128,7 @@
 #define MBOX_DB		SKLAFFDIR "/mbox"
 #define LOGDIR   	SKLAFFDIR "/log"
 #define DOORDIR		"/doors"
+#define BBSLINK_DIR     DOORDIR "/bbslink"
 #define USER_FILE 	SKLAFFDIR "/etc/user"
 #define	ACTIVE_FILE 	SKLAFFDIR "/etc/active"
 #define CONF_FILE 	SKLAFFDIR "/etc/conf"

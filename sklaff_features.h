@@ -26,7 +26,7 @@
  * UTF-8 sessions also require the CP437 wrapper.
  */
 #ifndef ENABLE_BBSLINK
-#define ENABLE_BBSLINK 0
+#define ENABLE_BBSLINK 1
 #endif
 
 /*

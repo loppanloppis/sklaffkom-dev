@@ -2852,9 +2852,9 @@ cmd_mail(char *args)
             unlink(fname);
             output("%s\n\n", MSG_NETMAILED);
         } else {
-            snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
+            snprintf(cmdline, sizeof(cmdline), "%s %s", SENDMAIL_BIN, mailrec);
             if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
-                output("%s\n\n", MSG_NOMAIL);                     /* Cannot exec mailprgm. */
+                output("%s\n\n", MSG_NOMAIL);                     /* Cannot exec mailprgm / sendmail. */
                 return -1;
             }
             if ((fd = open_file(fname, 0)) == -1) {
@@ -3160,7 +3160,7 @@ cmd_personal(char *args)
             return -1;
         }
     } else {
-        snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
+        snprintf(cmdline, sizeof(cmdline), "%s %s", SENDMAIL_BIN, mailrec);
         if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
             output("%s\n\n", MSG_NOMAIL);
             return -1;
@@ -4009,7 +4009,7 @@ cmd_comment(char *args)
             return 0;
         }
 
-        snprintf(cmdline, sizeof(cmdline), "%s %s", MAILPRGM, mailrec);
+        snprintf(cmdline, sizeof(cmdline), "%s %s", SENDMAIL_BIN, mailrec);
         dlog(6, "cmd_comment: MAIL start cmd=[%s]", cmdline);
 
         if ((pipe = (FILE *) popen(cmdline, "w")) == NULL) {
@@ -5939,7 +5939,7 @@ cmd_change_passwd(char *args)
     if (fork()) {
         (void) wait(NULL);
     } else {
-        execl(SKLAFFPASSWD, SKLAFFPASSWD, (char *) 0);
+        execl(PASSWD_BIN, PASSWD_BIN, (char *) 0);
     }
     tty_raw();
     sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
@@ -7798,8 +7798,8 @@ cmd_post_survey(char *args)
 
 #ifdef SOLARIS
         snprintf(cmdline, sizeof(cmdline), "%s '%s %d %ld' | %s -t %4d%02d%02d%02d%02d 2>/dev/null",
-            SKLAFFECHO, SURVREPORT, confid, textnum,
-            SKLAFFAT,
+            ECHO_BIN, SURVREPORT, confid, textnum,
+            AT_BIN,
             reporttime.tm_year + 1900,
             reporttime.tm_mon + 1,
             reporttime.tm_mday,
@@ -7808,8 +7808,8 @@ cmd_post_survey(char *args)
 #endif
 #ifdef LINUX
         snprintf(cmdline, sizeof(cmdline), "%s '%s %d %ld' | %s %02d%02d%02d %02d%02d 2>/dev/null",
-            SKLAFFECHO, SURVREPORT, confid, textnum,
-            SKLAFFAT,
+            ECHO_BIN, SURVREPORT, confid, textnum,
+            AT_BIN,
             reporttime.tm_mday,
             reporttime.tm_hour,
             reporttime.tm_min,
@@ -7818,8 +7818,8 @@ cmd_post_survey(char *args)
 #endif
 #ifdef FREEBSD
         snprintf(cmdline, sizeof(cmdline), "%s '%s %d %ld' | %s %02d%02d %02d%02d%02d 2>/dev/null",
-            SKLAFFECHO, SURVREPORT, confid, textnum,
-            SKLAFFAT,
+            ECHO_BIN, SURVREPORT, confid, textnum,
+            AT_BIN,
             reporttime.tm_hour,
             reporttime.tm_min,
             reporttime.tm_mon + 1,
@@ -8264,12 +8264,13 @@ cmd_zork(char *args)
  * configured games found in BBSLINK_INTRO.
  *
  * With a game code argument, verifies that the game exists in
- * BBSLINK_INTRO and launches DEFAULT_BBSLINK_PATH/bbslink.py.
+ * BBSLINK_INTRO and launches BBSLINK_DIR/bbslink.py.
  *
- * If DEFAULT_BBSLINK_PATH is empty, BBSLink is considered disabled.
+ * If BBSLINK_DIR is empty, BBSLink is considered disabled.
  *
  * 2026-05-30 PL
  */
+ 
 int
 cmd_bbslink(char *args)
 {
@@ -8285,7 +8286,7 @@ cmd_bbslink(char *args)
     Change_msg = 1;
     Change_prompt = 1;
 
-    if (DEFAULT_BBSLINK_PATH[0] == '\0') {
+    if (BBSLINK_DIR[0] == '\0') {
         output("\n" MSG_BBSLINK_OFF "\n\n");
         return 0;
     }
@@ -8308,7 +8309,8 @@ cmd_bbslink(char *args)
         return 0;
     }
 
-    snprintf(script_path, sizeof(script_path), "%s/bbslink.py", DEFAULT_BBSLINK_PATH);
+    snprintf(script_path, sizeof(script_path),
+             "%s/bbslink.py", BBSLINK_DIR);
 
     if (Utf8) {
         const char *cmd[] = {
@@ -8318,6 +8320,7 @@ cmd_bbslink(char *args)
             uid_buf,
             NULL
         };
+
         return run_external_cmd_args(cmd, 0);
     } else {
         const char *cmd[] = {
@@ -8326,10 +8329,10 @@ cmd_bbslink(char *args)
             uid_buf,
             NULL
         };
+
         return run_external_cmd_args(cmd, 0);
     }
 }
-
 /* 
  * cmd_footnote - allows adding a "footnote" to a text
  * args: textnumber (args)

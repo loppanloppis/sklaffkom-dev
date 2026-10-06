@@ -129,7 +129,7 @@ errlogin:
         int d__ = dup(1);
         if (d__ >= 0) close(d__);
     }
-        execl(MAILPRGM, MAILPRGM, SKLAFF_ACCT, (char *) 0);
+        execl(SENDMAIL_BIN, SENDMAIL_BIN, SKLAFF_ACCT, (char *) 0);
     }
     unlink(fname);
     fd = open_file(ACCT_LOG, OPEN_QUIET | OPEN_CREATE);

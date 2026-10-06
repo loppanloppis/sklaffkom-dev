@@ -850,9 +850,15 @@ grep(int conf, char *search)
     strcpy(greparg, "[1-9] [1-9][0-9]");        /* Text 1-99 */
 
     while (found < 2 && curtext <= lasttext) {
-        snprintf(cmdline, sizeof(cmdline), "%s %s \'%s\' %s 2>/dev/null",
-            SKLAFFGREP, GREPOPT, tsear, greparg);
-
+        if (GREP_ARGS[0]) {
+            snprintf(cmdline, sizeof(cmdline),
+                "%s %s '%s' %s 2>/dev/null",
+                GREP_BIN, GREP_ARGS, tsear, greparg);
+        } else {
+            snprintf(cmdline, sizeof(cmdline),
+                "%s '%s' %s 2>/dev/null",
+                GREP_BIN, tsear, greparg);
+        }
         if ((pipe = (FILE *) popen(cmdline, "r")) == NULL) {
             output("%s\n\n", MSG_NOGREP);
             return -1;
