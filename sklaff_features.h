@@ -19,15 +19,7 @@
 #define ENABLE_USENET_POSTING 1
 #endif
 
-/*
- * QWK batch download support.
- *
- * This feature is disabled by default until the legacy QWK
- * implementation has been tested on modern systems.
- */
-#ifndef ENABLE_QWK
-#define ENABLE_QWK 0
-#endif
+/* Optional games / doors */
 
 /*
  * BBSLink door games.
@@ -55,6 +47,16 @@
  */
 #ifndef ENABLE_NETHACK
 #define ENABLE_NETHACK 1
+#endif
+
+/*
+ * QWK batch download support.
+ *
+ * This feature is disabled by default until the legacy QWK
+ * implementation has been tested on modern systems.
+ */
+#ifndef ENABLE_QWK
+#define ENABLE_QWK 0
 #endif
 
 #endif /* SKLAFF_FEATURES_H */

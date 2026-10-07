@@ -3945,7 +3945,7 @@ cmd_comment(char *args)
             }
         } else
             nc = Current_conf;
-            ptr = &nc;
+        ptr = &nc;
     } else {
         nc = conf;
         ptr = NULL;
