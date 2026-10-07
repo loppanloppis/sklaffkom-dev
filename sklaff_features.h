@@ -9,6 +9,16 @@
 #ifndef SKLAFF_FEATURES_H
 #define SKLAFF_FEATURES_H
 
+/* Optional transport methods */
+
+#ifndef ENABLE_OUTBOUND_EMAIL
+#define ENABLE_OUTBOUND_EMAIL 1
+#endif
+
+#ifndef ENABLE_USENET_POSTING
+#define ENABLE_USENET_POSTING 1
+#endif
+
 /*
  * QWK batch download support.
  *

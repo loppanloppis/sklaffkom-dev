@@ -2769,7 +2769,13 @@ cmd_mail(char *args)
         
     } else if (strchr(args, '@')) {
 
-            strcpy(tmp, args);
+
+        if (!ENABLE_OUTBOUND_EMAIL) {
+            output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
+            return 0;
+        }
+        
+        strcpy(tmp, args);
 
             /* Only allow a minimum of nonalphanum chars in mail address */
             if (strip_string(tmp, "@+.-_%") != 0 || tmp[0] == '-') {
@@ -3046,6 +3052,13 @@ cmd_personal(char *args)
     }
 
     if (!commentuid && !is_ftn_personal) {
+    
+    if (!ENABLE_OUTBOUND_EMAIL) {
+        output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
+        free_text_entry(&te);
+        return 0;
+    }
+    
         tb = te.body;
         while (tb) {
             if ((ptr2 = strstr(tb->line, MSG_EMFROM)) != NULL)
@@ -3284,6 +3297,13 @@ cmd_post_text(char *args)
     }
     th.author = Uid;
     ce = get_conf_struct(confid);
+    
+    if (conf_is_news(ce->type) && !ENABLE_USENET_POSTING) {
+        dlog(5, "cmd_post_text: Usenet posting disabled");
+        output("\n%s\n\n", MSG_USENET_POSTING_OFF);
+        return 0;
+    }
+    
 #ifndef POSTING_OK
     if (conf_is_external(ce->type)) {
         dlog(5, "cmd_post_text: external conf but POSTING_OK not defined -> MSG_NONEWS");
@@ -3806,6 +3826,17 @@ cmd_comment(char *args)
         }
     }
 
+    /*
+     * Internet mail replies require outbound e-mail support.
+     * Local mail and FTN netmail are unaffected.
+     */
+
+    if (!Current_conf && !commentuid && !is_netmail_reply &&
+        !ENABLE_OUTBOUND_EMAIL) {
+        output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
+        free_text_entry(&te);
+        return 0;
+    }
             /*
             * Only mail and Usenet replies need an email address extracted from From:.
             * Imported FTN texts also have author 0, but use an FTN address instead.
@@ -3914,10 +3945,22 @@ cmd_comment(char *args)
             }
         } else
             nc = Current_conf;
-        ptr = &nc;
+            ptr = &nc;
     } else {
         nc = conf;
         ptr = NULL;
+    }
+
+    if (nc > 0) {
+        ce = get_conf_struct(nc);
+
+        if (ce != NULL &&
+            conf_is_news(ce->type) &&
+            !ENABLE_USENET_POSTING) {
+            dlog(5, "cmd_comment: Usenet posting disabled");
+            output("\n%s\n\n", MSG_USENET_POSTING_OFF);
+            return 0;
+        }
     }
 
 #ifndef POSTING_OK

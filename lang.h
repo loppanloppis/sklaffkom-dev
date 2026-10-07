@@ -871,6 +871,8 @@
 #define MSG_QWK_OFF 	"QWK-st|d {r inte aktiverat p} detta system."
 #define MSG_ZORK_OFF 	"Zork {r inte aktiverat p} detta system."
 #define MSG_NETHACK_OFF "Nethack {r inte aktiverat p} detta system."
+#define MSG_OUTBOUND_EMAIL_OFF "Utg}ende e-post {r inte aktiverad p} detta system."
+#define MSG_USENET_POSTING_OFF "Utg}ende Usenet-postning {r inte aktiverad p} detta system."
 
 /* sklaff_dependencies.h */
 
@@ -1715,6 +1717,8 @@
 #define MSG_QWK_OFF "QWK support is not enabled on this system."
 #define MSG_ZORK_OFF "Zork is not enabled on this system."
 #define MSG_NETHACK_OFF "Nethack is not enabled on this system."
+#define MSG_OUTBOUND_EMAIL_OFF "Outbound e-mail is not enabled on this system."
+#define MSG_USENET_POSTING_OFF "Usenet posting is not enabled on this system."
 
 /* sklaff_dependencies.h */
 #define MSG_DEP_MISSING "Required external program is unavailable: %s."
