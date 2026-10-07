@@ -130,7 +130,8 @@ errlogin:
         if (d__ >= 0) close(d__);
     }
         execl(SENDMAIL_BIN, SENDMAIL_BIN, SKLAFF_ACCT, (char *) 0);
-    }
+        _exit(127); 
+   }
     unlink(fname);
     fd = open_file(ACCT_LOG, OPEN_QUIET | OPEN_CREATE);
     lseek(fd, 0L, 2);
