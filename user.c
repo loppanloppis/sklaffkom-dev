@@ -38,9 +38,6 @@
 #include <stdio.h>    /* FILE, fopen, fgets, sscanf, fclose */
 #include <string.h>   /* strcmp, strchr */
 #include <strings.h>  /* strcasecmp */
-#if defined(LINUX) || defined(__linux__)
-#include <bsd/string.h>  // Required for strlcpy on Linux via libbsd
-#endif
 
 /*
  * can_change_realname - check if the system allows real name changes

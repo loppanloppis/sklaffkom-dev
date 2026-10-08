@@ -31,10 +31,6 @@
 
 #include "sklaff.h"
 
-#ifdef LINUX
-#include <bsd/string.h>
-#endif
-
 #define BBSLINK_TITLE_WIDTH 32
 
 static void

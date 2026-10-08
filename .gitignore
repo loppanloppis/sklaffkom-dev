@@ -19,3 +19,5 @@ ibolimport
 dist/
 forwardtoyell
 forwardtoconf
+config.h
+config.mk

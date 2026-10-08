@@ -27,9 +27,8 @@ CFLAGS = $(SKLAFFFLAGS) -O2 -g -pipe -Wall
 #uncomment for BSD
 #LIBS=-lsklaff -lm
 
-# uncomment for LINUX/DEBIAN/SUNOS/ULTRIX
-# debian users : sudo apt install libbsd-dev
-LIBS=-lsklaff -lbsd -lm
+# uncomment for LINUX
+LIBS=-lsklaff -lm
 
 # uncomment for SOLARIS
 #CFLAGS=-g -I/usr/ucbinclude
@@ -127,8 +126,8 @@ newstoss: $(SKLAFFLIB) $(NTOSSOBJ) $(OBJS)
 	$(CC) -o newstoss $(NTOSSOBJ) $(OBJS) -Llib $(LIBS)
 #	strip newstoss
 
-ftntoss: $(FTNTOBJ)
-	$(CC) -o ftntoss $(FTNTOBJ) $(CFLAGS) -lbsd
+ftntoss: $(SKLAFFLIB) $(FTNTOBJ)
+	$(CC) -o ftntoss $(FTNTOBJ) -Llib $(LIBS)
 #	strip ftntoss
 
 survreport: $(SKLAFFLIB) $(SURVREPOBJ) $(OBJS)
