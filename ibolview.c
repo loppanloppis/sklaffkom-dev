@@ -240,10 +240,10 @@ prompt_ibol_oneliner(void)
     input("", answer, 4, 0, 0, 0);
     down_string(answer);
 
-    if (answer[0] != MSG_YESANSWER)
+    if (answer[0] != MSG_YESANSWER) {
         output("\n");
-    return 0;
-
+        return 0;
+    }
     if (output("%s", MSG_IBOL_LINE_PROMPT) == -1)
         return -1;
 
