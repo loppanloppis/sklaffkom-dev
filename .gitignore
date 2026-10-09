@@ -21,3 +21,4 @@ forwardtoyell
 forwardtoconf
 config.h
 config.mk
+Makefile

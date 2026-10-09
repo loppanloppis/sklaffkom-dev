@@ -11,13 +11,13 @@ SKLAFFDIR=/usr/local/sklaff
 # Run ./configure for automatic platform detection.
 #
 
-SKLAFFSYS = LINUX
-CC=cc
+SKLAFFSYS=@SKLAFFSYS@
+CC=@CC@
 
 SKLAFFFLAGS = -D$(SKLAFFSYS) -DSKLAFFDIR=\"$(SKLAFFDIR)\" -DSKLAFFBIN=\"$(SKLAFFBIN)\"
 CFLAGS = $(SKLAFFFLAGS) -O2 -g -pipe -Wall
 
-LIBS=-lsklaff -lm
+LIBS=-lsklaff @LIBS@
 
 #
 # Change nothing below this line

@@ -5,10 +5,15 @@ v1.33-rc3 Thursday 08 October 2026
 
 * libbsd Linux-dependency removed - our own strlcat now lives in lib/compat.c.
 
+* Makefile cleanup.
+
+* ./configure-progress. Now detects OS, libs and compiler, and generates
+  Makefile.
+
 v1.33-rc2 Thursday 13 August 2026
 
 * Started working on a ./configure script. Lots of cleaning, renaming,
-  refactoring and structuring done.
+  refactoring and structuring done, primarily in sklaff.h.
 
 * forwardtoconf revived! Functionally it's ok, just html missing
 
