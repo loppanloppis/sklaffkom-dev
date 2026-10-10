@@ -16,6 +16,64 @@ LDFLAGS=${LDFLAGS:-}
 CONFIG_LIBS=""
 STRL_PROVIDER=""
 
+#
+# Find a real executable in PATH.  Do not use command -v here: some core
+# utilities, notably echo, may be reported as shell builtins instead of the
+# external program SklaffKOM needs for exec().
+#
+find_program()
+{
+    prog=$1
+    search_path=${PATH:-/usr/local/bin:/usr/bin:/bin}
+
+    case "$prog" in
+        */*)
+            if [ -f "$prog" ] && [ -x "$prog" ]; then
+                printf '%s\n' "$prog"
+                return 0
+            fi
+            return 1
+            ;;
+    esac
+
+    old_IFS=$IFS
+    IFS=:
+
+    for dir in $search_path; do
+        [ -n "$dir" ] || dir=.
+
+        if [ -f "$dir/$prog" ] && [ -x "$dir/$prog" ]; then
+            IFS=$old_IFS
+            printf '%s\n' "$dir/$prog"
+            return 0
+        fi
+    done
+
+    IFS=$old_IFS
+    return 1
+}
+
+# Find the first available program from a list of equivalent names.
+# This is useful for tools such as lrzsz, which may be installed as
+# lrz/lsz or under the traditional rz/sz names.
+find_first_program()
+{
+    for prog in "$@"; do
+        if path=`find_program "$prog"`; then
+            printf '%s\n' "$path"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Escape a pathname for use inside a C string literal.
+c_escape_string()
+{
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 tmpdir="${TMPDIR:-/tmp}/sklaff-configure.$$"
 
 cleanup()
@@ -221,6 +279,93 @@ else
     exit 1
 fi
 
+
+#
+# Core runtime tools
+#
+# These programs are required by the base SklaffKOM runtime.  Missing core
+# tools are fatal; optional transports and utilities are detected separately.
+#
+
+printf "%-36s" "Checking for grep..."
+if GREP_BIN=`find_program grep`; then
+    echo "$GREP_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: grep is required." >&2
+    exit 1
+fi
+
+printf "%-36s" "Checking for ls..."
+if LS_BIN=`find_program ls`; then
+    echo "$LS_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: ls is required." >&2
+    exit 1
+fi
+
+printf "%-36s" "Checking for echo..."
+if ECHO_BIN=`find_program echo`; then
+    echo "$ECHO_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: echo is required." >&2
+    exit 1
+fi
+
+printf "%-36s" "Checking for passwd..."
+if PASSWD_BIN=`find_program passwd`; then
+    echo "$PASSWD_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: passwd is required." >&2
+    exit 1
+fi
+
+
+#
+# ZMODEM file transfer tools
+#
+# lrzsz is commonly installed either as lrz/lsz or under the traditional
+# rz/sz names.  Prefer lrz/lsz when both forms are available.
+#
+
+printf "%-36s" "Checking for ZMODEM receiver..."
+if LRZ_BIN=`find_first_program lrz rz`; then
+    echo "$LRZ_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: a ZMODEM receiver is required (tried lrz and rz)." >&2
+    echo "configure: install lrzsz and run ./configure again." >&2
+    exit 1
+fi
+
+printf "%-36s" "Checking for ZMODEM sender..."
+if LSZ_BIN=`find_first_program lsz sz`; then
+    echo "$LSZ_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: a ZMODEM sender is required (tried lsz and sz)." >&2
+    echo "configure: install lrzsz and run ./configure again." >&2
+    exit 1
+fi
+
+# Quote detected paths for config.h.
+GREP_BIN_C=`c_escape_string "$GREP_BIN"`
+LS_BIN_C=`c_escape_string "$LS_BIN"`
+ECHO_BIN_C=`c_escape_string "$ECHO_BIN"`
+PASSWD_BIN_C=`c_escape_string "$PASSWD_BIN"`
+LRZ_BIN_C=`c_escape_string "$LRZ_BIN"`
+LSZ_BIN_C=`c_escape_string "$LSZ_BIN"`
+
+
 #
 # config.h
 #
@@ -237,6 +382,16 @@ cat > config.h.tmp <<EOF_CONFIG
 #define SKLAFF_CONFIG_H
 
 #define SKLAFF_CONFIGURED 1
+
+/* Core runtime tools */
+#define GREP_BIN "$GREP_BIN_C"
+#define LS_BIN "$LS_BIN_C"
+#define ECHO_BIN "$ECHO_BIN_C"
+#define PASSWD_BIN "$PASSWD_BIN_C"
+
+/* ZMODEM file transfer tools */
+#define LRZ_BIN "$LRZ_BIN_C"
+#define LSZ_BIN "$LSZ_BIN_C"
 
 #endif /* SKLAFF_CONFIG_H */
 EOF_CONFIG
