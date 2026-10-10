@@ -6152,6 +6152,32 @@ cmd_licens(char *args)
 }
 #undef LOGTAG
 #define LOGTAG "files"
+
+static int
+prepare_zmodem_child(void)
+{
+    uid_t euid = geteuid();
+    gid_t egid = getegid();
+
+    /*
+     * SklaffKOM runs setuid sklaff.  lrzsz refuses to run when
+     * real and effective IDs differ, so make the inherited
+     * SklaffKOM identity permanent in the transfer child.
+     */
+    if (setregid(egid, egid) == -1)
+        return -1;
+
+    if (setreuid(euid, euid) == -1)
+        return -1;
+
+    if (getuid() != geteuid() || getgid() != getegid())
+        return -1;
+
+    setenv("ZMODEM_RESTRICTED", "1", 1);
+
+    return 0;
+}
+
 /*
  * cmd_upload - uploads file(s)
  * args: user arguments (args)
@@ -6348,6 +6374,17 @@ cmd_upload(char *args)
              "cmd_upload: execvp %s args=[%s] (euid=%d)",
              LRZ_BIN, LRZ_ARGS, (int)geteuid());
 
+        if (prepare_zmodem_child() == -1) {
+            dlog(2, "cmd_upload: could not prepare ZMODEM child");
+
+            _exit(126);
+        }
+        
+        dlog(6,
+             "cmd_upload: ZMODEM ids uid=%d euid=%d gid=%d egid=%d",
+             (int)getuid(), (int)geteuid(),
+             (int)getgid(), (int)getegid());
+
         execvp(LRZ_BIN, execv_args);
 
         /* If we get here, exec failed */
@@ -6513,6 +6550,16 @@ cmd_download(char *args)
              "cmd_download: execvp %s args=[%s] "
              "(euid=%d) with file=[%s]",
              LSZ_BIN, LSZ_ARGS, (int)geteuid(), fname);
+
+        if (prepare_zmodem_child() == -1) {
+            dlog(2, "cmd_download: could not prepare ZMODEM child");
+            _exit(126);
+        }
+        
+        dlog(6,
+             "cmd_download: ZMODEM ids uid=%d euid=%d gid=%d egid=%d",
+             (int)getuid(), (int)geteuid(),
+             (int)getgid(), (int)getegid());
 
         execvp(LSZ_BIN, args_exec);
 
