@@ -367,7 +367,7 @@
 #define MSG_NUMLNCONF	"Ingen {ndring.\n"
 #define MSG_NO_ZORK	"No z3-file found, sorry"  					/*Zork */
 #define MSG_BADARG      "\nF|ljande infocom-spel finns f|r n{rvarande :\n\nZork 1\nZork 2\nZork 3\n\nF|r att spela, ge kommandot Zork <nr>.\n\n"	/* Zork */
-#define MSG_SUCCESSUL   "Tackar f|r det! \nBeskriv nu g{rna filen genom att ge kommandot 'Beskriv <filnamn>'."
+#define MSG_SUCCESSUL "Uppladdningen lyckades."
 #define MSG_NETHACKER01	"Fel: Kan inte starta Nethack - har SysOp gl|mt att installera den?"
 #define MSG_FILE_DB_ER	"Strul med filkatalogen. Meddela SysOp."
 #define MSG_ULPRGMERROR "Uploadprogrammet saknas eller kan inte k|ras. Kontakta SysOp."
@@ -1215,7 +1215,7 @@
 #define MSG_NUMLNCONF	"Same as before then.\n"
 #define MSG_NO_ZORK     "No z3-file found, sorry"       /*Zork */
 #define MSG_BADARG      "Oops bad input! Type Zork 1, or 2, or 3.\n\n"   /* Zork */
-#define MSG_SUCCESSUL   "Thanks! Please describe the file now by giving the command 'Describe <filename>'."
+#define MSG_SUCCESSUL "Upload successful."
 #define MSG_NETHACKER01	"Failed to launch Nethack - advise your SysOp to install it!"
 #define MSG_FILE_DB_ER	"File DB configuration error, speak with your SysOp!"
 #define MSG_ULPRGMERROR "Upload program missing or can't be run. Contact your SysOp!"
