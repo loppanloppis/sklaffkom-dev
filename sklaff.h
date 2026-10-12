@@ -114,7 +114,7 @@
 #define SURVREPORT 	SKLAFFBIN "/srep"
 
 /* Some games settings misplaced here for now ;) */
-#define FROTZ_HOME      DOORDIR "/frotz"              /* -> /doors/frotz on a standard install */
+#define FROTZ_HOME      DOORDIR "/frotz"
 #define FROTZ_ZORK1     "zork1.z3"
 #define FROTZ_ZORK2     "zork2.z3"
 #define FROTZ_ZORK3     "zork3.z3"
@@ -124,10 +124,10 @@
 
 #define SKLAFF_DB 	SKLAFFDIR "/db"
 #define USER_DB		SKLAFFDIR "/user"
-#define FILE_DB		"/srv/sklaff/files"
+#define FILE_DB SKLAFFDIR "/files"
 #define MBOX_DB		SKLAFFDIR "/mbox"
 #define LOGDIR   	SKLAFFDIR "/log"
-#define DOORDIR		"/doors"
+#define DOORDIR		SKLAFFDIR "/doors"
 #define BBSLINK_DIR     DOORDIR "/bbslink"
 #define USER_FILE 	SKLAFFDIR "/etc/user"
 #define	ACTIVE_FILE 	SKLAFFDIR "/etc/active"

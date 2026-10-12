@@ -39,13 +39,14 @@
 #include <math.h>   /* for floor() in Swatch Internet Time  2025-09-10 PL */
 #include <ctype.h>  /* isspace */
 /* a bunch of new includes below for zork  2025-08-xx PL*/
+#include <fcntl.h>
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <dirent.h> /* for zmodem uploads 2026-10-11 PL */
 /*
  * cmd_sendbatch - send all texts in database format, zipped
  * args: user arguments (args)
@@ -6159,11 +6160,16 @@ prepare_zmodem_child(void)
     uid_t euid = geteuid();
     gid_t egid = getegid();
 
-    /*
-     * SklaffKOM runs setuid sklaff.  lrzsz refuses to run when
-     * real and effective IDs differ, so make the inherited
-     * SklaffKOM identity permanent in the transfer child.
-     */
+/*
+ * SklaffKOM runs setuid sklaff.  lrzsz refuses to run when
+ * real and effective IDs differ, so normalize the transfer
+ * child before exec.
+ *
+ * The effective UID is the SklaffKOM owner (sklaff), while
+ * the caller's group is preserved.  SklaffKOM uses the group
+ * ownership of created objects to identify their author.
+ */
+ 
     if (setregid(egid, egid) == -1)
         return -1;
 
@@ -6173,11 +6179,11 @@ prepare_zmodem_child(void)
     if (getuid() != geteuid() || getgid() != getegid())
         return -1;
 
-    setenv("ZMODEM_RESTRICTED", "1", 1);
+    if (setenv("ZMODEM_RESTRICTED", "1", 1) == -1)
+        return -1;
 
     return 0;
 }
-
 /*
  * cmd_upload - uploads file(s)
  * args: user arguments (args)
@@ -6187,15 +6193,20 @@ prepare_zmodem_child(void)
 int
 cmd_upload(char *args)
 {
-    LINE cwd;
-    LONG_LINE filed;
-    int status;  /* wait() status */
+    LINE cwd, uploaded_name;
+    LONG_LINE filed, tmpdir;
+    struct stat st;
+    int status;
+    int uploaded_files = 0;
+    pid_t pid, waited;
 
     dlog(6, "cmd_upload: enter args=[%s]",
          (args && *args) ? args : "(empty)");
 
     Change_msg = 1;
     Change_prompt = 1;
+
+    uploaded_name[0] = '\0';
 
     if (LRZ_BIN[0] == '\0') {
         dlog(3, "cmd_upload: LRZ_BIN is empty");
@@ -6214,6 +6225,7 @@ cmd_upload(char *args)
 
     if (getcwd(cwd, LINE_LEN) == NULL) {
         dlog(3, "cmd_upload: getcwd failed");
+        set_avail(Uid, 0);
         return 0;
     }
 
@@ -6222,26 +6234,21 @@ cmd_upload(char *args)
     signal(SIGNAL_NEW_TEXT, SIG_IGN);
     signal(SIGNAL_NEW_MSG, SIG_IGN);
 
-    snprintf(filed, sizeof(filed), "%s/%d", FILE_DB, Current_conf);
+    snprintf(filed, sizeof(filed), "%s/%d",
+             FILE_DB, Current_conf);
+
     dlog(6, "cmd_upload: target dir=[%s]", filed);
 
     /*
-     * Sanity check: FILE_DB itself must exist and be usable.
+     * FILE_DB must exist and be a directory.
+     * The real BBS user does not need direct Unix access.
      */
-    if (access(FILE_DB, F_OK) == -1) {
-        dlog(3, "cmd_upload: FILE_DB missing: %s", FILE_DB);
-        output(MSG_FILE_DB_ER "\n\n");
-
-        signal(SIGNAL_NEW_TEXT, baffo);
-        signal(SIGNAL_NEW_MSG, newmsg);
-        set_avail(Uid, 0);
-        return 0;
-    }
-
-    if (access(FILE_DB, W_OK | X_OK) == -1) {
-        dlog(3, "cmd_upload: FILE_DB not writable/searchable: %s",
+    if (stat(FILE_DB, &st) == -1 ||
+        !S_ISDIR(st.st_mode)) {
+        dlog(3,
+             "cmd_upload: FILE_DB missing or not a directory: %s",
              FILE_DB);
-        output("\n" MSG_FILE_DB_ER "\n\n");
+        output(MSG_FILE_DB_ER "\n\n");
 
         signal(SIGNAL_NEW_TEXT, baffo);
         signal(SIGNAL_NEW_MSG, newmsg);
@@ -6251,11 +6258,13 @@ cmd_upload(char *args)
 
     /*
      * If LRZ_BIN contains a slash, verify it directly.
-     * If it is just "lrz", execvp() will later search PATH.
+     * Otherwise execvp() will later search PATH.
      */
     if (strchr(LRZ_BIN, '/') != NULL &&
         access(LRZ_BIN, X_OK) == -1) {
-        dlog(3, "cmd_upload: LRZ_BIN not executable: %s", LRZ_BIN);
+        dlog(3,
+             "cmd_upload: LRZ_BIN not executable: %s",
+             LRZ_BIN);
         output(MSG_ULPRGMERROR "\n\n");
 
         signal(SIGNAL_NEW_TEXT, baffo);
@@ -6265,15 +6274,14 @@ cmd_upload(char *args)
     }
 
     /*
-     * Ensure upload dir within files root directory exists,
-     * if not create it.
+     * Ensure the real conference file directory exists.
+     * It remains owned by the SklaffKOM account.
      */
-    if (access(filed, F_OK) == -1) {
-        dlog(7, "cmd_upload: dir missing, creating %s (mode 0775)",
-             filed);
-
-        if (mkdir(filed, 0775) == -1) {
-            dlog(3, "cmd_upload: mkdir failed for %s", filed);
+    if (stat(filed, &st) == -1) {
+        if (errno != ENOENT) {
+            dlog(3,
+                 "cmd_upload: stat failed for %s: %s",
+                 filed, strerror(errno));
             output(MSG_FILE_DB_ER "\n\n");
 
             signal(SIGNAL_NEW_TEXT, baffo);
@@ -6282,15 +6290,25 @@ cmd_upload(char *args)
             return 0;
         }
 
-        if (chown(filed, getuid(), getgid()) == -1) {
-            dlog(5,
-                 "cmd_upload: chown failed (non-fatal) for %s",
-                 filed);
-        }
-    }
+        dlog(7,
+             "cmd_upload: dir missing, creating %s",
+             filed);
 
-    if (chdir(filed) == -1) {
-        dlog(3, "cmd_upload: chdir failed to %s", filed);
+        if (mkdir(filed, 0700) == -1) {
+            dlog(3,
+                 "cmd_upload: mkdir failed for %s: %s",
+                 filed, strerror(errno));
+            output(MSG_FILE_DB_ER "\n\n");
+
+            signal(SIGNAL_NEW_TEXT, baffo);
+            signal(SIGNAL_NEW_MSG, newmsg);
+            set_avail(Uid, 0);
+            return 0;
+        }
+    } else if (!S_ISDIR(st.st_mode)) {
+        dlog(3,
+             "cmd_upload: target exists but is not a directory: %s",
+             filed);
         output(MSG_FILE_DB_ER "\n\n");
 
         signal(SIGNAL_NEW_TEXT, baffo);
@@ -6299,18 +6317,84 @@ cmd_upload(char *args)
         return 0;
     }
 
-    dlog(7, "cmd_upload: chdir -> %s", filed);
+    /*
+     * Receive into a unique private directory below FILE_DB.
+     * rz never writes directly into the real conference area.
+     */
+    if (snprintf(tmpdir, sizeof(tmpdir),
+                 "%s/.upload-XXXXXX", FILE_DB) >=
+        (int)sizeof(tmpdir)) {
+        dlog(3,
+             "cmd_upload: temporary upload path too long");
+        output(MSG_FILE_DB_ER "\n\n");
 
-    pid_t pid = fork();
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+        return 0;
+    }
+
+    if (mkdtemp(tmpdir) == NULL) {
+        dlog(3,
+             "cmd_upload: mkdtemp failed: %s",
+             strerror(errno));
+        output(MSG_FILE_DB_ER "\n\n");
+
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+        return 0;
+    }
+
+    /*
+     * mkdtemp() creates mode 0700, but explicitly enforce our
+     * expected mode and clear any inherited special bits.
+     */
+    if (chmod(tmpdir, 0700) == -1) {
+        dlog(3,
+             "cmd_upload: chmod failed for %s: %s",
+             tmpdir, strerror(errno));
+
+        (void)rmdir(tmpdir);
+
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+        output(MSG_FILE_DB_ER "\n\n");
+        return 0;
+    }
+
+    dlog(6,
+         "cmd_upload: temporary upload dir=[%s]",
+         tmpdir);
+
+    if (chdir(tmpdir) == -1) {
+        dlog(3,
+             "cmd_upload: chdir failed to %s: %s",
+             tmpdir, strerror(errno));
+
+        (void)rmdir(tmpdir);
+
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+        output(MSG_FILE_DB_ER "\n\n");
+        return 0;
+    }
+
+    pid = fork();
 
     if (pid < 0) {
-        dlog_with("files", 2, "cmd_upload: fork failed");
+        dlog_with("files", 2,
+                  "cmd_upload: fork failed");
 
         if (chdir(cwd) == -1) {
             dlog_errno_with(
                 "files", 3,
-                "cmd_upload: chdir back to cwd after fork failure");
+                "cmd_upload: chdir back after fork failure");
         }
+
+        (void)rmdir(tmpdir);
 
         signal(SIGNAL_NEW_TEXT, baffo);
         signal(SIGNAL_NEW_MSG, newmsg);
@@ -6318,51 +6402,13 @@ cmd_upload(char *args)
         return -1;
     }
 
-    if (pid > 0) {
-        /* parent */
-        dlog(6, "cmd_upload: parent waiting for child pid=%d",
-             (int)pid);
-
-        (void) wait(&status);
-
-#ifdef WIFEXITED
-        if (WIFEXITED(status)) {
-            dlog(7, "cmd_upload: child exit=%d",
-                 WEXITSTATUS(status));
-
-            if (WEXITSTATUS(status) == 127) {
-                output("\n" MSG_ULPRGMERROR "\n\n");
-
-                if (chdir(cwd) == -1) {
-                    dlog(3,
-                         "cmd_upload: chdir back to cwd failed "
-                         "after exec failure: %s",
-                         cwd);
-                }
-
-                signal(SIGNAL_NEW_TEXT, baffo);
-                signal(SIGNAL_NEW_MSG, newmsg);
-                set_avail(Uid, 0);
-                return 0;
-            }
-        }
-
-        if (WIFSIGNALED(status))
-            dlog(3, "cmd_upload: child signaled sig=%d",
-                 WTERMSIG(status));
-#endif
-
-    } else {
+    if (pid == 0) {
         /* child */
         char *execv_args[3];
         int i = 0;
 
         sig_reset();
 
-        /*
-         * Build argument list dynamically so an empty LRZ_ARGS
-         * does not become an empty argv entry.
-         */
         execv_args[i++] = (char *)LRZ_BIN;
 
         if (LRZ_ARGS[0])
@@ -6370,55 +6416,375 @@ cmd_upload(char *args)
 
         execv_args[i] = NULL;
 
-        dlog(6,
-             "cmd_upload: execvp %s args=[%s] (euid=%d)",
-             LRZ_BIN, LRZ_ARGS, (int)geteuid());
-
         if (prepare_zmodem_child() == -1) {
-            dlog(2, "cmd_upload: could not prepare ZMODEM child");
-
+            dlog(2,
+                 "cmd_upload: could not prepare ZMODEM child");
             _exit(126);
         }
-        
+
         dlog(6,
-             "cmd_upload: ZMODEM ids uid=%d euid=%d gid=%d egid=%d",
+             "cmd_upload: ZMODEM ids "
+             "uid=%d euid=%d gid=%d egid=%d",
              (int)getuid(), (int)geteuid(),
              (int)getgid(), (int)getegid());
 
+        dlog(6,
+             "cmd_upload: execvp %s args=[%s]",
+             LRZ_BIN, LRZ_ARGS);
+
         execvp(LRZ_BIN, execv_args);
 
-        /* If we get here, exec failed */
-        dlog(2, "cmd_upload: execvp failed for %s", LRZ_BIN);
+        dlog(2,
+             "cmd_upload: execvp failed for %s",
+             LRZ_BIN);
         _exit(127);
     }
 
-    if (chdir(cwd) == -1) {
-        dlog(3, "cmd_upload: chdir back to cwd failed: %s", cwd);
-        return 0;
-    }
+    /*
+     * Parent: wait specifically for our ZMODEM child.
+     */
+    do {
+        waited = waitpid(pid, &status, 0);
+    } while (waited == -1 && errno == EINTR);
 
-    dlog(7, "cmd_upload: chdir back -> %s", cwd);
+    if (waited == -1) {
+        dlog(2,
+             "cmd_upload: waitpid failed: %s",
+             strerror(errno));
 
-    signal(SIGNAL_NEW_TEXT, baffo);
-    signal(SIGNAL_NEW_MSG, newmsg);
+        if (chdir(cwd) == -1)
+            dlog(3,
+                 "cmd_upload: chdir back failed: %s",
+                 cwd);
 
-    /* Rebuild index after upload */
-    dlog(6, "cmd_upload: rebuild_index_file()");
+        (void)rmdir(tmpdir);
 
-    if (rebuild_index_file() == -1) {
-        dlog(3, "cmd_upload: rebuild_index_file FAILED");
-        output("\n%s\n\n", "Failed to rebuild index file.");
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
         set_avail(Uid, 0);
         return -1;
     }
 
-    /* Tell user to describe file */
-    output(MSG_SUCCESSUL "\n\n");
+    /*
+     * A transfer is successful only if rz exits normally with 0.
+     */
+    if (!WIFEXITED(status) ||
+        WEXITSTATUS(status) != 0) {
+        if (WIFEXITED(status)) {
+            dlog(3,
+                 "cmd_upload: child exit=%d",
+                 WEXITSTATUS(status));
+        } else if (WIFSIGNALED(status)) {
+            dlog(3,
+                 "cmd_upload: child signaled sig=%d",
+                 WTERMSIG(status));
+        }
 
+        if (chdir(cwd) == -1)
+            dlog(3,
+                 "cmd_upload: chdir back failed: %s",
+                 cwd);
+
+        /*
+         * rmdir succeeds if rz did not leave a partial file.
+         * Otherwise the private directory remains for SysOp
+         * inspection instead of deleting unknown partial data.
+         */
+        (void)rmdir(tmpdir);
+
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+
+        output("\n" MSG_ULPRGMERROR "\n\n");
+        return 0;
+    }
+
+    dlog(7, "cmd_upload: child exit=0");
+
+    if (chdir(cwd) == -1) {
+        dlog(3,
+             "cmd_upload: chdir back to cwd failed: %s",
+             cwd);
+
+        signal(SIGNAL_NEW_TEXT, baffo);
+        signal(SIGNAL_NEW_MSG, newmsg);
+        set_avail(Uid, 0);
+        return 0;
+    }
+
+    signal(SIGNAL_NEW_TEXT, baffo);
+    signal(SIGNAL_NEW_MSG, newmsg);
+
+    /*
+     * Validate everything before importing anything.
+     */
+    {
+        DIR *dp;
+        struct dirent *de;
+        struct stat dstst;
+        char src[PATH_MAX];
+        char dst[PATH_MAX];
+        int invalid = 0;
+
+        dp = opendir(tmpdir);
+
+        if (dp == NULL) {
+            dlog(3,
+                 "cmd_upload: opendir failed for %s: %s",
+                 tmpdir, strerror(errno));
+            set_avail(Uid, 0);
+            output(MSG_FILE_DB_ER "\n\n");
+            return -1;
+        }
+
+        while ((de = readdir(dp)) != NULL) {
+            if (!strcmp(de->d_name, ".") ||
+                !strcmp(de->d_name, ".."))
+                continue;
+
+            /*
+             * Hidden files are never valid uploads.
+             * In particular, rz must never be able to install
+             * something such as .index.
+             */
+            if (de->d_name[0] == '.') {
+                dlog(3,
+                     "cmd_upload: refusing hidden file [%s]",
+                     de->d_name);
+                invalid = 1;
+                break;
+            }
+
+            if (snprintf(src, sizeof(src),
+                         "%s/%s",
+                         tmpdir, de->d_name) >=
+                (int)sizeof(src) ||
+                snprintf(dst, sizeof(dst),
+                         "%s/%s",
+                         filed, de->d_name) >=
+                (int)sizeof(dst)) {
+                dlog(3,
+                     "cmd_upload: uploaded filename too long");
+                invalid = 1;
+                break;
+            }
+
+            /*
+             * Never follow symlinks or accept directories,
+             * devices, sockets, FIFOs, etc.
+             */
+            if (lstat(src, &st) == -1 ||
+                !S_ISREG(st.st_mode)) {
+                dlog(3,
+                     "cmd_upload: refusing non-regular file [%s]",
+                     de->d_name);
+                invalid = 1;
+                break;
+            }
+
+            /*
+             * Existing conference files must never be replaced.
+             */
+            if (lstat(dst, &dstst) == 0) {
+                dlog(3,
+                     "cmd_upload: destination already exists [%s]",
+                     de->d_name);
+                invalid = 1;
+                break;
+            }
+
+            if (errno != ENOENT) {
+                dlog(3,
+                     "cmd_upload: cannot check destination %s: %s",
+                     de->d_name, strerror(errno));
+                invalid = 1;
+                break;
+            }
+
+            if (uploaded_files == 0 &&
+                strlen(de->d_name) < sizeof(uploaded_name)) {
+                strlcpy(uploaded_name, de->d_name,
+                        sizeof(uploaded_name));
+            }
+
+            uploaded_files++;
+        }
+
+        closedir(dp);
+
+        if (invalid || uploaded_files == 0) {
+            if (uploaded_files == 0 && !invalid)
+                dlog(3,
+                     "cmd_upload: rz exited successfully "
+                     "but received no files");
+
+            set_avail(Uid, 0);
+            output(MSG_FILE_DB_ER "\n\n");
+            return 0;
+        }
+
+        /*
+         * Import the validated files.
+         *
+         * tmpdir and filed are both below FILE_DB and therefore
+         * on the same filesystem. link() gives us atomic
+         * no-clobber semantics: an existing destination causes
+         * the operation to fail instead of being overwritten.
+         */
+        dp = opendir(tmpdir);
+
+        if (dp == NULL) {
+            dlog(3,
+                 "cmd_upload: second opendir failed for %s: %s",
+                 tmpdir, strerror(errno));
+            set_avail(Uid, 0);
+            output(MSG_FILE_DB_ER "\n\n");
+            return -1;
+        }
+
+        while ((de = readdir(dp)) != NULL) {
+            if (!strcmp(de->d_name, ".") ||
+                !strcmp(de->d_name, ".."))
+                continue;
+
+            snprintf(src, sizeof(src),
+                     "%s/%s",
+                     tmpdir, de->d_name);
+
+            snprintf(dst, sizeof(dst),
+                     "%s/%s",
+                     filed, de->d_name);
+
+            /*
+             * Uploaded files belong to SklaffKOM and are private.
+             * This also removes any executable or special bits.
+             */
+            if (chmod(src, 0600) == -1) {
+                dlog(3,
+                     "cmd_upload: chmod failed for %s: %s",
+                     de->d_name, strerror(errno));
+                closedir(dp);
+
+                set_avail(Uid, 0);
+                output(MSG_FILE_DB_ER "\n\n");
+                return -1;
+            }
+
+            if (link(src, dst) == -1) {
+                dlog(3,
+                     "cmd_upload: import failed for [%s]: %s",
+                     de->d_name, strerror(errno));
+                closedir(dp);
+
+                /*
+                 * Some earlier files from a multi-file transfer
+                 * may already have been imported. Rebuild the
+                 * index so the file database remains consistent.
+                 */
+                (void)rebuild_index_file();
+
+                set_avail(Uid, 0);
+                output(MSG_FILE_DB_ER "\n\n");
+                return -1;
+            }
+
+            if (unlink(src) == -1) {
+                dlog(3,
+                     "cmd_upload: unlink temporary file [%s] failed: %s",
+                     de->d_name, strerror(errno));
+
+                /*
+                 * Roll back this individual destination if the
+                 * temporary link could not be removed.
+                 */
+                if (unlink(dst) == -1) {
+                    dlog(2,
+                         "cmd_upload: rollback failed for [%s]: %s",
+                         de->d_name, strerror(errno));
+                }
+
+                closedir(dp);
+                (void)rebuild_index_file();
+
+                set_avail(Uid, 0);
+                output(MSG_FILE_DB_ER "\n\n");
+                return -1;
+            }
+
+            dlog(6,
+                 "cmd_upload: imported [%s] into %s",
+                 de->d_name, filed);
+        }
+
+        closedir(dp);
+    }
+
+    /*
+     * A successful import must leave the temporary directory empty.
+     */
+    if (rmdir(tmpdir) == -1) {
+        dlog(3,
+             "cmd_upload: could not remove temporary dir %s: %s",
+             tmpdir, strerror(errno));
+
+        /*
+         * The actual upload is already installed at this point,
+         * so rebuild the index before returning an error.
+         */
+        (void)rebuild_index_file();
+
+        set_avail(Uid, 0);
+        output(MSG_FILE_DB_ER "\n\n");
+        return -1;
+    }
+
+    dlog(6, "cmd_upload: removed temporary dir %s",
+         tmpdir);
+
+    /*
+     * Rebuild the conference file index only after the files
+     * have been safely imported.
+     */
+    dlog(6, "cmd_upload: rebuild_index_file()");
+
+    if (rebuild_index_file() == -1) {
+        dlog(3,
+             "cmd_upload: rebuild_index_file FAILED");
+        output("\n%s\n\n",
+               "Failed to rebuild index file.");
+        set_avail(Uid, 0);
+        return -1;
+    }
+
+   /*
+    * Transfer and import are complete. The user is no longer
+    * busy with ZMODEM before entering the interactive description.
+    */
     set_avail(Uid, 0);
+
+    output(MSG_SUCCESSUL "\n");
+
+   /*
+    * For the normal single-file upload, immediately let the user
+    * describe the file. cmd_describe() expects the rebuilt .index,
+    * so this must happen after rebuild_index_file().
+    *
+    * Multi-file ZMODEM transfers remain supported, but are not
+    * automatically described here.
+    */
+    if (uploaded_files == 1 && uploaded_name[0] != '\0') {
+    dlog(6,
+         "cmd_upload: describing newly uploaded file [%s]",
+         uploaded_name);
+
+    (void)cmd_describe(uploaded_name);
+    }
+
     dlog(6, "cmd_upload: leave OK");
 
     return 0;
+    
 }
 
 /*
@@ -8181,9 +8547,17 @@ static int ensure_dir(const char *path, mode_t mode)
     return mkdir(path, mode);
 }
 
-static int file_exists_r(const char *path)
+static int
+file_exists_r(const char *path)
 {
-    return access(path, R_OK) == 0;
+    int fd;
+
+    fd = open(path, O_RDONLY);
+    if (fd == -1)
+        return 0;
+
+    close(fd);
+    return 1;
 }
 
 static int find_frotz(char *out, size_t outsz)

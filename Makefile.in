@@ -227,6 +227,13 @@ installdb:
 	chmod og-rxw $(SKLAFFDIR)/etc/*
 	chmod og-rxw $(SKLAFFDIR)/etc/help.swe/*
 	chmod og-rxw $(SKLAFFDIR)/etc/help.eng/*
+    mkdir -p $(SKLAFFDIR)/doors/frotz/data
+    chown sklaff:sklaff $(SKLAFFDIR)/doors
+    chown sklaff:sklaff $(SKLAFFDIR)/doors/frotz
+    chown sklaff:sklaff $(SKLAFFDIR)/doors/frotz/data
+    chmod 755 $(SKLAFFDIR)/doors
+    chmod 755 $(SKLAFFDIR)/doors/frotz
+    chmod 700 $(SKLAFFDIR)/doors/frotz/data
 
 clean:
 	(cd lib; $(MAKE) clean)

@@ -1,4 +1,4 @@
-v1.33-rc3 Thursday 08 October 2026
+v1.33-rc3 Thursday 08 October 2026 PL
 
 * I felt it was time for a version bump. This should be the last release
   candidate.
@@ -11,10 +11,21 @@ v1.33-rc3 Thursday 08 October 2026
   Makefile.
 
 * ZMODEM uploads/downloads now work with stock lrzsz.
-  The transfer child normalizes its real/effective IDs before exec,
-  removing the need for the modified lrzsz fork.
+  The transfer child normalizes its real/effective IDs before exec.
+  Special fork of lrzsz no longer needed. Yay!
 
-v1.33-rc2 Thursday 13 August 2026
+* ./configure detects lrz/rz and lsz/sz automatically.
+
+* Uploads now work even in default SKLAFFDIR /files directory. This took
+  some effort but should be running safe and bug free now. Hope so.
+
+* cmd_describe is now called after singe file upload as it should be.
+  multi-file uploads still have to be described manually. That's ok.
+
+* Frotz & Zork now lives in SKLAFFDIR /doors/frotz, as it should have been 
+  from the start.
+
+v1.33-rc2 Thursday 13 August 2026 PL
 
 * Started working on a ./configure script. Lots of cleaning, renaming,
   refactoring and structuring done, primarily in sklaff.h.
