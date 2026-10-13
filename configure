@@ -15,6 +15,43 @@ LDFLAGS=${LDFLAGS:-}
 
 CONFIG_LIBS=""
 STRL_PROVIDER=""
+WITH_FROTZ=0
+FROTZ_BUILD_TARGET=""
+FROTZ_CLEAN_TARGET=""
+FROTZ_MAKE=""
+FROTZ_CURSES=""
+
+usage()
+{
+    cat <<EOF_USAGE
+Usage: ./configure [options]
+
+Options:
+  --with-frotz       Build the bundled SklaffKOM Frotz in vendor/frotz
+  --without-frotz    Disable bundled Frotz support (default)
+  -h, --help         Show this help
+EOF_USAGE
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --with-frotz)
+            WITH_FROTZ=1
+            ;;
+        --without-frotz)
+            WITH_FROTZ=0
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "configure: unknown option: $arg" >&2
+            echo "configure: try ./configure --help" >&2
+            exit 1
+            ;;
+    esac
+done
 
 #
 # Find a real executable in PATH.  Do not use command -v here: some core
@@ -281,6 +318,118 @@ fi
 
 
 #
+# Bundled SklaffKOM Frotz
+#
+# Frotz is deliberately opt-in.  SklaffKOM does not use or fall back to
+# a stock/system Frotz; --with-frotz always means vendor/frotz.
+#
+
+if [ "$WITH_FROTZ" -eq 1 ]; then
+    printf "%-36s" "Checking bundled Frotz source..."
+    if [ -f vendor/frotz/Makefile ]; then
+        echo "vendor/frotz"
+    else
+        echo "not found"
+        echo
+        echo "configure: --with-frotz was requested, but vendor/frotz/Makefile is missing." >&2
+        exit 1
+    fi
+
+    printf "%-36s" "Checking for GNU make..."
+    if command -v gmake >/dev/null 2>&1; then
+        FROTZ_MAKE=gmake
+        echo "$FROTZ_MAKE"
+    elif command -v make >/dev/null 2>&1 &&
+         make --version 2>/dev/null | grep 'GNU Make' >/dev/null 2>&1; then
+        FROTZ_MAKE=make
+        echo "$FROTZ_MAKE"
+    else
+        echo "not found"
+        echo
+        echo "configure: bundled Frotz requires GNU make." >&2
+        echo "configure: install GNU make (gmake on BSD systems) and run ./configure again." >&2
+        exit 1
+    fi
+
+    printf "%-36s" "Checking ncursesw for Frotz..."
+
+    FROTZ_CURSES_CFLAGS=""
+    FROTZ_CURSES_LIBS=""
+
+    if command -v pkgconf >/dev/null 2>&1 && pkgconf --exists ncursesw 2>/dev/null; then
+        FROTZ_CURSES_CFLAGS=`pkgconf --cflags ncursesw 2>/dev/null || true`
+        FROTZ_CURSES_LIBS=`pkgconf --libs ncursesw 2>/dev/null || true`
+    elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists ncursesw 2>/dev/null; then
+        FROTZ_CURSES_CFLAGS=`pkg-config --cflags ncursesw 2>/dev/null || true`
+        FROTZ_CURSES_LIBS=`pkg-config --libs ncursesw 2>/dev/null || true`
+    fi
+
+    cat > "$tmpdir/conftest.c" <<'EOF_TEST'
+#include <curses.h>
+
+int
+main(void)
+{
+    WINDOW *w = initscr();
+    if (w != 0)
+        endwin();
+    return 0;
+}
+EOF_TEST
+
+    frotz_curses_ok=no
+
+    if [ -n "$FROTZ_CURSES_LIBS" ] &&
+       "$CC" $CPPFLAGS $CFLAGS $FROTZ_CURSES_CFLAGS \
+           "$tmpdir/conftest.c" $LDFLAGS $FROTZ_CURSES_LIBS \
+           -o "$tmpdir/conftest" >/dev/null 2>&1; then
+        frotz_curses_ok=yes
+    fi
+
+    if [ "$frotz_curses_ok" = no ]; then
+        case "$sklaffsys" in
+            FREEBSD)
+                frotz_fallback_cflags="-I/usr/local/include"
+                frotz_fallback_ldflags="-L/usr/local/lib"
+                ;;
+            *)
+                frotz_fallback_cflags=""
+                frotz_fallback_ldflags=""
+                ;;
+        esac
+
+        for frotz_libs in "-lncursesw -ltinfo" "-lncursesw"; do
+            if "$CC" $CPPFLAGS $CFLAGS $frotz_fallback_cflags \
+                "$tmpdir/conftest.c" $LDFLAGS $frotz_fallback_ldflags \
+                $frotz_libs -o "$tmpdir/conftest" >/dev/null 2>&1; then
+                FROTZ_CURSES_CFLAGS=$frotz_fallback_cflags
+                FROTZ_CURSES_LIBS=$frotz_libs
+                frotz_curses_ok=yes
+                break
+            fi
+        done
+    fi
+
+    if [ "$frotz_curses_ok" = yes ]; then
+        FROTZ_CURSES=ncursesw
+        echo "yes"
+    else
+        echo "not found"
+        echo
+        echo "configure: --with-frotz was requested, but ncursesw development files were not found." >&2
+        echo "configure: install the ncurses wide-character development package and try again." >&2
+        exit 1
+    fi
+
+    FROTZ_BUILD_TARGET=frotz
+    FROTZ_CLEAN_TARGET=clean-frotz
+else
+    printf "%-36s" "Bundled Frotz support..."
+    echo "disabled"
+fi
+
+
+#
 # Core runtime tools
 #
 # These programs are required by the base SklaffKOM runtime.  Missing core
@@ -383,6 +532,10 @@ cat > config.h.tmp <<EOF_CONFIG
 
 #define SKLAFF_CONFIGURED 1
 
+/* Bundled SklaffKOM Frotz */
+#define HAVE_FROTZ $WITH_FROTZ
+#define FROTZ_BIN SKLAFFDIR "/libexec/frotz"
+
 /* Core runtime tools */
 #define GREP_BIN "$GREP_BIN_C"
 #define LS_BIN "$LS_BIN_C"
@@ -414,6 +567,7 @@ cat > config.mk.tmp <<EOF_CONFIG
 CONFIG_CC = $CC
 CONFIG_SKLAFFSYS = $sklaffsys
 CONFIG_LIBS = $CONFIG_LIBS
+CONFIG_WITH_FROTZ = $WITH_FROTZ
 EOF_CONFIG
 
 mv config.mk.tmp config.mk
@@ -446,11 +600,17 @@ sed_escape_replacement()
 sed_cc=`sed_escape_replacement "$CC"`
 sed_sys=`sed_escape_replacement "$sklaffsys"`
 sed_libs=`sed_escape_replacement "$CONFIG_LIBS"`
+sed_with_frotz=`sed_escape_replacement "$WITH_FROTZ"`
+sed_frotz_build_target=`sed_escape_replacement "$FROTZ_BUILD_TARGET"`
+sed_frotz_clean_target=`sed_escape_replacement "$FROTZ_CLEAN_TARGET"`
 
 if sed \
     -e "s|@CC@|$sed_cc|g" \
     -e "s|@SKLAFFSYS@|$sed_sys|g" \
     -e "s|@LIBS@|$sed_libs|g" \
+    -e "s|@WITH_FROTZ@|$sed_with_frotz|g" \
+    -e "s|@FROTZ_BUILD_TARGET@|$sed_frotz_build_target|g" \
+    -e "s|@FROTZ_CLEAN_TARGET@|$sed_frotz_clean_target|g" \
     Makefile.in > Makefile.tmp; then
 
     mv Makefile.tmp Makefile
@@ -475,6 +635,12 @@ echo "  Operating system: $host_os"
 echo "  Target system:    $sklaffsys"
 echo "  C compiler:       $CC"
 echo "  strlcpy/strlcat:  $STRL_PROVIDER"
+if [ "$WITH_FROTZ" -eq 1 ]; then
+    echo "  Bundled Frotz:    enabled ($FROTZ_CURSES)"
+    echo "  Frotz path:       /usr/local/sklaff/libexec/frotz"
+else
+    echo "  Bundled Frotz:    disabled"
+fi
 
 if [ -n "$CONFIG_LIBS" ]; then
     echo "  Extra libraries:  $CONFIG_LIBS"

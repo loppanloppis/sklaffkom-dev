@@ -461,6 +461,25 @@
 #define MSG_PLANSAVED   ".plan-filen sparad."
 #define MSG_PLANERROR   "Kunde inte l{sa eller skriva .plan-filen."
 #define MSG_EDITTOOLONG "Texten {r f|r l}ng och sparades inte."
+/* Äventyr */
+#define MSG_ADVENTURE_REGISTRY_ERROR	"Kan inte l{sa registret |ver {ventyr."
+#define MSG_ADVENTURE_INTRO1	"SklaffKOM kan k|ra klassiska text{ventyr i Z-machine-format via Frotz."
+#define MSG_ADVENTURE_INTRO2	"Ange spelets spelkod efter kommandot [ventyr."
+#define MSG_ADVENTURE_INTRO3	"Exempel : '[ventyr stugan' startar spelet Stugan."
+#define MSG_ADVENTURE_TITLE		"Titel"
+#define MSG_ADVENTURE_CODE		"Spelkod"
+#define MSG_ADVENTURE_TITLE_RULE  "====="
+#define MSG_ADVENTURE_CODE_RULE   "========"
+#define MSG_ADVENTURE_NO_GAMES "Inga {ventyr {r installerade."
+#define MSG_ADVENTURE_UNKNOWN "Ok{nt {ventyr."
+#define MSG_ADVENTURE_UNKNOWN_NAMED "Ok{nt {ventyr: %s"
+#define MSG_ADVENTURE_NOT_INSTALLED "%s {r inte installerat."
+#define MSG_FROTZ_GAMEDIR_ERROR	 "Kan inte hitta eller skapa katalogen f|r Z-machine-spel."
+#define MSG_FROTZ_DATADIR_ERROR "Kan inte hitta eller skapa Frotz datakatalog."
+#define MSG_FROTZ_NOT_FOUND "SklaffKOMs Frotz-bin{r kunde inte hittas."
+#define MSG_ZORK_PATH_TOO_LONG "S|kv{gen till Zork-spelet {r f|r l}ng."
+#define MSG_FROTZ_UTF8_WARNING "Observera: Frotz {r anpassat f|r UTF-8. Andra teckenupps{ttningar kan ge ov{ntade resultat."
+#define MSG_FROTZ_CONTINUE "Tryck Enter f|r att forts{tta."
 
 /* conf.c */
 
@@ -1311,7 +1330,25 @@
 #define MSG_PLANSAVED   ".plan file saved."
 #define MSG_PLANERROR   "Could not read or write the .plan file."
 #define MSG_EDITTOOLONG "The text is too long and was not saved."
-
+/* Adventure */
+#define MSG_ADVENTURE_REGISTRY_ERROR "Could not read the adventure registry."
+#define MSG_ADVENTURE_INTRO1	"SklaffKOM can run classic text adventures in Z-machine format using Frotz."
+#define MSG_ADVENTURE_INTRO2	"Enter the game's code after the Adventure command."
+#define MSG_ADVENTURE_INTRO3	"Example: 'Adventure stugan' starts the game Stugan."
+#define MSG_ADVENTURE_TITLE       "Title"
+#define MSG_ADVENTURE_CODE        "Game code"
+#define MSG_ADVENTURE_TITLE_RULE  "====="
+#define MSG_ADVENTURE_CODE_RULE   "========="
+#define MSG_ADVENTURE_NO_GAMES "No adventures are installed."
+#define MSG_ADVENTURE_UNKNOWN "Unknown adventure."
+#define MSG_ADVENTURE_UNKNOWN_NAMED "Unknown adventure: %s"
+#define MSG_ADVENTURE_NOT_INSTALLED "%s is not installed."
+#define MSG_FROTZ_GAMEDIR_ERROR "Could not find or create the Z-machine game directory."
+#define MSG_FROTZ_DATADIR_ERROR "Could not find or create the Frotz data directory."
+#define MSG_FROTZ_NOT_FOUND "The SklaffKOM Frotz binary could not be found."
+#define MSG_ZORK_PATH_TOO_LONG "Zork game path is too long."
+#define MSG_FROTZ_UTF8_WARNING "Note: Frotz is currently designed for UTF-8. Other character sets may give unexpected results." 
+#define MSG_FROTZ_CONTINUE "Press Enter to continue."
 /* conf.c */
 
 #define MSG_CONFSORT	"Sorting conference list..."

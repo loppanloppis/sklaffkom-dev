@@ -45,7 +45,9 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>    /* strcasecmp */
 #include <dirent.h> /* for zmodem uploads 2026-10-11 PL */
 /*
  * cmd_sendbatch - send all texts in database format, zipped
@@ -8530,6 +8532,493 @@ cmd_mod_numlines(char *args)
     return 0;
 }
 
+static int ensure_dir(const char *path, mode_t mode);
+
+#define ZGAME_COMMAND_LEN 64
+#define ZGAME_TITLE_LEN   160
+#define ZGAME_TITLE_COLUMN 38
+
+struct ZGAME_ENTRY {
+    char command[ZGAME_COMMAND_LEN];
+    char title[ZGAME_TITLE_LEN];
+    char filename[NAME_MAX + 1];
+};
+
+
+/*
+ * Trim leading and trailing whitespace in-place.
+ */
+static char *
+zgame_trim(char *s)
+{
+    char *end;
+
+    while (*s && isspace((unsigned char)*s))
+        s++;
+
+    end = s + strlen(s);
+
+    while (end > s && isspace((unsigned char)end[-1]))
+        *--end = '\0';
+
+    return s;
+}
+
+
+/*
+ * Read one entry from ZGAMES_FILE.
+ *
+ * Format:
+ *
+ *   command:title:filename
+ *
+ * The first ':' separates command from title and the last ':'
+ * separates title from filename. This allows ':' inside titles.
+ *
+ * Blank lines and comments beginning with '#' are ignored.
+ *
+ * Returns 1 for an entry, 0 at EOF.
+ */
+static int
+read_zgame_entry(FILE *fp, struct ZGAME_ENTRY *game)
+{
+    char line[512];
+    char *p;
+    char *first;
+    char *last;
+    char *command;
+    char *title;
+    char *filename;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\r\n")] = '\0';
+
+        p = zgame_trim(line);
+
+        if (*p == '\0' || *p == '#')
+            continue;
+
+        first = strchr(p, ':');
+        last = strrchr(p, ':');
+
+        if (first == NULL || last == NULL || first == last)
+            continue;
+
+        *first = '\0';
+        *last = '\0';
+
+        command = zgame_trim(p);
+        title = zgame_trim(first + 1);
+        filename = zgame_trim(last + 1);
+
+        if (*command == '\0' ||
+            *title == '\0' ||
+            *filename == '\0')
+            continue;
+
+        /*
+         * Story files must live directly in ZGAME_DIR.
+         * Do not allow paths in zgames.
+         */
+        if (strchr(filename, '/') != NULL ||
+            !strcmp(filename, ".") ||
+            !strcmp(filename, ".."))
+            continue;
+
+        if (strlen(command) >= sizeof(game->command) ||
+            strlen(title) >= sizeof(game->title) ||
+            strlen(filename) >= sizeof(game->filename))
+            continue;
+
+        strlcpy(game->command, command, sizeof(game->command));
+        strlcpy(game->title, title, sizeof(game->title));
+        strlcpy(game->filename, filename, sizeof(game->filename));
+
+        return 1;
+    }
+
+    return 0;
+}
+
+
+/*
+ * Build the full path to a story file.
+ */
+static int
+zgame_path(const struct ZGAME_ENTRY *game,
+           char *path, size_t pathsz)
+{
+    int n;
+
+    n = snprintf(path, pathsz, "%s/%s",
+                 ZGAME_DIR, game->filename);
+
+    if (n < 0 || (size_t)n >= pathsz)
+        return -1;
+
+    return 0;
+}
+
+
+/*
+ * Check whether a story file is actually installed and readable.
+ *
+ * open() is intentional here rather than access(): SklaffKOM runs
+ * setuid and access() checks the real uid instead of the effective uid.
+ */
+static int
+zgame_installed(const struct ZGAME_ENTRY *game,
+                char *path, size_t pathsz)
+{
+    struct stat st;
+    int fd;
+
+    if (zgame_path(game, path, pathsz) == -1)
+        return 0;
+
+    fd = open(path, O_RDONLY);
+    if (fd == -1)
+        return 0;
+
+    if (fstat(fd, &st) == -1) {
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+
+    return S_ISREG(st.st_mode);
+}
+
+
+/*
+ * Run one Z-machine story through Frotz.
+ *
+ * This intentionally follows the terminal and signal handling
+ * already used successfully by cmd_zork().
+ */
+static int
+run_frotz_game(const char *gamefile)
+{
+    struct stat st;
+    sigset_t sigmask, oldsigmask;
+    pid_t pid;
+    int status = 0;
+
+#if !defined(HAVE_FROTZ) || !HAVE_FROTZ
+    (void)gamefile;
+    output("\n%s\n\n", MSG_ZORK_OFF);
+    return 0;
+#else
+    if (ensure_dir(ZGAME_DIR, 0755) == -1) {
+        output("%s\n", MSG_FROTZ_GAMEDIR_ERROR);
+        return 0;
+    }
+
+    if (ensure_dir(FROTZ_DATA_DIR, 0700) == -1) {
+        output("%s\n", MSG_FROTZ_DATADIR_ERROR);
+        return 0;
+    }
+
+    /*
+     * SklaffKOM only supports the bundled, SklaffKOM-specific Frotz.
+     * Never fall back to a stock frotz from PATH.
+     */
+    if (stat(FROTZ_BIN, &st) == -1 || !S_ISREG(st.st_mode)) {
+        dlog(3, "run_frotz_game: bundled Frotz missing: %s",
+             FROTZ_BIN);
+        output("%s\n", MSG_FROTZ_NOT_FOUND);
+        return 0;
+    }
+
+    /*
+     * The current SklaffKOM Frotz build uses UTF-8 terminal I/O.
+     * Do not prevent other terminal encodings from trying it: ASCII-only
+     * games may work fine, but warn that non-ASCII input/output can differ.
+     */
+    if (!Utf8) {
+    LINE answer;
+
+    output("\n%s\n", MSG_FROTZ_UTF8_WARNING);
+    output(MSG_FROTZ_CONTINUE);
+    fflush(stdout);
+
+    input("", answer, 2, 0, 0, 0);
+    output("\n");
+}
+
+    {
+        char *const argv[] = {
+            (char *)FROTZ_BIN,
+            "-Z", "0",
+            "-R", FROTZ_DATA_DIR,
+            (char *)gamefile,
+            NULL
+        };
+
+        sigemptyset(&sigmask);
+        sigaddset(&sigmask, SIGNAL_NEW_TEXT);
+        sigaddset(&sigmask, SIGNAL_NEW_MSG);
+
+        sigprocmask(SIG_BLOCK, &sigmask, &oldsigmask);
+
+        signal(SIGNAL_NEW_TEXT, SIG_IGN);
+        signal(SIGNAL_NEW_MSG, SIG_IGN);
+
+        set_avail(Uid, 1);
+
+        pid = fork();
+
+        if (pid < 0) {
+            perror("fork");
+            set_avail(Uid, 0);
+            signal(SIGNAL_NEW_TEXT, baffo);
+            signal(SIGNAL_NEW_MSG, newmsg);
+            sigprocmask(SIG_SETMASK, &oldsigmask, NULL);
+            return 0;
+        }
+
+        if (pid == 0) {
+            sig_reset();
+            tty_reset();
+
+            execv(FROTZ_BIN, argv);
+
+            perror("execv");
+            _exit(127);
+        }
+
+        (void)waitpid(pid, &status, 0);
+    }
+
+    signal(SIGNAL_NEW_TEXT, baffo);
+    signal(SIGNAL_NEW_MSG, newmsg);
+    sigprocmask(SIG_SETMASK, &oldsigmask, NULL);
+
+    tty_raw();
+    output("\n");
+    set_avail(Uid, 0);
+
+    return 1;
+#endif
+}
+
+static size_t
+zgame_display_len(const char *s)
+{
+    const unsigned char *p = (const unsigned char *)s;
+    size_t len = 0;
+
+    while (*p) {
+        /*
+         * Count UTF-8 characters rather than bytes.
+         * Continuation bytes begin with binary 10xxxxxx.
+         */
+        if ((*p & 0xc0) != 0x80)
+            len++;
+
+        p++;
+    }
+
+    return len;
+}
+
+
+/*
+ * Sort the installed-game list by title.  strcasecmp() is sufficient
+ * for the mostly ASCII/UTF-8 titles used here and keeps ASCII titles
+ * case-insensitive.  Use the command as a stable tie-breaker.
+ */
+static int
+zgame_compare_title(const void *a, const void *b)
+{
+    const struct ZGAME_ENTRY *ga = a;
+    const struct ZGAME_ENTRY *gb = b;
+    int r;
+
+    r = strcasecmp(ga->title, gb->title);
+    if (r == 0)
+        r = strcasecmp(ga->command, gb->command);
+
+    return r;
+}
+
+
+/*
+ * Output one row in the adventure table.
+ *
+ * printf field widths count bytes, not displayed UTF-8 characters,
+ * so calculate the padding ourselves.
+ */
+static void
+zgame_output_row(const char *title, const char *command)
+{
+    size_t len;
+    int padding;
+
+    len = zgame_display_len(title);
+    padding = ZGAME_TITLE_COLUMN - (int)len;
+
+    if (padding < 2)
+        padding = 2;
+
+    output("%s%*s%s\n", title, padding, "", command);
+}
+
+/*
+ * cmd_adventure - list installed Z-machine games or start one
+ *
+ * Examples:
+ *
+ *   Äventyr
+ *   Äventyr zork 1
+ *   Äventyr stugan
+ *
+ * A game is available only when it exists both in ZGAMES_FILE
+ * and as a regular readable file in ZGAME_DIR.
+ */
+int
+cmd_adventure(char *args)
+{
+    FILE *fp;
+    struct ZGAME_ENTRY game;
+    struct ZGAME_ENTRY *games = NULL;
+    char query[ZGAME_COMMAND_LEN];
+    char gamefile[PATH_MAX];
+    char *p;
+    size_t count = 0;
+    size_t capacity = 0;
+    size_t i;
+
+#if !defined(HAVE_FROTZ) || !HAVE_FROTZ
+    output("\n%s\n\n", MSG_ZORK_OFF);
+    return 0;
+#endif
+
+    Change_msg = 1;
+    Change_prompt = 1;
+
+    fp = fopen(ZGAMES_FILE, "r");
+    if (fp == NULL) {
+        dlog(3, "cmd_adventure: cannot open %s: %s",
+             ZGAMES_FILE, strerror(errno));
+        output("\n%s\n\n", MSG_ADVENTURE_REGISTRY_ERROR);
+        return 0;
+    }
+
+    if (args == NULL)
+        args = "";
+
+    while (*args && isspace((unsigned char)*args))
+        args++;
+
+    /*
+     * No argument: collect all installed games, sort by title,
+     * then display them in the same friendly style as BBSLink.
+     */
+    if (*args == '\0') {
+        while (read_zgame_entry(fp, &game)) {
+            struct ZGAME_ENTRY *tmp;
+            size_t new_capacity;
+
+            if (!zgame_installed(&game,
+                                 gamefile, sizeof(gamefile)))
+                continue;
+
+            if (count == capacity) {
+                new_capacity = capacity ? capacity * 2 : 16;
+
+                tmp = realloc(games,
+                              new_capacity * sizeof(*games));
+                if (tmp == NULL) {
+                    free(games);
+                    fclose(fp);
+                    sys_error("cmd_adventure", 1, "realloc");
+                    return -1;
+                }
+
+                games = tmp;
+                capacity = new_capacity;
+            }
+
+            games[count++] = game;
+        }
+
+        fclose(fp);
+
+        output("\n%s\n\n", MSG_ADVENTURE_INTRO1);
+        output("%s\n\n", MSG_ADVENTURE_INTRO2);
+        output("%s\n\n", MSG_ADVENTURE_INTRO3);
+
+        if (count == 0) {
+            output("%s\n\n", MSG_ADVENTURE_NO_GAMES);
+            free(games);
+            return 0;
+        }
+
+        qsort(games, count, sizeof(*games),
+              zgame_compare_title);
+
+        zgame_output_row(MSG_ADVENTURE_TITLE,
+                         MSG_ADVENTURE_CODE);
+        zgame_output_row(MSG_ADVENTURE_TITLE_RULE,
+                         MSG_ADVENTURE_CODE_RULE);
+
+        for (i = 0; i < count; i++)
+            zgame_output_row(games[i].title,
+                             games[i].command);
+
+        free(games);
+        output("\n");
+        return 0;
+    }
+
+    /*
+     * Trim the requested command.
+     */
+    if (strlen(args) >= sizeof(query)) {
+        fclose(fp);
+        output("\n%s\n\n", MSG_ADVENTURE_UNKNOWN);
+        return 0;
+    }
+
+    strlcpy(query, args, sizeof(query));
+
+    p = zgame_trim(query);
+
+    if (p != query)
+        memmove(query, p, strlen(p) + 1);
+
+    /*
+     * Exact, case-insensitive match against the command field.
+     */
+    while (read_zgame_entry(fp, &game)) {
+        if (strcasecmp(query, game.command) != 0)
+            continue;
+
+        fclose(fp);
+
+        if (!zgame_installed(&game,
+                             gamefile, sizeof(gamefile))) {
+            output("\n" MSG_ADVENTURE_NOT_INSTALLED "\n\n",
+                   game.title);
+            return 0;
+        }
+
+        dlog(6,
+             "cmd_adventure: starting [%s] file=[%s]",
+             game.command, game.filename);
+
+        return run_frotz_game(gamefile);
+    }
+
+    fclose(fp);
+
+    output("\n" MSG_ADVENTURE_UNKNOWN_NAMED "\n\n",
+           query);
+    return 0;
+}
+
 /*
 * Implementation of Zork (and possibly other z-code games
 * Work in progress, only testing for now
@@ -8560,106 +9049,55 @@ file_exists_r(const char *path)
     return 1;
 }
 
-static int find_frotz(char *out, size_t outsz)
-{
-    /* Prefer pinned path */
-    if (access(FROTZ_BIN, X_OK) == 0) {
-        snprintf(out, outsz, "%s", FROTZ_BIN);
-        return 0;
-    }
-    /* Fallback to PATH using which (silent) */
-    FILE *pf = popen("which frotz 2>/dev/null", "r");
-    if (!pf) return -1;
-    char buf[PATH_MAX] = {0};
-    if (fgets(buf, sizeof buf, pf) == NULL) {
-        pclose(pf);
-        return -1;
-    }
-    pclose(pf);
-    /* strip trailing newline */
-    size_t n = strcspn(buf, "\r\n");
-    buf[n] = '\0';
-    if (buf[0] == '\0' || access(buf, X_OK) != 0) return -1;
-    snprintf(out, outsz, "%s", buf);
-    return 0;
-}
-
 int
 cmd_zork(char *args)
 {
     char *p = args;
-    char gamefile[PATH_MAX], zdir[PATH_MAX], datadir[PATH_MAX];
-    char frotz_path[PATH_MAX];
+    char gamefile[PATH_MAX];
     const char *zname = NULL;
+    int r;
 
-    if (!ENABLE_ZORK) {
-        output("\n%s\n\n", MSG_ZORK_OFF);
-        return 0;
-    }
+#if !defined(HAVE_FROTZ) || !HAVE_FROTZ
+    output("\n%s\n\n", MSG_ZORK_OFF);
+    return 0;
+#endif
 
     Change_msg = 1;
     Change_prompt = 1;
 
-    /* No arguments => prompt */
+    /*
+     * Keep the old Zork command behaviour intact.
+     */
     if (!p) {
         output(MSG_BADARG);
         return 0;
     }
 
-    while (*p && isspace((unsigned char)*p)) p++;
+    while (*p && isspace((unsigned char)*p))
+        p++;
+
     if (*p == '\0') {
         output(MSG_BADARG);
         return 0;
     }
 
-    /* Accept “1”, “2”, or “3” (also tolerant of words like “zork 1”) */
-    if (*p == '1') zname = FROTZ_ZORK1;
-    else if (*p == '2') zname = FROTZ_ZORK2;
-    else if (*p == '3') zname = FROTZ_ZORK3;
+    if (*p == '1')
+        zname = FROTZ_ZORK1;
+    else if (*p == '2')
+        zname = FROTZ_ZORK2;
+    else if (*p == '3')
+        zname = FROTZ_ZORK3;
     else {
         output(MSG_NOARG);
         return 0;
     }
 
-    /* Build paths: /usr/local/sklaff/doors/frotz and .../data */
-    {
-        int r;
+    r = snprintf(gamefile, sizeof(gamefile),
+                 "%s/%s", FROTZ_HOME, zname);
 
-        r = snprintf(zdir, sizeof zdir, "%s", FROTZ_HOME);
-        if (r < 0 || (size_t)r >= sizeof zdir) {
-            output("Frotz home path is too long.\n");
-            return 0;
-        }
-
-        r = snprintf(datadir, sizeof datadir, "%s/data", FROTZ_HOME);
-        if (r < 0 || (size_t)r >= sizeof datadir) {
-            output("Frotz data path is too long.\n");
-            return 0;
-        }
-    }
-
-    if (ensure_dir(zdir, 0755) == -1) {
-        output("Could not find or create Frotz home directory.\n");
+    if (r < 0 || (size_t)r >= sizeof(gamefile)) {
+        output("%s\n", MSG_ZORK_PATH_TOO_LONG);
         return 0;
-    }
-
-    if (ensure_dir(datadir, 0700) == -1) {
-        output("Could not find or create Frotz save directory.\n");
-        return 0;
-    }
-
-    /* Verify chosen z-code file exists */
-    {
-        size_t need = strlen(zdir) + 1 + strlen(zname) + 1;
-        if (need > sizeof gamefile) {
-            output("Zork game path is too long.\n");
-            return 0;
-        }
-        int r = snprintf(gamefile, sizeof gamefile, "%s/%s", zdir, zname);
-        if (r < 0 || (size_t)r >= sizeof gamefile) {
-            output("Failed to build Zork game path.\n");
-            return 0;
-        }
     }
 
     if (!file_exists_r(gamefile)) {
@@ -8667,56 +9105,7 @@ cmd_zork(char *args)
         return 0;
     }
 
-    /* Find frotz binary */
-    if (find_frotz(frotz_path, sizeof frotz_path) == -1) {
-        output("Frotz not found. Please install it or set FROTZ_BIN.\n");
-        return 0;
-    }
-
-    /* Prepare argv: frotz -Z 0 -R <datadir> <gamefile> */
-    char *const argv[] = {
-        frotz_path,
-        "-Z", "0",
-        "-R", (char *)datadir,
-        (char *)gamefile,
-        NULL
-    };
-
-    /* Full signal handling and terminal reset block */
-    sigset_t sigmask, oldsigmask;
-    sigemptyset(&sigmask);
-    sigaddset(&sigmask, SIGNAL_NEW_TEXT);
-    sigaddset(&sigmask, SIGNAL_NEW_MSG);
-    sigprocmask(SIG_BLOCK, &sigmask, &oldsigmask);
-    signal(SIGNAL_NEW_TEXT, SIG_IGN);
-    signal(SIGNAL_NEW_MSG, SIG_IGN);
-    set_avail(Uid, 1);
-
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        set_avail(Uid, 0);
-        sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
-        return 0;
-    } else if (pid == 0) {
-        /* child */
-        sig_reset();
-        tty_reset();
-        execv(frotz_path, argv);
-        perror("execv");
-        _exit(127);
-    }
-
-    /* parent */
-    int status = 0;
-    (void)waitpid(pid, &status, 0);
-    signal(SIGNAL_NEW_TEXT, baffo);
-    signal(SIGNAL_NEW_MSG, newmsg);
-    sigprocmask(SIG_UNBLOCK, &oldsigmask, NULL);
-    tty_raw();
-    output("\n");
-    set_avail(Uid, 0);
-    return 1;
+    return run_frotz_game(gamefile);
 }
 
 /*

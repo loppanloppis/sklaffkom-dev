@@ -118,7 +118,10 @@
 #define FROTZ_ZORK1     "zork1.z3"
 #define FROTZ_ZORK2     "zork2.z3"
 #define FROTZ_ZORK3     "zork3.z3"
+
+/* BBSLINK */ 
 #define BBSLINK_INTRO           SKLAFFDIR "/etc/bbslink"
+
 
 /* SklaffKOM-files */
 
@@ -128,6 +131,8 @@
 #define MBOX_DB		SKLAFFDIR "/mbox"
 #define LOGDIR   	SKLAFFDIR "/log"
 #define DOORDIR		SKLAFFDIR "/doors"
+#define ZGAME_DIR       DOORDIR "/zmachine"
+#define FROTZ_DATA_DIR  ZGAME_DIR "/data"
 #define BBSLINK_DIR     DOORDIR "/bbslink"
 #define USER_FILE 	SKLAFFDIR "/etc/user"
 #define	ACTIVE_FILE 	SKLAFFDIR "/etc/active"
@@ -155,6 +160,7 @@
 #define STD_SKLAFFRC 	SKLAFFDIR "/etc/stdsklaffrc"
 #define POST_INFO	SKLAFFDIR "/etc/postnews"
 #define POST_FTNINFO	SKLAFFDIR "/etc/postftn"
+#define ZGAMES_FILE     SKLAFFDIR "/etc/zgames"
 #ifdef SWEDISH
 #define PARSE_FILE 	SKLAFFDIR "/etc/parse.swe"
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.swe"
@@ -639,6 +645,7 @@ int cmd_reclaim_unread(char *);
 int cmd_nethack(char *);
 int cmd_mod_numlines(char *args); /* 2025-08-10 PL */
 int cmd_zork(char *args); /* 2025-08-17 PL */
+int cmd_adventure(char *); /* 2026-10-12 PL */
 int cmd_bbslink(char *args); /* 2025-09-24 PL */
 int cmd_footnote(char *args); /* 2025-10-14 PL */
 int cmd_like(char *args); /*2025-10-18 PL */
