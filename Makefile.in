@@ -146,7 +146,7 @@ version.c:
 $(SKLAFFLIB):
 	(cd lib; $(MAKE) CC=$(CC) CFLAGS='$(CFLAGS) -I..')
 
-.PHONY: frotz clean-frotz
+.PHONY: frotz clean-frotz upgrade
 
 frotz:
 	$(MAKE) -C $(FROTZ_DIR) CC="$(CC)" frotz
@@ -188,6 +188,14 @@ install: sklaffkom sklaffadm sklaffacct survreport sklaffwho newstoss mailtoss f
 		mkdir -p "$(SKLAFFDIR)/libexec"; \
 		install -m 755 "$(FROTZ_DIR)/frotz" "$(FROTZ_INSTALL)"; \
 	fi
+
+# Upgrade data files in an existing installation without touching databases,
+# users, mailboxes, conference data, local games, or other runtime data.
+upgrade:
+	@SKLAFFDIR="$(SKLAFFDIR)" SKLAFFUSER="$(SKLAFFUSER)" sh ./upgrade.sh
+
+# WARNING: installdb creates a fresh data tree and removes existing data.
+# Use "make upgrade" when upgrading an existing SklaffKOM installation.
 installdb:
 	@echo Installing datafiles
 	-mkdir $(SKLAFFDIR)
@@ -283,7 +291,7 @@ distrib:
 	  sh "version.sh" >/dev/null 2>&1 || { echo "version.sh failed!"; exit 1; }; \
 	  find . -type f \
 	    ! -name '*.o' ! -name '*.a' ! -name '*~' \
-	    \( ! -perm /111 -o -name 'version.sh' \) \
+	    \( ! -perm /111 -o -name 'version.sh' -o -name 'upgrade.sh' \) \
 	    -print | sort > "$$LIST"; \
 	  RAWV=$$(sh "version.sh" -s 2>/dev/null | awk '{print $$NF}' || echo unknown); \
 	  PRETTYV=$$(printf '%s' "$$RAWV" | sed -E 's/#.*//' | sed -E 's/\([^)]+\)//g' | sed -E 's/([0-9]+)\.([0-9]+)b([0-9]+)/\1.\2-beta\3/'); \
