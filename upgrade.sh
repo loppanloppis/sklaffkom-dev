@@ -27,10 +27,11 @@ install_file()
 {
     src=$1
     dst=$2
+    mode=${3:-600}
 
     cp "$src" "$dst"
     chown "$SKLAFFUSER" "$dst"
-    chmod 600 "$dst"
+    chmod "$mode" "$dst"
 }
 
 ensure_dir()
@@ -86,6 +87,7 @@ install_zgames()
 {
     src="etc/zgames"
     dst="$SKLAFFDIR/etc/zgames"
+    zork1_entry='zork 1:Zork I: The Great Underground Empire:zork1.z3'
 
     [ -f "$src" ] || return
 
@@ -103,7 +105,52 @@ install_zgames()
         say "Keeping existing $dst"
         say "  It differs from the distributed etc/zgames template."
         say "  Compare the files manually if you want to merge new examples."
+
+        if ! grep -q '^zork 1:' "$dst"; then
+            printf '\n%s\n' "$zork1_entry" >> "$dst"
+            say "Added Zork I to $dst"
+        fi
     fi
+}
+
+install_bundled_zork1()
+{
+    srcdir="games/zmachine"
+    dstdir="$SKLAFFDIR/doors/zmachine"
+    story_src="$srcdir/zork1.z3"
+    story_dst="$dstdir/zork1.z3"
+
+    [ -f "$story_src" ] || die "source file $story_src is missing"
+    [ -f "$srcdir/LICENSE.zork1" ] || die "source file $srcdir/LICENSE.zork1 is missing"
+    [ -f "$srcdir/README.zork1" ] || die "source file $srcdir/README.zork1 is missing"
+
+    if [ ! -e "$story_dst" ]; then
+        install_file "$story_src" "$story_dst" 644
+        say "Installed bundled Zork I as $story_dst"
+    else
+        [ -f "$story_dst" ] || die "$story_dst exists but is not a regular file"
+
+        if cmp -s "$story_src" "$story_dst"; then
+            say "Bundled Zork I is already installed."
+        else
+            say "Keeping existing $story_dst"
+            say "  It differs from the bundled Zork I story file."
+            say "  Bundled Zork I metadata will not replace local metadata."
+            return
+        fi
+    fi
+
+    for name in LICENSE.zork1 README.zork1; do
+        src="$srcdir/$name"
+        dst="$dstdir/$name"
+
+        if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
+            continue
+        fi
+
+        install_file "$src" "$dst" 644
+        say "Updated Zork I file $dst"
+    done
 }
 
 install_new_etc_files()
@@ -182,6 +229,7 @@ say ""
 install_new_etc_files
 update_parse parse.swe
 update_parse parse.eng
+install_bundled_zork1
 install_zgames
 update_help_dir swe
 update_help_dir eng
