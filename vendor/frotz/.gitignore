@@ -43,3 +43,10 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 !Makefile
+
+# Generated Frotz build files
+/frotz
+/src/*/*.a
+/src/common/defs.h
+/src/common/hash.h
+/src/curses/ux_defines.h
