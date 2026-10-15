@@ -103,6 +103,9 @@
 #define ZIP_ARGS "-9"
 #endif
 
+#ifndef SURVREPORT
+#define SURVREPORT SKLAFFBIN "/srep"
+#endif
 
 /*
  * Doors and games
@@ -110,11 +113,7 @@
 
 /* Frotz / Z-machine games */
 #ifndef FROTZ_BIN
-#define FROTZ_BIN "/usr/local/bin/frotz"
-#endif
-
-#ifndef FROTZ_ARGS
-#define FROTZ_ARGS "-D 0 -Z 0 -R"
+#define FROTZ_BIN SKLAFFDIR "/libexec/frotz"
 #endif
 
 /* Nethack */

@@ -37,91 +37,22 @@
 
 #include "sklaff_features.h"
 #include "sklaff_programs.h"
+#include "sklaff_log.h"
+#include "sklaff_ui.h"
+#include "sklaff_conf.h"
+
+#if HAVE_SKLAFF_LOCAL_H
+#include "sklaff_local.h"
+#endif
+
+#include "sklaff_defaults.h"
+
 /* Define language desired, one of: SWEDISH or ENGLISH */
 #define SWEDISH
 //#define ENGLISH
 
-/* Enable (1) or disable (0) the character-set handshake at login. */
-
-#ifndef ENABLE_CHARSET_HANDSHAKE
-#define ENABLE_CHARSET_HANDSHAKE 1
-#endif
-
-/* Number of InterBBS Oneliners displayed at logout. 0 to disable. */
-#define IBOL_LOGOUT_COUNT 5
-
-/* InterBBS Oneliner (IBOL) transport settings. */
-#define IBOL_ONELINER_MAX 65
-#define IBOL_FTN_DOMAIN   "fsxnet"
-#define IBOL_FTN_AREA     "FSX_DAT"
-
-/* Define full path to crashmail.prefs */
-#ifndef CRASHMAIL_PREFS_FILE
-#define CRASHMAIL_PREFS_FILE "/ftn/etc/crashmail.prefs"
-#endif
-
-/* Define group ids and terminaltypes for modem_pool */
-
-#define MODEM_POOL 	"silly"
-#define MODEM_GROUP	50
-#define INET_GROUP	60
-
-/* Allow news postings in news- and FTN-conferences */
-
-//#undef POSTING_OK
-#define POSTING_OK
-
-/* Machine name for news postings */
-
-#define MACHINE_NAME	"twilightnode.org"
-
-/* User to mail for new accounts */
-
-#define SKLAFF_ACCT	"sklaff"
-
-/* For "batch" command */
-
-#define SKLAFF_ID	"Twilight Node"
-#define SKLAFF_LOC	"Solvesborg, Sweden"
-#define SKLAFF_NUM	"+46-8-7021174"
-#define SKLAFF_SYSOP	"Peter London"
-
-/* User ID of survey reporter account */
-
-#define SKLAFF_SURVEY_REPORTER 5000
-
-/* Default terminal used for clear screen if TERM not correct */
-
-#define NO_TERM	        "unknown"
-#define SKLAFF_TERM	"vt100"
-
-/* Default number of days before texts expire */
-
-#define EXP_DEF		    10      /* Ordinary confs */
-#define EXP_DEF_NEWS	10      /* News confs	  */
-#define EXP_DEF_FTN     10      /* FTN confs */     
-
-/* System files and paths used by SklaffKOM */
-
-#define UTMP_REC 	"/var/run/utmp"
-#define MAIL_SPOOL	"/var/mail"
-#define NEWS_SPOOL	"/usr/local/news/spool/articles"
-#define NEWS_GROUPS	"/usr/local/news/db/active"
-#define FTN_SPOOL 	"/usr/local/ftn/echomail"    /* modified on 2026-06-09, PL */
-#define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail" /* modified on 2026-07-06, PL */
-
 /* Programs used by SklaffKOM */
 #define SURVREPORT 	SKLAFFBIN "/srep"
-
-/* Some games settings misplaced here for now ;) */
-#define FROTZ_HOME      DOORDIR "/frotz"
-#define FROTZ_ZORK1     "zork1.z3"
-#define FROTZ_ZORK2     "zork2.z3"
-#define FROTZ_ZORK3     "zork3.z3"
-
-/* BBSLINK */ 
-#define BBSLINK_INTRO           SKLAFFDIR "/etc/bbslink"
-
 
 /* SklaffKOM-files */
 
@@ -161,6 +92,7 @@
 #define POST_INFO	SKLAFFDIR "/etc/postnews"
 #define POST_FTNINFO	SKLAFFDIR "/etc/postftn"
 #define ZGAMES_FILE     SKLAFFDIR "/etc/zgames"
+#define BBSLINK_GAMES_FILE SKLAFFDIR "/etc/bbslink"
 #ifdef SWEDISH
 #define PARSE_FILE 	SKLAFFDIR "/etc/parse.swe"
 #define STD_MAILBOX 	SKLAFFDIR "/etc/stdmailbox.swe"
@@ -191,77 +123,6 @@
 #define TMP_FOOTNOTE 	"/tmpfotnot"
 #define ACT_FILE        "/act"
 
-/* Log level
-*
-* 0 : No logs
-* 1–2: Errors only
-* 3–4: Warnings
-* 5–6: Most actions (command start/stop)
-* 7–8: Inputs/outputs (now sanitized), 
-* 9–10: Verbose (command lines, env., 
-* 12+: Very verbose (we probably don't even need this, we'll see :))
-*/
-#define LOGLEVEL 6
-
-
-/* Macros */
-
-/* LOGGING Macros */
-#ifndef LOGTAG
-#define LOGTAG "core"
-#endif
-
-#ifndef DLOG_BUFSZ
-#define DLOG_BUFSZ 2048   /* was 512 */
-#endif
-
-/* Default-tag logger (uses LOGTAG at compile site) */
-#define dlog(level, fmt, ...) do { \
-    char __buf[DLOG_BUFSZ]; \
-    snprintf(__buf, sizeof(__buf), "[%s] " fmt, LOGTAG, ##__VA_ARGS__); \
-    debuglog(__buf, (level)); \
-} while (0)
-
-/* Per-call tag logger */
-#define dlog_with(tag, level, fmt, ...) do { \
-    char __buf[DLOG_BUFSZ]; \
-    snprintf(__buf, sizeof(__buf), "[%s] " fmt, (tag), ##__VA_ARGS__); \
-    debuglog(__buf, (level)); \
-} while (0)
-
-/* Errno helpers */
-#define dlog_errno(level, ctx) \
-    dlog((level), "%s: errno=%d (%s)", (ctx), errno, strerror(errno))
-
-#define dlog_errno_with(tag, level, ctx) \
-    dlog_with((tag), (level), "%s: errno=%d (%s)", (ctx), errno, strerror(errno))
-
-/* Misc macros */
-#define ansi_output(...) do { if (Ansi_output) output(__VA_ARGS__); } while (0) /* 2025-07-30 PL */
-#define output_ansi_fallback(ansi_str, plain_str) \
-        do { output(Ansi_output ? (ansi_str) : (plain_str)); } while (0)  	/* 2025-07-30 PL */
-
-/* Misc settings */
-#define PROMPT      "-> " /* one whitespace at the end is a good idea PL 2025-07-30*/
-#define ANSI_CLS    "\033[H\033[J"
-
-/* ANSI colors */ 								/* 2025-07-30 PL */
-#define RED         "\e[31m"
-#define GREEN       "\e[32m"
-#define YELLOW      "\e[33m"
-#define BLUE        "\e[34m"
-#define PURPLE      "\e[35m"
-#define CYAN        "\e[36m"
-#define WHITE       "\e[37m"
-#define BR_WHITE    "\e[97m"
-#define BR_RED      "\e[91m"
-#define BR_GREEN    "\e[92m"
-#define BR_YELLOW   "\e[93m"
-#define BR_BLUE     "\e[94m"
-#define BR_PURPLE   "\e[95m"
-#define BR_CYAN     "\e[96m"
-#define DOT         "\e[0m" /* Reset to default */
-#define RESET       "\e[0m" /* Alias for the above */
 
 /* Change nothing below this line (unless it won't compile) */
 
@@ -300,128 +161,6 @@
 #define OPEN_CREATE	1
 #define OPEN_QUIET	2
 #define OPEN_DEFAULT	0
-
-/* Defines for conf_type */
-
-#define OPEN_CONF	0
-#define CLOSED_CONF	1
-#define SECRET_CONF	2
-#define NEWS_CONF	3
-#define FTN_CONF	4
-
-#define NEWS_CLOSED_CONF	5
-#define NEWS_SECRET_CONF	6
-#define FTN_CLOSED_CONF	7
-#define FTN_SECRET_CONF	8
-
-/*
- * Conference type is stored as one integer for backwards compatibility.
- *
- * Values 0..4 retain their historic meaning.  The helpers below separate
- * the two concepts that are encoded in that integer:
- *
- *   transport: local / news / FTN
- *   access:    open / closed / secret
- */
-static inline int
-conf_access_type(int type)
-{
-    switch (type) {
-    case OPEN_CONF:
-    case NEWS_CONF:
-    case FTN_CONF:
-        return OPEN_CONF;
-
-    case CLOSED_CONF:
-    case NEWS_CLOSED_CONF:
-    case FTN_CLOSED_CONF:
-        return CLOSED_CONF;
-
-    case SECRET_CONF:
-    case NEWS_SECRET_CONF:
-    case FTN_SECRET_CONF:
-        return SECRET_CONF;
-
-    default:
-        return -1;
-    }
-}
-
-static inline int
-conf_is_news(int type)
-{
-    return type == NEWS_CONF ||
-           type == NEWS_CLOSED_CONF ||
-           type == NEWS_SECRET_CONF;
-}
-
-static inline int
-conf_is_ftn(int type)
-{
-    return type == FTN_CONF ||
-           type == FTN_CLOSED_CONF ||
-           type == FTN_SECRET_CONF;
-}
-
-static inline int
-conf_is_external(int type)
-{
-    return conf_is_news(type) || conf_is_ftn(type);
-}
-
-
-/*
- * Return the canonical transport for a combined conference type.
- * OPEN_CONF represents local transport here.
- */
-static inline int
-conf_transport_type(int type)
-{
-    if (conf_is_news(type))
-        return NEWS_CONF;
-
-    if (conf_is_ftn(type))
-        return FTN_CONF;
-
-    if (conf_access_type(type) >= 0)
-        return OPEN_CONF;
-
-    return -1;
-}
-
-/*
- * Combine transport and access into the single integer stored in CONF_FILE.
- */
-static inline int
-conf_make_type(int transport, int access)
-{
-    if (access != OPEN_CONF &&
-        access != CLOSED_CONF &&
-        access != SECRET_CONF)
-        return -1;
-
-    switch (transport) {
-    case OPEN_CONF:
-        return access;
-
-    case NEWS_CONF:
-        if (access == CLOSED_CONF)
-            return NEWS_CLOSED_CONF;
-        if (access == SECRET_CONF)
-            return NEWS_SECRET_CONF;
-        return NEWS_CONF;
-
-    case FTN_CONF:
-        if (access == CLOSED_CONF)
-            return FTN_CLOSED_CONF;
-        if (access == SECRET_CONF)
-            return FTN_SECRET_CONF;
-        return FTN_CONF;
-
-    default:
-        return -1;
-    }
-}
 
 /* Defines for text types */
 
@@ -509,15 +248,6 @@ char *reorder_name(char *, char *);
 char *prog_name(char *);
 char *mbox_dir(int, char *);
 int  detect_terminal_lines(void);														/* 2025-08-10 PL */
-
-/* lib/ui.c */
-
-int  output_ansi_fmt(const char *ansi_fmt, const char *plain_fmt, ...); 				/* 2025-07-30 PL */
-int output_ansi_raw_fmt(const char *ansi_fmt, const char *plain_fmt, ...);				/* 2026-08-13 PL */
-void clear_prompt(int num); 															/* Little helper to avoid extra '(') 2025-08-26 PL */
-void clear_prompt_cols(int cols);														/* 2025-08-30 PL */
-void clear_screen(void);                                                                     /* More sophisticated cls to use outside of commands.c */
-int output_body_line(const char *line, const char *col);                                    /* ANSI support fort text body in articles 2025-09-24 PL */
 
 /* lib/display_header.c */
 
@@ -668,7 +398,6 @@ int grep(int, char *);
 void exec_logout(int);
 void exec_login(void);
 void timeout(int);
-void debuglog(char *, int);
 int strip_string(char *, char *);
 int show_status(int, int, int);
 int list_who(int);

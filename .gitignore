@@ -22,3 +22,5 @@ forwardtoconf
 config.h
 config.mk
 Makefile
+sklaff_local.h
+TODO2

@@ -20,6 +20,7 @@ FROTZ_BUILD_TARGET=""
 FROTZ_CLEAN_TARGET=""
 FROTZ_MAKE=""
 FROTZ_CURSES=""
+HAVE_SKLAFF_LOCAL_H=0
 
 usage()
 {
@@ -134,6 +135,19 @@ echo "Configuring SklaffKOM"
 echo "====================="
 echo
 
+#
+# Local site configuration
+#
+
+printf "%-36s" "Checking for sklaff_local.h..."
+
+if [ -f sklaff_local.h ]; then
+    HAVE_SKLAFF_LOCAL_H=1
+    echo "yes"
+else
+    HAVE_SKLAFF_LOCAL_H=0
+    echo "no"
+fi
 
 #
 # Operating system
@@ -531,6 +545,9 @@ cat > config.h.tmp <<EOF_CONFIG
 #define SKLAFF_CONFIG_H
 
 #define SKLAFF_CONFIGURED 1
+
+/* Optional local site configuration */
+#define HAVE_SKLAFF_LOCAL_H $HAVE_SKLAFF_LOCAL_H
 
 /* Bundled SklaffKOM Frotz */
 #define HAVE_FROTZ $WITH_FROTZ

@@ -25,6 +25,10 @@ v1.33-rc3 Thursday 08 October 2026 PL
 * Frotz & Zork now lives in SKLAFFDIR /doors/frotz, as it should have been 
   from the start.
 
+* Lots and lots of cleaning in sklaff.h. System specific settings now live
+  in sklaff_local.h so that Sysop's don't need to merge sklaff.h on each
+  SklaffKOM upgrade. sklaff_local.h.example included as a guide.
+
 v1.33-rc2 Thursday 13 August 2026 PL
 
 * Started working on a ./configure script. Lots of cleaning, renaming,

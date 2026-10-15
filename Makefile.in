@@ -44,12 +44,13 @@ OBJS = \
 	file.o \
 	footnote.o \
 	flag.o \
-    iboldb.o \
-    ibolview.o \
-    msg.o \
+	iboldb.o \
+	ibolview.o \
+	log.o \
+	msg.o \
 	newsparse.o \
 	parse.o\
-    plan.o\
+	plan.o\
 	praise.o\
 	survey.o \
 	text.o \

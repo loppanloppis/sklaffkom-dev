@@ -9036,26 +9036,11 @@ static int ensure_dir(const char *path, mode_t mode)
     return mkdir(path, mode);
 }
 
-static int
-file_exists_r(const char *path)
-{
-    int fd;
-
-    fd = open(path, O_RDONLY);
-    if (fd == -1)
-        return 0;
-
-    close(fd);
-    return 1;
-}
-
 int
 cmd_zork(char *args)
 {
     char *p = args;
-    char gamefile[PATH_MAX];
-    const char *zname = NULL;
-    int r;
+    char adventure_cmd[16];
 
 #if !defined(HAVE_FROTZ) || !HAVE_FROTZ
     output("\n%s\n\n", MSG_ZORK_OFF);
@@ -9065,47 +9050,29 @@ cmd_zork(char *args)
     Change_msg = 1;
     Change_prompt = 1;
 
-    /*
-     * Keep the old Zork command behaviour intact.
-     */
-    if (!p) {
-        output(MSG_BADARG);
-        return 0;
-    }
+    if (!p)
+        p = "";
 
     while (*p && isspace((unsigned char)*p))
         p++;
 
+    /*
+     * No argument: show the traditional Zork help/menu.
+     */
     if (*p == '\0') {
         output(MSG_BADARG);
         return 0;
     }
 
-    if (*p == '1')
-        zname = FROTZ_ZORK1;
-    else if (*p == '2')
-        zname = FROTZ_ZORK2;
-    else if (*p == '3')
-        zname = FROTZ_ZORK3;
-    else {
+    if (*p != '1' && *p != '2' && *p != '3') {
         output(MSG_NOARG);
         return 0;
     }
 
-    r = snprintf(gamefile, sizeof(gamefile),
-                 "%s/%s", FROTZ_HOME, zname);
+    snprintf(adventure_cmd, sizeof(adventure_cmd),
+             "zork %c", *p);
 
-    if (r < 0 || (size_t)r >= sizeof(gamefile)) {
-        output("%s\n", MSG_ZORK_PATH_TOO_LONG);
-        return 0;
-    }
-
-    if (!file_exists_r(gamefile)) {
-        output(MSG_NO_ZORK);
-        return 0;
-    }
-
-    return run_frotz_game(gamefile);
+    return cmd_adventure(adventure_cmd);
 }
 
 /*
@@ -9114,10 +9081,10 @@ cmd_zork(char *args)
  * ret: ok (0) or error (-1)
  *
  * Without arguments, displays information about BBSLink and all
- * configured games found in BBSLINK_INTRO.
+ * configured games found in BBSLINK_GAMES_FILE.
  *
  * With a game code argument, verifies that the game exists in
- * BBSLINK_INTRO and launches BBSLINK_DIR/bbslink.py.
+ * BBSLINK_GAMES_FILE and launches BBSLINK_DIR/bbslink.py.
  *
  * If BBSLINK_DIR is empty, BBSLink is considered disabled.
  *
