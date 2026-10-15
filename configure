@@ -21,6 +21,34 @@ FROTZ_CLEAN_TARGET=""
 FROTZ_MAKE=""
 FROTZ_CURSES=""
 HAVE_SKLAFF_LOCAL_H=0
+HAVE_SENDMAIL=0
+SENDMAIL_BIN=""
+SENDMAIL_DEFINE=""
+HAVE_INEWS=0
+INEWS_BIN=""
+INEWS_DEFINE=""
+HAVE_LYNX=0
+LYNX_BIN=""
+LYNX_DEFINE=""
+HAVE_AT=0
+AT_BIN=""
+AT_DEFINE=""
+
+HAVE_ZIP=0
+ZIP_BIN=""
+ZIP_DEFINE=""
+
+HAVE_NETHACK=0
+NETHACK_BIN=""
+NETHACK_DEFINE=""
+
+HAVE_CHFN=0
+CHFN_BIN=""
+CHFN_DEFINE=""
+
+HAVE_CP437=0
+CP437_BIN=""
+CP437_DEFINE=""
 
 usage()
 {
@@ -490,6 +518,117 @@ else
     exit 1
 fi
 
+#
+# Sendmail
+#
+
+printf "%-36s" "Checking for sendmail..."
+
+if SENDMAIL_BIN=`find_program sendmail`; then
+    HAVE_SENDMAIL=1
+    echo "$SENDMAIL_BIN"
+else
+    HAVE_SENDMAIL=0
+    echo "not found"
+fi
+
+#
+# inews
+#
+
+printf "%-36s" "Checking for inews..."
+
+if INEWS_BIN=`find_program inews`; then
+    HAVE_INEWS=1
+    echo "$INEWS_BIN"
+else
+    HAVE_INEWS=0
+    echo "not found"
+fi
+
+#
+# Lynx
+#
+
+printf "%-36s" "Checking for lynx..."
+
+if LYNX_BIN=`find_program lynx`; then
+    HAVE_LYNX=1
+    echo "$LYNX_BIN"
+else
+    HAVE_LYNX=0
+    echo "not found"
+fi
+
+#
+# at
+#
+
+printf "%-36s" "Checking for at..."
+
+if AT_BIN=`find_program at`; then
+    HAVE_AT=1
+    echo "$AT_BIN"
+else
+    HAVE_AT=0
+    echo "not found"
+fi
+
+#
+# zip
+#
+
+printf "%-36s" "Checking for zip..."
+
+if ZIP_BIN=`find_program zip`; then
+    HAVE_ZIP=1
+    echo "$ZIP_BIN"
+else
+    HAVE_ZIP=0
+    echo "not found"
+fi
+
+#
+# Nethack
+#
+
+printf "%-36s" "Checking for nethack..."
+
+if NETHACK_BIN=`find_program nethack`; then
+    HAVE_NETHACK=1
+    echo "$NETHACK_BIN"
+else
+    HAVE_NETHACK=0
+    echo "not found"
+fi
+
+#
+# chfn
+#
+
+printf "%-36s" "Checking for chfn..."
+
+if CHFN_BIN=`find_program chfn`; then
+    HAVE_CHFN=1
+    echo "$CHFN_BIN"
+else
+    HAVE_CHFN=0
+    echo "not found"
+fi
+
+#
+# CP437 wrapper
+#
+
+printf "%-36s" "Checking for cp437..."
+
+if CP437_BIN=`find_program cp437`; then
+    HAVE_CP437=1
+    echo "$CP437_BIN"
+else
+    HAVE_CP437=0
+    echo "not found"
+fi
 
 #
 # ZMODEM file transfer tools
@@ -528,6 +667,61 @@ PASSWD_BIN_C=`c_escape_string "$PASSWD_BIN"`
 LRZ_BIN_C=`c_escape_string "$LRZ_BIN"`
 LSZ_BIN_C=`c_escape_string "$LSZ_BIN"`
 
+if [ "$HAVE_SENDMAIL" -eq 1 ]; then
+    SENDMAIL_BIN_C=`c_escape_string "$SENDMAIL_BIN"`
+    SENDMAIL_DEFINE="#define SENDMAIL_BIN \"$SENDMAIL_BIN_C\""
+else
+    SENDMAIL_DEFINE="/* SENDMAIL_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_INEWS" -eq 1 ]; then
+    INEWS_BIN_C=`c_escape_string "$INEWS_BIN"`
+    INEWS_DEFINE="#define INEWS_BIN \"$INEWS_BIN_C\""
+else
+    INEWS_DEFINE="/* INEWS_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_LYNX" -eq 1 ]; then
+    LYNX_BIN_C=`c_escape_string "$LYNX_BIN"`
+    LYNX_DEFINE="#define LYNX_BIN \"$LYNX_BIN_C\""
+else
+    LYNX_DEFINE="/* LYNX_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_AT" -eq 1 ]; then
+    AT_BIN_C=`c_escape_string "$AT_BIN"`
+    AT_DEFINE="#define AT_BIN \"$AT_BIN_C\""
+else
+    AT_DEFINE="/* AT_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_ZIP" -eq 1 ]; then
+    ZIP_BIN_C=`c_escape_string "$ZIP_BIN"`
+    ZIP_DEFINE="#define ZIP_BIN \"$ZIP_BIN_C\""
+else
+    ZIP_DEFINE="/* ZIP_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_NETHACK" -eq 1 ]; then
+    NETHACK_BIN_C=`c_escape_string "$NETHACK_BIN"`
+    NETHACK_DEFINE="#define NETHACK_BIN \"$NETHACK_BIN_C\""
+else
+    NETHACK_DEFINE="/* NETHACK_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_CHFN" -eq 1 ]; then
+    CHFN_BIN_C=`c_escape_string "$CHFN_BIN"`
+    CHFN_DEFINE="#define CHFN_BIN \"$CHFN_BIN_C\""
+else
+    CHFN_DEFINE="/* CHFN_BIN not detected; using sklaff_programs.h fallback */"
+fi
+
+if [ "$HAVE_CP437" -eq 1 ]; then
+    CP437_BIN_C=`c_escape_string "$CP437_BIN"`
+    CP437_DEFINE="#define CP437_BIN \"$CP437_BIN_C\""
+else
+    CP437_DEFINE="/* CP437_BIN not detected; using sklaff_programs.h fallback */"
+fi
 
 #
 # config.h
@@ -558,6 +752,38 @@ cat > config.h.tmp <<EOF_CONFIG
 #define LS_BIN "$LS_BIN_C"
 #define ECHO_BIN "$ECHO_BIN_C"
 #define PASSWD_BIN "$PASSWD_BIN_C"
+
+/* Sendmail */
+#define HAVE_SENDMAIL $HAVE_SENDMAIL
+$SENDMAIL_DEFINE
+
+/* inews */
+#define HAVE_INEWS $HAVE_INEWS
+$INEWS_DEFINE
+
+/* Lynx */
+#define HAVE_LYNX $HAVE_LYNX
+$LYNX_DEFINE
+
+/* at */
+#define HAVE_AT $HAVE_AT
+$AT_DEFINE
+
+/* zip */
+#define HAVE_ZIP $HAVE_ZIP
+$ZIP_DEFINE
+
+/* Nethack */
+#define HAVE_NETHACK $HAVE_NETHACK
+$NETHACK_DEFINE
+
+/* chfn */
+#define HAVE_CHFN $HAVE_CHFN
+$CHFN_DEFINE
+
+/* CP437 wrapper */
+#define HAVE_CP437 $HAVE_CP437
+$CP437_DEFINE
 
 /* ZMODEM file transfer tools */
 #define LRZ_BIN "$LRZ_BIN_C"

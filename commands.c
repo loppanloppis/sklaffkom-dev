@@ -7649,9 +7649,6 @@ int
 cmd_nethack(char *args)
 {
     sigset_t sigmask, oldsigmask;
-    char nethack_path[256] = NETHACK_BIN;
-    FILE *which_fp;
-    char which_buf[256];
 
     if (!ENABLE_NETHACK) {
         output("\n%s\n\n", MSG_NETHACK_OFF);
@@ -7661,23 +7658,8 @@ cmd_nethack(char *args)
     Change_msg = 1;
     Change_prompt = 1;
 
-    /* Check default path first */
-    if (access(nethack_path, X_OK) != 0) {
-        /* Try fallback using "which nethack" */
-        which_fp = popen("which nethack", "r");
-        if (which_fp && fgets(which_buf, sizeof(which_buf), which_fp)) {
-            which_buf[strcspn(which_buf, "\n")] = '\0';  /* strip newline */
-            if (access(which_buf, X_OK) == 0) {
-                strncpy(nethack_path, which_buf, sizeof(nethack_path) - 1);
-                nethack_path[sizeof(nethack_path) - 1] = '\0';
-            }
-        }
-        if (which_fp)
-            pclose(which_fp);
-    }
-
     /* If still not found */
-    if (access(nethack_path, X_OK) != 0) {
+    if (access(NETHACK_BIN, X_OK) != 0) {
         output("\n"MSG_NETHACKER01"\n");
         return 0;
     }
@@ -7693,7 +7675,7 @@ cmd_nethack(char *args)
     if (!fork()) {
         sig_reset();
         tty_reset();
-        execl(nethack_path, nethack_path, NULL);
+        execl(NETHACK_BIN, NETHACK_BIN, NULL);
         perror("execl");
         _exit(1);
     } else {
@@ -8531,8 +8513,9 @@ cmd_mod_numlines(char *args)
     output(MSG_NUMLNSOK, v);
     return 0;
 }
-
+#if defined(HAVE_FROTZ) && HAVE_FROTZ
 static int ensure_dir(const char *path, mode_t mode);
+#endif
 
 #define ZGAME_COMMAND_LEN 64
 #define ZGAME_TITLE_LEN   160
@@ -8700,16 +8683,17 @@ zgame_installed(const struct ZGAME_ENTRY *game,
 static int
 run_frotz_game(const char *gamefile)
 {
-    struct stat st;
-    sigset_t sigmask, oldsigmask;
-    pid_t pid;
-    int status = 0;
-
 #if !defined(HAVE_FROTZ) || !HAVE_FROTZ
     (void)gamefile;
     output("\n%s\n\n", MSG_ZORK_OFF);
     return 0;
 #else
+
+    struct stat st;
+    sigset_t sigmask, oldsigmask;
+    pid_t pid;
+    int status = 0;
+
     if (ensure_dir(ZGAME_DIR, 0755) == -1) {
         output("%s\n", MSG_FROTZ_GAMEDIR_ERROR);
         return 0;
@@ -9023,7 +9007,7 @@ cmd_adventure(char *args)
 * Implementation of Zork (and possibly other z-code games
 * Work in progress, only testing for now
 */
-
+#if defined(HAVE_FROTZ) && HAVE_FROTZ
 static int ensure_dir(const char *path, mode_t mode)
 {
     struct stat st;
@@ -9035,6 +9019,7 @@ static int ensure_dir(const char *path, mode_t mode)
     if (errno != ENOENT) return -1;
     return mkdir(path, mode);
 }
+#endif
 
 int
 cmd_zork(char *args)
@@ -9134,7 +9119,7 @@ cmd_bbslink(char *args)
 
     if (Utf8) {
         const char *cmd[] = {
-            CP437_WRAPPER,
+            CP437_BIN,
             script_path,
             game_code,
             uid_buf,

@@ -56,7 +56,7 @@ can_change_realname(void)
     char key[64];
     char value[64];
 
-    if (access("/usr/bin/chfn", X_OK) != 0)
+    if (access(CHFN_BIN, X_OK) != 0)
         return 0;
 
     fp = fopen("/etc/login.defs", "r");
@@ -138,8 +138,8 @@ set_unix_realname(const char *name)
     pid = fork();
 
     if (pid == 0) {
-        execl("/usr/bin/chfn",
-              "/usr/bin/chfn",
+        execl(CHFN_BIN,
+              CHFN_BIN,
               "-f",
               utf8_name,
               (char *)NULL);

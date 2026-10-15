@@ -1960,10 +1960,17 @@ ftntoss_send_lock_mail(pid_t pid, long age, int pid_alive)
      *
      * modified on 2026-08-27, PL
      */
-    mail = popen("/usr/sbin/sendmail -t", "w");
+    {
+    char sendmail_cmd[PATH_MAX + 4];
+
+    snprintf(sendmail_cmd, sizeof(sendmail_cmd),
+             "%s -t", SENDMAIL_BIN);
+
+    mail = popen(sendmail_cmd, "w");
+    }
     if (mail == NULL) {
         fprintf(stderr,
-            "[ERROR] ftntoss: could not start /usr/sbin/sendmail: %s\n",
+            "[ERROR] ftntoss: could not start sendmail: %s\n",
             strerror(errno));
         return -1;
     }

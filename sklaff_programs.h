@@ -107,6 +107,10 @@
 #define SURVREPORT SKLAFFBIN "/srep"
 #endif
 
+#ifndef CHFN_BIN
+#define CHFN_BIN "/usr/bin/chfn"
+#endif
+
 /*
  * Doors and games
  */
@@ -122,9 +126,8 @@
 #endif
 
 /* CP437 wrapper used by BBSLink for UTF-8 sessions */
-#ifndef CP437_WRAPPER
-#define CP437_WRAPPER "/usr/local/bin/cp437"
+#ifndef CP437_BIN
+#define CP437_BIN "/usr/local/bin/cp437"
 #endif
-
 
 #endif /* SKLAFF_PROGRAMS_H */
