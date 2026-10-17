@@ -15,7 +15,7 @@ LDFLAGS=${LDFLAGS:-}
 
 CONFIG_LIBS=""
 STRL_PROVIDER=""
-WITH_FROTZ=0
+WITH_FROTZ=1
 FROTZ_BUILD_TARGET=""
 FROTZ_CLEAN_TARGET=""
 FROTZ_MAKE=""
@@ -59,8 +59,10 @@ usage()
 Usage: ./configure [options]
 
 Options:
-  --with-frotz       Build the bundled SklaffKOM Frotz in vendor/frotz
-  --without-frotz    Disable bundled Frotz support (default)
+  --enable-frotz     Build bundled SklaffKOM Frotz (default)
+  --disable-frotz    Do not build or install bundled Frotz
+  --with-frotz       Alias for --enable-frotz (backward compatibility)
+  --without-frotz    Alias for --disable-frotz (backward compatibility)
   --enable-zmodem    Build bundled lrzsz (default)
   --disable-zmodem   Do not build or install ZMODEM file transfers
   -h, --help         Show this help
@@ -69,10 +71,10 @@ EOF_USAGE
 
 for arg in "$@"; do
     case "$arg" in
-        --with-frotz)
+        --enable-frotz|--with-frotz)
             WITH_FROTZ=1
             ;;
-        --without-frotz)
+        --disable-frotz|--without-frotz)
             WITH_FROTZ=0
             ;;
         --enable-zmodem)
@@ -397,8 +399,8 @@ fi
 #
 # Bundled SklaffKOM Frotz
 #
-# Frotz is deliberately opt-in.  SklaffKOM does not use or fall back to
-# a stock/system Frotz; --with-frotz always means vendor/frotz.
+# Frotz is enabled by default but can be disabled with --disable-frotz.
+# SklaffKOM always builds vendor/frotz; it never uses system Frotz.
 #
 
 if [ "$WITH_FROTZ" -eq 1 ]; then
@@ -408,7 +410,8 @@ if [ "$WITH_FROTZ" -eq 1 ]; then
     else
         echo "not found"
         echo
-        echo "configure: --with-frotz was requested, but vendor/frotz/Makefile is missing." >&2
+        echo "configure: bundled Frotz is enabled but vendor/frotz/Makefile is missing." >&2
+        echo "configure: rerun with --disable-frotz to omit the bundled interpreter." >&2
         exit 1
     fi
 
@@ -477,8 +480,9 @@ EOF_TEST
     else
         echo "not found"
         echo
-        echo "configure: --with-frotz was requested, but ncursesw development files were not found." >&2
+        echo "configure: bundled Frotz is enabled but ncursesw development files were not found." >&2
         echo "configure: install the ncurses wide-character development package and try again." >&2
+        echo "configure: or rerun with --disable-frotz to omit the bundled interpreter." >&2
         exit 1
     fi
 
