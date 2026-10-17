@@ -20,6 +20,9 @@ FROTZ_BUILD_TARGET=""
 FROTZ_CLEAN_TARGET=""
 FROTZ_MAKE=""
 FROTZ_CURSES=""
+WITH_ZMODEM=1
+ZMODEM_BUILD_TARGET=""
+ZMODEM_CPPFLAGS=""
 HAVE_SKLAFF_LOCAL_H=0
 HAVE_SENDMAIL=0
 SENDMAIL_BIN=""
@@ -58,6 +61,8 @@ Usage: ./configure [options]
 Options:
   --with-frotz       Build the bundled SklaffKOM Frotz in vendor/frotz
   --without-frotz    Disable bundled Frotz support (default)
+  --enable-zmodem    Build bundled lrzsz (default)
+  --disable-zmodem   Do not build or install ZMODEM file transfers
   -h, --help         Show this help
 EOF_USAGE
 }
@@ -69,6 +74,12 @@ for arg in "$@"; do
             ;;
         --without-frotz)
             WITH_FROTZ=0
+            ;;
+        --enable-zmodem)
+            WITH_ZMODEM=1
+            ;;
+        --disable-zmodem)
+            WITH_ZMODEM=0
             ;;
         -h|--help)
             usage
@@ -360,6 +371,30 @@ fi
 
 
 #
+# Bundled build tools
+#
+# Both bundled Frotz and lrzsz use GNU make.  Require it once if either
+# component is enabled.  On FreeBSD, the user should invoke gmake.
+#
+if [ "$WITH_FROTZ" -eq 1 ] || [ "$WITH_ZMODEM" -eq 1 ]; then
+    printf "%-36s" "Checking for GNU make..."
+    if command -v gmake >/dev/null 2>&1; then
+        FROTZ_MAKE=gmake
+        echo "$FROTZ_MAKE"
+    elif command -v make >/dev/null 2>&1 &&
+         make --version 2>/dev/null | grep 'GNU Make' >/dev/null 2>&1; then
+        FROTZ_MAKE=make
+        echo "$FROTZ_MAKE"
+    else
+        echo "not found"
+        echo
+        echo "configure: bundled Frotz and ZMODEM require GNU make." >&2
+        echo "configure: install GNU make (gmake on BSD systems) and try again." >&2
+        exit 1
+    fi
+fi
+
+#
 # Bundled SklaffKOM Frotz
 #
 # Frotz is deliberately opt-in.  SklaffKOM does not use or fall back to
@@ -374,22 +409,6 @@ if [ "$WITH_FROTZ" -eq 1 ]; then
         echo "not found"
         echo
         echo "configure: --with-frotz was requested, but vendor/frotz/Makefile is missing." >&2
-        exit 1
-    fi
-
-    printf "%-36s" "Checking for GNU make..."
-    if command -v gmake >/dev/null 2>&1; then
-        FROTZ_MAKE=gmake
-        echo "$FROTZ_MAKE"
-    elif command -v make >/dev/null 2>&1 &&
-         make --version 2>/dev/null | grep 'GNU Make' >/dev/null 2>&1; then
-        FROTZ_MAKE=make
-        echo "$FROTZ_MAKE"
-    else
-        echo "not found"
-        echo
-        echo "configure: bundled Frotz requires GNU make." >&2
-        echo "configure: install GNU make (gmake on BSD systems) and run ./configure again." >&2
         exit 1
     fi
 
@@ -470,6 +489,38 @@ else
     echo "disabled"
 fi
 
+
+#
+# Bundled ZMODEM (lrzsz 0.13.1)
+#
+# The original source tree is not modified or configured in-place.
+# Actual lrzsz configuration happens during make in build/lrzsz.
+#
+if [ "$WITH_ZMODEM" -eq 1 ]; then
+    printf "%-36s" "Checking bundled lrzsz source..."
+    if [ -f vendor/lrzsz/configure ] &&
+       [ -f vendor/lrzsz/src/Makefile.in ] &&
+       [ -f vendor/lrzsz/src/lrz.c ] &&
+       [ -f vendor/lrzsz/src/lsz.c ]; then
+        echo "vendor/lrzsz"
+    else
+        echo "not found"
+        echo
+        echo "configure: ZMODEM is enabled but vendor/lrzsz is incomplete." >&2
+        echo "configure: rerun with --disable-zmodem to omit file transfers." >&2
+        exit 1
+    fi
+
+    ZMODEM_BUILD_TARGET=zmodem
+    if [ "$sklaffsys" = "FREEBSD" ]; then
+        ZMODEM_CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }-D_XOPEN_SOURCE=700"
+    else
+        ZMODEM_CPPFLAGS="$CPPFLAGS"
+    fi
+else
+    printf "%-36s" "Bundled ZMODEM support..."
+    echo "disabled"
+fi
 
 #
 # Core runtime tools
@@ -630,42 +681,11 @@ else
     echo "not found"
 fi
 
-#
-# ZMODEM file transfer tools
-#
-# lrzsz is commonly installed either as lrz/lsz or under the traditional
-# rz/sz names.  Prefer lrz/lsz when both forms are available.
-#
-
-printf "%-36s" "Checking for ZMODEM receiver..."
-if LRZ_BIN=`find_first_program lrz rz`; then
-    echo "$LRZ_BIN"
-else
-    echo "not found"
-    echo
-    echo "configure: a ZMODEM receiver is required (tried lrz and rz)." >&2
-    echo "configure: install lrzsz and run ./configure again." >&2
-    exit 1
-fi
-
-printf "%-36s" "Checking for ZMODEM sender..."
-if LSZ_BIN=`find_first_program lsz sz`; then
-    echo "$LSZ_BIN"
-else
-    echo "not found"
-    echo
-    echo "configure: a ZMODEM sender is required (tried lsz and sz)." >&2
-    echo "configure: install lrzsz and run ./configure again." >&2
-    exit 1
-fi
-
 # Quote detected paths for config.h.
 GREP_BIN_C=`c_escape_string "$GREP_BIN"`
 LS_BIN_C=`c_escape_string "$LS_BIN"`
 ECHO_BIN_C=`c_escape_string "$ECHO_BIN"`
 PASSWD_BIN_C=`c_escape_string "$PASSWD_BIN"`
-LRZ_BIN_C=`c_escape_string "$LRZ_BIN"`
-LSZ_BIN_C=`c_escape_string "$LSZ_BIN"`
 
 if [ "$HAVE_SENDMAIL" -eq 1 ]; then
     SENDMAIL_BIN_C=`c_escape_string "$SENDMAIL_BIN"`
@@ -785,9 +805,16 @@ $CHFN_DEFINE
 #define HAVE_CP437 $HAVE_CP437
 $CP437_DEFINE
 
-/* ZMODEM file transfer tools */
-#define LRZ_BIN "$LRZ_BIN_C"
-#define LSZ_BIN "$LSZ_BIN_C"
+/* Bundled ZMODEM file transfer tools */
+#define ENABLE_ZMODEM $WITH_ZMODEM
+#if ENABLE_ZMODEM
+#define LRZ_BIN SKLAFFDIR "/libexec/lrz"
+#define LSZ_BIN SKLAFFDIR "/libexec/lsz"
+#else
+/* Keep these empty so legacy sklaff_programs.h does not add fallbacks. */
+#define LRZ_BIN ""
+#define LSZ_BIN ""
+#endif
 
 #endif /* SKLAFF_CONFIG_H */
 EOF_CONFIG
@@ -811,6 +838,8 @@ CONFIG_CC = $CC
 CONFIG_SKLAFFSYS = $sklaffsys
 CONFIG_LIBS = $CONFIG_LIBS
 CONFIG_WITH_FROTZ = $WITH_FROTZ
+CONFIG_WITH_ZMODEM = $WITH_ZMODEM
+CONFIG_ZMODEM_CPPFLAGS = $ZMODEM_CPPFLAGS
 EOF_CONFIG
 
 mv config.mk.tmp config.mk
@@ -846,6 +875,8 @@ sed_libs=`sed_escape_replacement "$CONFIG_LIBS"`
 sed_with_frotz=`sed_escape_replacement "$WITH_FROTZ"`
 sed_frotz_build_target=`sed_escape_replacement "$FROTZ_BUILD_TARGET"`
 sed_frotz_clean_target=`sed_escape_replacement "$FROTZ_CLEAN_TARGET"`
+sed_zmodem_build_target=`sed_escape_replacement "$ZMODEM_BUILD_TARGET"`
+sed_zmodem_cppflags=`sed_escape_replacement "$ZMODEM_CPPFLAGS"`
 
 if sed \
     -e "s|@CC@|$sed_cc|g" \
@@ -854,6 +885,8 @@ if sed \
     -e "s|@WITH_FROTZ@|$sed_with_frotz|g" \
     -e "s|@FROTZ_BUILD_TARGET@|$sed_frotz_build_target|g" \
     -e "s|@FROTZ_CLEAN_TARGET@|$sed_frotz_clean_target|g" \
+    -e "s|@ZMODEM_BUILD_TARGET@|$sed_zmodem_build_target|g" \
+    -e "s|@ZMODEM_CPPFLAGS@|$sed_zmodem_cppflags|g" \
     Makefile.in > Makefile.tmp; then
 
     mv Makefile.tmp Makefile
@@ -883,6 +916,12 @@ if [ "$WITH_FROTZ" -eq 1 ]; then
     echo "  Frotz path:       /usr/local/sklaff/libexec/frotz"
 else
     echo "  Bundled Frotz:    disabled"
+fi
+if [ "$WITH_ZMODEM" -eq 1 ]; then
+    echo "  Bundled ZMODEM:   enabled (lrzsz 0.13.1)"
+    echo "  ZMODEM binaries:  /usr/local/sklaff/libexec/lrz, lsz"
+else
+    echo "  Bundled ZMODEM:   disabled"
 fi
 
 if [ -n "$CONFIG_LIBS" ]; then
