@@ -48,11 +48,6 @@
  * Optional transport methods
  */
 
-/* Send e-mail */
-#ifndef SENDMAIL_BIN
-#define SENDMAIL_BIN "/usr/sbin/sendmail"
-#endif
-
 /* Usenet posting */
 #ifndef INEWS_BIN
 #define INEWS_BIN "/usr/local/bin/inews"
@@ -78,12 +73,6 @@
 #ifndef LSZ_ARGS
 #define LSZ_ARGS "-Eq"
 #endif
-
-/* Render HTML e-mail as terminal-friendly text */
-#ifndef LYNX_BIN
-#define LYNX_BIN "/usr/bin/lynx"
-#endif
-
 
 /*
  * Optional utilities

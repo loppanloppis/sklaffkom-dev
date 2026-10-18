@@ -23,6 +23,11 @@ FROTZ_CURSES=""
 WITH_ZMODEM=1
 ZMODEM_BUILD_TARGET=""
 ZMODEM_CPPFLAGS=""
+ENABLE_EMAIL=0
+LOCAL_SENDMAIL_OVERRIDE=""
+LOCAL_SENDMAIL_BIN=""
+SENDMAIL_OVERRIDE=""
+LYNX_OVERRIDE=""
 HAVE_SKLAFF_LOCAL_H=0
 HAVE_SENDMAIL=0
 SENDMAIL_BIN=""
@@ -65,6 +70,11 @@ Options:
   --without-frotz    Alias for --disable-frotz (backward compatibility)
   --enable-zmodem    Build bundled lrzsz (default)
   --disable-zmodem   Do not build or install ZMODEM file transfers
+  --enable-email     Enable external email support (requires mail transport)
+  --disable-email    Disable external email support (default)
+  --with-local-sendmail=PATH  Use this sendmail-compatible binary for local mail
+  --with-sendmail=PATH  Override sendmail for external email (requires --enable-email)
+  --with-lynx=PATH      Use required Lynx executable at PATH
   -h, --help         Show this help
 EOF_USAGE
 }
@@ -83,6 +93,42 @@ for arg in "$@"; do
         --disable-zmodem)
             WITH_ZMODEM=0
             ;;
+        --enable-email)
+            ENABLE_EMAIL=1
+            ;;
+        --disable-email)
+            ENABLE_EMAIL=0
+            ;;
+        --with-local-sendmail=*)
+            LOCAL_SENDMAIL_OVERRIDE=${arg#--with-local-sendmail=}
+            case "$LOCAL_SENDMAIL_OVERRIDE" in
+                /*) ;;
+                *)
+                    echo "configure: --with-local-sendmail requires an absolute executable path." >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+        --with-sendmail=*)
+            SENDMAIL_OVERRIDE=${arg#--with-sendmail=}
+            case "$SENDMAIL_OVERRIDE" in
+                /*) ;;
+                *)
+                    echo "configure: --with-sendmail requires an absolute executable path." >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+        --with-lynx=*)
+            LYNX_OVERRIDE=${arg#--with-lynx=}
+            case "$LYNX_OVERRIDE" in
+                /*) ;;
+                *)
+                    echo "configure: --with-lynx requires an absolute executable path." >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
         -h|--help)
             usage
             exit 0
@@ -94,6 +140,11 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+if [ "$ENABLE_EMAIL" -eq 0 ] && [ -n "$SENDMAIL_OVERRIDE" ]; then
+    echo "configure: --with-sendmail requires --enable-email." >&2
+    exit 1
+fi
 
 #
 # Find a real executable in PATH.  Do not use command -v here: some core
@@ -574,17 +625,105 @@ else
 fi
 
 #
-# Sendmail
+# Local system mail (mandatory)
 #
+# sklaffacct always sends account applications through a sendmail-compatible
+# local mail interface, even when external email integration is disabled.
+# Record the actual executable path; a login session may have a different PATH.
+#
+printf "%-36s" "Checking local system mail..."
 
-printf "%-36s" "Checking for sendmail..."
-
-if SENDMAIL_BIN=`find_program sendmail`; then
-    HAVE_SENDMAIL=1
-    echo "$SENDMAIL_BIN"
+if [ -n "$LOCAL_SENDMAIL_OVERRIDE" ]; then
+    LOCAL_SENDMAIL_BIN=$LOCAL_SENDMAIL_OVERRIDE
+elif [ -f /usr/sbin/sendmail ] && [ -x /usr/sbin/sendmail ]; then
+    LOCAL_SENDMAIL_BIN=/usr/sbin/sendmail
+elif LOCAL_SENDMAIL_BIN=`find_program sendmail`; then
+    :
 else
-    HAVE_SENDMAIL=0
+    for candidate in /usr/bin/sendmail /usr/local/sbin/sendmail /usr/local/bin/sendmail /usr/lib/sendmail; do
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            LOCAL_SENDMAIL_BIN=$candidate
+            break
+        fi
+    done
+fi
+
+if [ -n "$LOCAL_SENDMAIL_BIN" ] &&
+   [ -f "$LOCAL_SENDMAIL_BIN" ] && [ -x "$LOCAL_SENDMAIL_BIN" ]; then
+    # Ensure the path stored in config.h is absolute, including for a
+    # relative directory found through PATH.
+    case "$LOCAL_SENDMAIL_BIN" in
+        /*) ;;
+        *)
+            local_mail_dir=`dirname "$LOCAL_SENDMAIL_BIN"`
+            local_mail_base=`basename "$LOCAL_SENDMAIL_BIN"`
+            local_mail_dir=`cd "$local_mail_dir" && pwd -P` || exit 1
+            LOCAL_SENDMAIL_BIN=$local_mail_dir/$local_mail_base
+            ;;
+    esac
+    echo "$LOCAL_SENDMAIL_BIN"
+else
     echo "not found"
+    echo
+    echo "configure: SklaffKOM requires a sendmail-compatible executable for local account mail." >&2
+    echo "configure: install a local MTA, or specify --with-local-sendmail=/absolute/path." >&2
+    exit 1
+fi
+
+#
+# External email integration (optional)
+#
+# Reuse the detected local MTA by default.  Sysop may override the external
+# transport independently with --with-sendmail; Lynx is not bundled.
+#
+if [ "$ENABLE_EMAIL" -eq 1 ]; then
+    printf "%-36s" "Checking external mail transport..."
+
+    if [ -n "$SENDMAIL_OVERRIDE" ]; then
+        SENDMAIL_BIN=$SENDMAIL_OVERRIDE
+    else
+        SENDMAIL_BIN=$LOCAL_SENDMAIL_BIN
+    fi
+
+    if [ -f "$SENDMAIL_BIN" ] && [ -x "$SENDMAIL_BIN" ]; then
+        HAVE_SENDMAIL=1
+        echo "$SENDMAIL_BIN"
+    else
+        echo "not found"
+        echo
+        echo "configure: --with-sendmail must point to an executable sendmail-compatible program." >&2
+        exit 1
+    fi
+
+else
+    printf "%-36s" "External email support..."
+    echo "disabled"
+fi
+
+#
+# Lynx (mandatory for rendering incoming HTML mail in mailtoss)
+#
+# Needed even when outgoing external email is disabled.
+#
+printf "%-36s" "Checking for lynx..."
+if [ -n "$LYNX_OVERRIDE" ]; then
+    LYNX_BIN=$LYNX_OVERRIDE
+elif LYNX_BIN=`find_program lynx`; then
+    :
+else
+    LYNX_BIN=""
+fi
+
+if [ -n "$LYNX_BIN" ] &&
+   [ -f "$LYNX_BIN" ] && [ -x "$LYNX_BIN" ]; then
+    HAVE_LYNX=1
+    echo "$LYNX_BIN"
+else
+    echo "not found"
+    echo
+    echo "configure: SklaffKOM requires Lynx to render incoming HTML mail." >&2
+    echo "configure: install lynx, or pass --with-lynx=/absolute/path/to/lynx." >&2
+    exit 1
 fi
 
 #
@@ -598,20 +737,6 @@ if INEWS_BIN=`find_program inews`; then
     echo "$INEWS_BIN"
 else
     HAVE_INEWS=0
-    echo "not found"
-fi
-
-#
-# Lynx
-#
-
-printf "%-36s" "Checking for lynx..."
-
-if LYNX_BIN=`find_program lynx`; then
-    HAVE_LYNX=1
-    echo "$LYNX_BIN"
-else
-    HAVE_LYNX=0
     echo "not found"
 fi
 
@@ -690,12 +815,14 @@ GREP_BIN_C=`c_escape_string "$GREP_BIN"`
 LS_BIN_C=`c_escape_string "$LS_BIN"`
 ECHO_BIN_C=`c_escape_string "$ECHO_BIN"`
 PASSWD_BIN_C=`c_escape_string "$PASSWD_BIN"`
+LOCAL_SENDMAIL_BIN_C=`c_escape_string "$LOCAL_SENDMAIL_BIN"`
 
 if [ "$HAVE_SENDMAIL" -eq 1 ]; then
     SENDMAIL_BIN_C=`c_escape_string "$SENDMAIL_BIN"`
     SENDMAIL_DEFINE="#define SENDMAIL_BIN \"$SENDMAIL_BIN_C\""
 else
-    SENDMAIL_DEFINE="/* SENDMAIL_BIN not detected; using sklaff_programs.h fallback */"
+    # Prevent legacy sklaff_programs.h from silently enabling email.
+    SENDMAIL_DEFINE='#define SENDMAIL_BIN ""'
 fi
 
 if [ "$HAVE_INEWS" -eq 1 ]; then
@@ -709,7 +836,7 @@ if [ "$HAVE_LYNX" -eq 1 ]; then
     LYNX_BIN_C=`c_escape_string "$LYNX_BIN"`
     LYNX_DEFINE="#define LYNX_BIN \"$LYNX_BIN_C\""
 else
-    LYNX_DEFINE="/* LYNX_BIN not detected; using sklaff_programs.h fallback */"
+    LYNX_DEFINE='#define LYNX_BIN ""'
 fi
 
 if [ "$HAVE_AT" -eq 1 ]; then
@@ -777,7 +904,11 @@ cat > config.h.tmp <<EOF_CONFIG
 #define ECHO_BIN "$ECHO_BIN_C"
 #define PASSWD_BIN "$PASSWD_BIN_C"
 
-/* Sendmail */
+/* Mandatory local system mail (for sklaffacct, independent of --enable-email) */
+#define LOCAL_SENDMAIL_BIN "$LOCAL_SENDMAIL_BIN_C"
+
+/* External email integration (enabled only by --enable-email) */
+#define ENABLE_EMAIL $ENABLE_EMAIL
 #define HAVE_SENDMAIL $HAVE_SENDMAIL
 $SENDMAIL_DEFINE
 
@@ -844,6 +975,7 @@ CONFIG_LIBS = $CONFIG_LIBS
 CONFIG_WITH_FROTZ = $WITH_FROTZ
 CONFIG_WITH_ZMODEM = $WITH_ZMODEM
 CONFIG_ZMODEM_CPPFLAGS = $ZMODEM_CPPFLAGS
+CONFIG_ENABLE_EMAIL = $ENABLE_EMAIL
 EOF_CONFIG
 
 mv config.mk.tmp config.mk
@@ -927,6 +1059,14 @@ if [ "$WITH_ZMODEM" -eq 1 ]; then
 else
     echo "  Bundled ZMODEM:   disabled"
 fi
+echo "  Local mail:       $LOCAL_SENDMAIL_BIN (required)"
+if [ "$ENABLE_EMAIL" -eq 1 ]; then
+    echo "  External email:   enabled"
+    echo "  Sendmail path:    $SENDMAIL_BIN"
+else
+    echo "  External email:   disabled"
+fi
+echo "  Lynx path:        $LYNX_BIN (required)"
 
 if [ -n "$CONFIG_LIBS" ]; then
     echo "  Extra libraries:  $CONFIG_LIBS"

@@ -2773,7 +2773,7 @@ cmd_mail(char *args)
     } else if (strchr(args, '@')) {
 
 
-        if (!ENABLE_OUTBOUND_EMAIL) {
+        if (!ENABLE_EMAIL) {
             output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
             return 0;
         }
@@ -3056,7 +3056,7 @@ cmd_personal(char *args)
 
     if (!commentuid && !is_ftn_personal) {
     
-    if (!ENABLE_OUTBOUND_EMAIL) {
+    if (!ENABLE_EMAIL) {
         output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
         free_text_entry(&te);
         return 0;
@@ -3835,7 +3835,7 @@ cmd_comment(char *args)
      */
 
     if (!Current_conf && !commentuid && !is_netmail_reply &&
-        !ENABLE_OUTBOUND_EMAIL) {
+        !ENABLE_EMAIL) {
         output("\n%s\n\n", MSG_OUTBOUND_EMAIL_OFF);
         free_text_entry(&te);
         return 0;

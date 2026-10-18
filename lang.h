@@ -864,7 +864,7 @@
 #define MSG_INSMODEM	"\nModem    : "
 #define MSG_INSPOST	"\nE-post   : "
 #define MSG_INSTELE	"\nTelefon  : "
-#define MSG_APPLIED	"Tackar för det! \nDin ansokan är registrerad och vi hor snart av oss.\nValkommen tillbaks!.\n\n"
+#define MSG_APPLIED	"Tackar för det! \nDin ansokan är registrerad och vi hor snart av oss.\nValkommen tillbaks!\n\n"
 #define MSG_UIDINUSE	"Inloggningsnamn upptaget. Vanligen valj annat."
 
 /* mailtoss.c */

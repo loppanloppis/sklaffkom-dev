@@ -7,6 +7,10 @@
  * URL noise.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "mailbody.h"
 #include "sklaff_programs.h"
 
