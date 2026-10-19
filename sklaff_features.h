@@ -19,6 +19,11 @@
 #define ENABLE_USENET_POSTING 1
 #endif
 
+/* InterBBS Oneliner wall and importer; configure overrides this default. */
+#ifndef ENABLE_IBOL
+#define ENABLE_IBOL 0
+#endif
+
 /* Optional games / doors */
 
 /*

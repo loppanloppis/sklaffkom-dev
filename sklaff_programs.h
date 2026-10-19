@@ -96,23 +96,9 @@
 #define CHFN_BIN "/usr/bin/chfn"
 #endif
 
-/*
- * Doors and games
- */
-
-/* Frotz / Z-machine games */
-#ifndef FROTZ_BIN
-#define FROTZ_BIN SKLAFFDIR "/libexec/frotz"
-#endif
-
 /* Nethack */
 #ifndef NETHACK_BIN
 #define NETHACK_BIN "/usr/local/bin/nethack"
-#endif
-
-/* CP437 wrapper used by BBSLink for UTF-8 sessions */
-#ifndef CP437_BIN
-#define CP437_BIN "/usr/local/bin/cp437"
 #endif
 
 #endif /* SKLAFF_PROGRAMS_H */

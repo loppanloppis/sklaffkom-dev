@@ -5748,7 +5748,7 @@ cmd_list_flags(char *args)
     output_flag_line(Rookie_mode, MSG_FLAG21F);
     output_flag_line(Start_mailbox, MSG_FLAG22F);
 
-#if IBOL_LOGOUT_COUNT > 0
+#if ENABLE_IBOL && IBOL_LOGOUT_COUNT > 0
     output_flag_line(Ibol_logout, MSG_FLAG23F);
 #endif
 
@@ -9094,27 +9094,86 @@ cmd_zork(char *args)
 }
 
 /*
- * cmd_bbslink - show available BBSLink games or start a game
- * args: game code (optional)
- * ret: ok (0) or error (-1)
+ * launch_bbslink_client - run the bundled C client with BBSLink credentials
  *
- * Without arguments, displays information about BBSLink and all
- * configured games found in BBSLINK_GAMES_FILE.
- *
- * With a game code argument, verifies that the game exists in
- * BBSLINK_GAMES_FILE and launches BBSLINK_DIR/bbslink.py.
- *
- * If BBSLINK_DIR is empty, BBSLink is considered disabled.
- *
- * 2026-05-30 PL
+ * SklaffKOM may be setuid to the sklaff service account. Normalize both
+ * real and effective IDs in the *child* before invoking any external helper,
+ * so the client can read a private, service-account-owned credentials file.
+ * Never use a shell or interpolate a door code into a command string.
  */
- 
+#if defined(ENABLE_BBSLINK) && ENABLE_BBSLINK
+static int
+launch_bbslink_client(const char *door, const char *user_number)
+{
+    sigset_t sigmask, oldsigmask;
+    pid_t pid;
+    int status = 0;
+    const char *const argv_plain[] = {
+        BBSLINK_CLIENT_BIN, door, user_number, NULL
+    };
+    const char *const argv_utf8[] = {
+        CP437_BIN, BBSLINK_CLIENT_BIN, door, user_number, NULL
+    };
+
+    sigemptyset(&sigmask);
+    sigaddset(&sigmask, SIGNAL_NEW_TEXT);
+    sigaddset(&sigmask, SIGNAL_NEW_MSG);
+    sigprocmask(SIG_BLOCK, &sigmask, &oldsigmask);
+    signal(SIGNAL_NEW_TEXT, SIG_IGN);
+    signal(SIGNAL_NEW_MSG, SIG_IGN);
+    set_avail(Uid, 1);
+
+    pid = fork();
+    if (pid < 0) {
+        perror("fork");
+    } else if (pid == 0) {
+        gid_t egid = getegid();
+        uid_t euid = geteuid();
+        sig_reset();
+        tty_reset();
+
+        /* The BBSLink client explicitly refuses mismatched process IDs. */
+        if (setregid(egid, egid) != 0 || setreuid(euid, euid) != 0) {
+            perror("bbslink: normalize process credentials");
+            _exit(126);
+        }
+
+        if (Utf8)
+            execv(CP437_BIN, (char *const *)argv_utf8);
+        else
+            execv(BBSLINK_CLIENT_BIN, (char *const *)argv_plain);
+        perror("bbslink: exec");
+        _exit(127);
+    } else {
+        while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+            ;
+    }
+
+    signal(SIGNAL_NEW_TEXT, baffo);
+    signal(SIGNAL_NEW_MSG, newmsg);
+    sigprocmask(SIG_SETMASK, &oldsigmask, NULL);
+    tty_raw();
+    output("\n");
+    set_avail(Uid, 0);
+    return pid < 0 ? -1 : 0;
+}
+#endif
+
+/*
+ * cmd_bbslink - show available BBSLink games or start a game
+ *
+ * The bundled bbslink_client is built by --enable-bbslink.  The game list
+ * remains in SklaffKOM; the client performs only network authentication
+ * and the Telnet connection.  Incoming FTN/news/mail are unrelated.
+ */
 int
 cmd_bbslink(char *args)
 {
     char uid_buf[16];
     char game_code[64];
-    char script_path[256];
+#if defined(ENABLE_BBSLINK) && ENABLE_BBSLINK
+    struct stat client_st;
+#endif
 
     if (!ENABLE_BBSLINK) {
         output("\n" MSG_BBSLINK_OFF "\n\n");
@@ -9124,16 +9183,9 @@ cmd_bbslink(char *args)
     Change_msg = 1;
     Change_prompt = 1;
 
-    if (BBSLINK_DIR[0] == '\0') {
-        output("\n" MSG_BBSLINK_OFF "\n\n");
-        return 0;
-    }
-
     snprintf(uid_buf, sizeof(uid_buf), "%d", Uid);
-
     if (!args)
         args = "";
-
     while (*args == ' ')
         args++;
 
@@ -9141,35 +9193,22 @@ cmd_bbslink(char *args)
         show_bbslink_games();
         return 0;
     }
-
     if (!find_bbslink_game(args, game_code, sizeof(game_code))) {
         output("\nOkänt BBSLink-spel: %s\n\n", args);
         return 0;
     }
 
-    snprintf(script_path, sizeof(script_path),
-             "%s/bbslink.py", BBSLINK_DIR);
-
-    if (Utf8) {
-        const char *cmd[] = {
-            CP437_BIN,
-            script_path,
-            game_code,
-            uid_buf,
-            NULL
-        };
-
-        return run_external_cmd_args(cmd, 0);
-    } else {
-        const char *cmd[] = {
-            script_path,
-            game_code,
-            uid_buf,
-            NULL
-        };
-
-        return run_external_cmd_args(cmd, 0);
+#if defined(ENABLE_BBSLINK) && ENABLE_BBSLINK
+    /* Use stat(), not access(): this BBS can run setuid sklaff. */
+    if (stat(BBSLINK_CLIENT_BIN, &client_st) != 0 ||
+        !S_ISREG(client_st.st_mode)) {
+        output("\n" MSG_BBSLINK_OFF "\n\n");
+        return 0;
     }
+    return launch_bbslink_client(game_code, uid_buf);
+#else
+    return 0;
+#endif
 }
 /* 
  * cmd_footnote - allows adding a "footnote" to a text
@@ -10174,7 +10213,7 @@ cmd_wall(char *args)
     }
 
 
-    if (IBOL_LOGOUT_COUNT <= 0) {
+    if (!ENABLE_IBOL || IBOL_LOGOUT_COUNT <= 0) {
         output("\n%s\n\n", MSG_IBOL_DISABLED);
         return 0;
     }

@@ -161,7 +161,7 @@ display_ibol_entries_from(const char *path, int count)
     size_t i;
     char error[256];
 
-    if (count <= 0)
+    if (!ENABLE_IBOL || count <= 0)
         return 0;
     if (path == NULL || *path == '\0')
         return -1;
@@ -231,7 +231,9 @@ prompt_ibol_oneliner(void)
     LINE text;
     LINE author;
 
-    if (IBOL_LOGOUT_COUNT <= 0)
+    /* Imported oneliners remain readable even without FTN posting;
+     * offering to write is only allowed with both features enabled. */
+    if (!ENABLE_IBOL || !ENABLE_FTN_POSTING || IBOL_LOGOUT_COUNT <= 0)
         return 0;
 
     if (output("%s", MSG_IBOL_WRITE_PROMPT) == -1)

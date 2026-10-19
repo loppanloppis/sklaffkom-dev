@@ -26,6 +26,14 @@ ZMODEM_CPPFLAGS=""
 ENABLE_EMAIL=0
 ENABLE_USENET_POSTING=0
 ENABLE_FTN_POSTING=0
+ENABLE_IBOL=0
+IBOL_BUILD_TARGET=""
+ENABLE_BBSLINK=0
+BBSLINK_CFLAGS=""
+BBSLINK_LIBS=""
+BBSLINK_TELNET_BIN=""
+CP437_CFLAGS=""
+CP437_LIBS=""
 INEWS_OVERRIDE=""
 LOCAL_SENDMAIL_OVERRIDE=""
 LOCAL_SENDMAIL_BIN=""
@@ -79,6 +87,10 @@ Options:
   --disable-usenet-posting Disable outgoing Usenet posting (default)
   --enable-ftn-posting   Enable outgoing FTN echomail and netmail
   --disable-ftn-posting  Disable outgoing FTN posting (default)
+  --enable-ibol       Enable InterBBS Oneliner wall and importer
+  --disable-ibol      Disable InterBBS Oneliner (default)
+  --enable-bbslink       Build standalone BBSLink C client (default: disabled)
+  --disable-bbslink      Do not build BBSLink (default)
   --with-inews=PATH     Use this inews executable for outgoing Usenet posts
   --with-local-sendmail=PATH  Use this sendmail-compatible binary for local mail
   --with-sendmail=PATH  Override sendmail for external email (requires --enable-email)
@@ -118,6 +130,18 @@ for arg in "$@"; do
             ;;
         --disable-ftn-posting)
             ENABLE_FTN_POSTING=0
+            ;;
+        --enable-ibol)
+            ENABLE_IBOL=1
+            ;;
+        --disable-ibol)
+            ENABLE_IBOL=0
+            ;;
+        --enable-bbslink)
+            ENABLE_BBSLINK=1
+            ;;
+        --disable-bbslink)
+            ENABLE_BBSLINK=0
             ;;
         --with-inews=*)
             INEWS_OVERRIDE=${arg#--with-inews=}
@@ -859,20 +883,6 @@ else
     echo "not found"
 fi
 
-#
-# CP437 wrapper
-#
-
-printf "%-36s" "Checking for cp437..."
-
-if CP437_BIN=`find_program cp437`; then
-    HAVE_CP437=1
-    echo "$CP437_BIN"
-else
-    HAVE_CP437=0
-    echo "not found"
-fi
-
 # Quote detected paths for config.h.
 GREP_BIN_C=`c_escape_string "$GREP_BIN"`
 LS_BIN_C=`c_escape_string "$LS_BIN"`
@@ -931,11 +941,177 @@ else
     CHFN_DEFINE="/* CHFN_BIN not detected; using sklaff_programs.h fallback */"
 fi
 
-if [ "$HAVE_CP437" -eq 1 ]; then
-    CP437_BIN_C=`c_escape_string "$CP437_BIN"`
-    CP437_DEFINE="#define CP437_BIN \"$CP437_BIN_C\""
+# A bundled wrapper uses a fixed installation path, never the PATH.
+# An empty value when disabled also overrides any legacy program fallback.
+if [ "$ENABLE_BBSLINK" -eq 1 ]; then
+    HAVE_CP437=1
+    CP437_BIN=/usr/local/sklaff/libexec/cp437
+    CP437_DEFINE='#define CP437_BIN SKLAFFDIR "/libexec/cp437"'
 else
-    CP437_DEFINE="/* CP437_BIN not detected; using sklaff_programs.h fallback */"
+    HAVE_CP437=0
+    CP437_BIN=""
+    CP437_DEFINE='#define CP437_BIN ""'
+fi
+
+#
+# BBSLink (optional).
+#
+# The client uses libcurl for HTTP, libcrypto for the protocol's MD5 hash,
+# and the system Telnet executable for the door session.
+# UTF-8 sessions use our separately built, vendored CP437 filter.
+#
+if [ "$ENABLE_BBSLINK" -eq 1 ]; then
+    # Give Sysops package names instead of only generic library names.
+    # Keep this platform-neutral: no root privileges or distro probing needed.
+    bbslink_package_help()
+    {
+        cat >&2 <<'EOF_BBSLINK_PACKAGES'
+configure: Install the BBSLink build dependencies using your distribution:
+  Debian / Ubuntu:
+    sudo apt install libcurl4-openssl-dev libssl-dev pkg-config telnet
+  Rocky Linux / RHEL:
+    sudo dnf install libcurl-devel openssl-devel pkgconf-pkg-config telnet
+EOF_BBSLINK_PACKAGES
+    }
+
+    echo
+    printf "%-36s" "Checking BBSLink client source..."
+    if [ ! -f bbslink_client.c ]; then
+        echo "not found"
+        echo "configure: bbslink_client.c is required by --enable-bbslink." >&2
+        exit 1
+    fi
+    echo "yes"
+
+    printf "%-36s" "Checking pkg-config for BBSLink..."
+    if command -v pkgconf >/dev/null 2>&1; then
+        BBSLINK_PKG_CONFIG=pkgconf
+    elif command -v pkg-config >/dev/null 2>&1; then
+        BBSLINK_PKG_CONFIG=pkg-config
+    else
+        echo "not found"
+        echo "configure: --enable-bbslink requires pkgconf/pkg-config, libcurl and OpenSSL development files." >&2
+        bbslink_package_help
+        exit 1
+    fi
+    BBSLINK_MISSING=
+    for bbslink_module in libcurl openssl; do
+        if ! "$BBSLINK_PKG_CONFIG" --exists "$bbslink_module"; then
+            BBSLINK_MISSING="$BBSLINK_MISSING $bbslink_module"
+        fi
+    done
+    if [ -n "$BBSLINK_MISSING" ]; then
+        echo "missing:$BBSLINK_MISSING"
+        echo "configure: $BBSLINK_PKG_CONFIG cannot find:$BBSLINK_MISSING" >&2
+        bbslink_package_help
+        exit 1
+    fi
+    echo "$BBSLINK_PKG_CONFIG"
+    BBSLINK_CFLAGS=`"$BBSLINK_PKG_CONFIG" --cflags libcurl openssl` || exit 1
+    BBSLINK_LIBS=`"$BBSLINK_PKG_CONFIG" --libs libcurl openssl` || exit 1
+
+    printf "%-36s" "Checking BBSLink link dependencies..."
+    cat > "$tmpdir/conftest.c" <<'EOF_BBSLINK'
+#include <curl/curl.h>
+#include <openssl/evp.h>
+int main(void) {
+    CURL *c = curl_easy_init();
+    const EVP_MD *h = EVP_md5();
+    curl_easy_cleanup(c);
+    return h == 0;
+}
+EOF_BBSLINK
+    if "$CC" $CPPFLAGS $CFLAGS $BBSLINK_CFLAGS "$tmpdir/conftest.c" \
+       $LDFLAGS $BBSLINK_LIBS -o "$tmpdir/conftest" >/dev/null 2>&1; then
+        echo "yes"
+    else
+        echo "failed"
+        echo "configure: BBSLink C client cannot link libcurl/libcrypto." >&2
+        bbslink_package_help
+        echo "configure: If already installed, check your CFLAGS, LDFLAGS and library paths." >&2
+        exit 1
+    fi
+
+    printf "%-36s" "Checking Telnet for BBSLink..."
+    if BBSLINK_TELNET_BIN=`find_program telnet`; then
+        case "$BBSLINK_TELNET_BIN" in
+            /*) ;;
+            *)
+                telnet_dir=`dirname "$BBSLINK_TELNET_BIN"`
+                telnet_base=`basename "$BBSLINK_TELNET_BIN"`
+                telnet_dir=`cd "$telnet_dir" && pwd -P` || exit 1
+                BBSLINK_TELNET_BIN=$telnet_dir/$telnet_base
+                ;;
+        esac
+        echo "$BBSLINK_TELNET_BIN"
+    else
+        echo "not found"
+        echo "configure: --enable-bbslink requires a Telnet client." >&2
+        bbslink_package_help
+        exit 1
+    fi
+
+    # Compile the vendor's source as-is.  First try the platform PTY library
+    # with libc iconv, then libiconv as a fallback (notably on FreeBSD).
+    printf "%-36s" "Checking bundled cp437 source..."
+    if [ ! -f vendor/cp437/cp437.c ] || [ ! -f vendor/cp437/COPYRIGHT ]; then
+        echo "not found"
+        echo "configure: --enable-bbslink requires vendor/cp437/cp437.c and COPYRIGHT." >&2
+        echo "configure: Copy the sources from https://github.com/keaston/cp437" >&2
+        exit 1
+    fi
+    echo "yes"
+
+    case "$host_os" in
+        *freebsd*|*openbsd*|*netbsd*)
+            CP437_CFLAGS="-I/usr/local/include"
+            CP437_LIBDIR="-L/usr/local/lib"
+            ;;
+        *)
+            CP437_CFLAGS=""
+            CP437_LIBDIR=""
+            ;;
+    esac
+
+    printf "%-36s" "Checking cp437 iconv and forkpty..."
+    for cp437_link in "-lutil" "-lutil -liconv"; do
+        if "$CC" $CPPFLAGS $CFLAGS $CP437_CFLAGS \
+            vendor/cp437/cp437.c $LDFLAGS $CP437_LIBDIR $cp437_link \
+            -o "$tmpdir/cp437-conftest" >/dev/null 2>&1; then
+            CP437_LIBS="$CP437_LIBDIR $cp437_link"
+            break
+        fi
+    done
+    if [ -z "$CP437_LIBS" ]; then
+        echo "failed"
+        echo "configure: Cannot compile vendored cp437 (iconv/forkpty)." >&2
+        echo "configure: Debian/Ubuntu: sudo apt install libc6-dev" >&2
+        echo "configure: Rocky Linux:   sudo dnf install glibc-devel" >&2
+        echo "configure: FreeBSD:       sudo pkg install libiconv" >&2
+        echo "configure: Also check custom CPPFLAGS/CFLAGS/LDFLAGS." >&2
+        exit 1
+    fi
+    echo "yes ($CP437_LIBS)"
+fi
+
+#
+# Optional InterBBS Oneliner (IBOL)
+#
+# The importer uses only bundled code; the Sysop supplies the FTN .MSG
+# directory at runtime.  FTN posting is separately controlled, so an
+# IBOL-enabled site can use the wall read-only.
+#
+if [ "$ENABLE_IBOL" -eq 1 ]; then
+    IBOL_BUILD_TARGET=ibolimport
+    printf "%-36s" "InterBBS Oneliner support..."
+    if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
+        echo "enabled (read/write)"
+    else
+        echo "enabled (read-only; FTN posting disabled)"
+    fi
+else
+    printf "%-36s" "InterBBS Oneliner support..."
+    echo "disabled"
 fi
 
 #
@@ -975,6 +1151,14 @@ cat > config.h.tmp <<EOF_CONFIG
 #define ENABLE_EMAIL $ENABLE_EMAIL
 #define HAVE_SENDMAIL $HAVE_SENDMAIL
 $SENDMAIL_DEFINE
+
+/* Optional BBSLink C client (separate from core SklaffKOM). */
+#define ENABLE_BBSLINK $ENABLE_BBSLINK
+#define BBSLINK_CLIENT_BIN SKLAFFDIR "/libexec/bbslink_client"
+#define BBSLINK_TELNET_BIN "$BBSLINK_TELNET_BIN"
+
+/* InterBBS Oneliner (import/display, outgoing messages require FTN posting) */
+#define ENABLE_IBOL $ENABLE_IBOL
 
 /* Optional outgoing Usenet posting (newstoss import is independent) */
 #define ENABLE_USENET_POSTING $ENABLE_USENET_POSTING
@@ -1046,6 +1230,13 @@ CONFIG_ZMODEM_CPPFLAGS = $ZMODEM_CPPFLAGS
 CONFIG_ENABLE_EMAIL = $ENABLE_EMAIL
 CONFIG_ENABLE_USENET_POSTING = $ENABLE_USENET_POSTING
 CONFIG_ENABLE_FTN_POSTING = $ENABLE_FTN_POSTING
+CONFIG_ENABLE_IBOL = $ENABLE_IBOL
+CONFIG_IBOL_BUILD_TARGET = $IBOL_BUILD_TARGET
+CONFIG_ENABLE_BBSLINK = $ENABLE_BBSLINK
+CONFIG_BBSLINK_CFLAGS = $BBSLINK_CFLAGS
+CONFIG_BBSLINK_LIBS = $BBSLINK_LIBS
+CONFIG_CP437_CFLAGS = $CP437_CFLAGS
+CONFIG_CP437_LIBS = $CP437_LIBS
 EOF_CONFIG
 
 mv config.mk.tmp config.mk
@@ -1081,8 +1272,15 @@ sed_libs=`sed_escape_replacement "$CONFIG_LIBS"`
 sed_with_frotz=`sed_escape_replacement "$WITH_FROTZ"`
 sed_frotz_build_target=`sed_escape_replacement "$FROTZ_BUILD_TARGET"`
 sed_frotz_clean_target=`sed_escape_replacement "$FROTZ_CLEAN_TARGET"`
+sed_enable_ibol=`sed_escape_replacement "$ENABLE_IBOL"`
+sed_ibol_build_target=`sed_escape_replacement "$IBOL_BUILD_TARGET"`
 sed_zmodem_build_target=`sed_escape_replacement "$ZMODEM_BUILD_TARGET"`
 sed_zmodem_cppflags=`sed_escape_replacement "$ZMODEM_CPPFLAGS"`
+sed_enable_bbslink=`sed_escape_replacement "$ENABLE_BBSLINK"`
+sed_bbslink_cflags=`sed_escape_replacement "$BBSLINK_CFLAGS"`
+sed_bbslink_libs=`sed_escape_replacement "$BBSLINK_LIBS"`
+sed_cp437_cflags=`sed_escape_replacement "$CP437_CFLAGS"`
+sed_cp437_libs=`sed_escape_replacement "$CP437_LIBS"`
 
 if sed \
     -e "s|@CC@|$sed_cc|g" \
@@ -1091,8 +1289,15 @@ if sed \
     -e "s|@WITH_FROTZ@|$sed_with_frotz|g" \
     -e "s|@FROTZ_BUILD_TARGET@|$sed_frotz_build_target|g" \
     -e "s|@FROTZ_CLEAN_TARGET@|$sed_frotz_clean_target|g" \
+    -e "s|@ENABLE_IBOL@|$sed_enable_ibol|g" \
+    -e "s|@IBOL_BUILD_TARGET@|$sed_ibol_build_target|g" \
     -e "s|@ZMODEM_BUILD_TARGET@|$sed_zmodem_build_target|g" \
     -e "s|@ZMODEM_CPPFLAGS@|$sed_zmodem_cppflags|g" \
+    -e "s|@ENABLE_BBSLINK@|$sed_enable_bbslink|g" \
+    -e "s|@BBSLINK_CFLAGS@|$sed_bbslink_cflags|g" \
+    -e "s|@BBSLINK_LIBS@|$sed_bbslink_libs|g" \
+    -e "s|@CP437_CFLAGS@|$sed_cp437_cflags|g" \
+    -e "s|@CP437_LIBS@|$sed_cp437_libs|g" \
     Makefile.in > Makefile.tmp; then
 
     mv Makefile.tmp Makefile
@@ -1147,6 +1352,24 @@ if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
     echo "  FTN posting:      enabled"
 else
     echo "  FTN posting:      disabled (ftntoss import still available)"
+fi
+if [ "$ENABLE_IBOL" -eq 1 ]; then
+    if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
+        echo "  InterBBS Oneliner: enabled (read/write)"
+    else
+        echo "  InterBBS Oneliner: enabled (read-only; requires FTN posting to send)"
+    fi
+else
+    echo "  InterBBS Oneliner: disabled"
+fi
+
+if [ "$ENABLE_BBSLINK" -eq 1 ]; then
+    echo "  BBSLink client:   enabled (libcurl, OpenSSL, Telnet)"
+    echo "  BBSLink binary:   /usr/local/sklaff/libexec/bbslink_client"
+    echo "  Bundled cp437:    /usr/local/sklaff/libexec/cp437"
+    echo "  Credentials:      /usr/local/sklaff/etc/bbslink_credentials (Sysop-managed)"
+else
+    echo "  BBSLink client:   disabled"
 fi
 
 if [ -n "$CONFIG_LIBS" ]; then

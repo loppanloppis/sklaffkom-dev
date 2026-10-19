@@ -6145,6 +6145,15 @@ main(int argc, char **argv)
 {
     struct ftn_conf_info ce;
 
+    /* Disable only IBOL export.  Normal FTN import and export are separate. */
+    if (!ENABLE_IBOL && argc > 1 &&
+        strcmp(argv[1], "--export-ibol-job") == 0) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: IBOL is disabled "
+            "(configure with --enable-ibol).\n");
+        return 1;
+    }
+
     /* Import and diagnostics always work; only outbound .MSG export is gated. */
     if (!ENABLE_FTN_POSTING && argc > 1 &&
         (strcmp(argv[1], "--export-one") == 0 ||

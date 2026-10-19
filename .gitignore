@@ -25,3 +25,6 @@ Makefile
 sklaff_local.h
 TODO2
 /build/lrzsz/
+# Local build artifacts
+/build/
+/bbslink_client
