@@ -49,10 +49,6 @@
  */
 
 /* Usenet posting */
-#ifndef INEWS_BIN
-#define INEWS_BIN "/usr/local/bin/inews"
-#endif
-
 #ifndef INEWS_ARGS
 #define INEWS_ARGS "-h -S -P"
 #endif

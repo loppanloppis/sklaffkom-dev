@@ -24,6 +24,9 @@ WITH_ZMODEM=1
 ZMODEM_BUILD_TARGET=""
 ZMODEM_CPPFLAGS=""
 ENABLE_EMAIL=0
+ENABLE_USENET_POSTING=0
+ENABLE_FTN_POSTING=0
+INEWS_OVERRIDE=""
 LOCAL_SENDMAIL_OVERRIDE=""
 LOCAL_SENDMAIL_BIN=""
 SENDMAIL_OVERRIDE=""
@@ -72,6 +75,11 @@ Options:
   --disable-zmodem   Do not build or install ZMODEM file transfers
   --enable-email     Enable external email support (requires mail transport)
   --disable-email    Disable external email support (default)
+  --enable-usenet-posting  Enable outgoing Usenet posting (requires inews)
+  --disable-usenet-posting Disable outgoing Usenet posting (default)
+  --enable-ftn-posting   Enable outgoing FTN echomail and netmail
+  --disable-ftn-posting  Disable outgoing FTN posting (default)
+  --with-inews=PATH     Use this inews executable for outgoing Usenet posts
   --with-local-sendmail=PATH  Use this sendmail-compatible binary for local mail
   --with-sendmail=PATH  Override sendmail for external email (requires --enable-email)
   --with-lynx=PATH      Use required Lynx executable at PATH
@@ -98,6 +106,28 @@ for arg in "$@"; do
             ;;
         --disable-email)
             ENABLE_EMAIL=0
+            ;;
+        --enable-usenet-posting)
+            ENABLE_USENET_POSTING=1
+            ;;
+        --disable-usenet-posting)
+            ENABLE_USENET_POSTING=0
+            ;;
+        --enable-ftn-posting)
+            ENABLE_FTN_POSTING=1
+            ;;
+        --disable-ftn-posting)
+            ENABLE_FTN_POSTING=0
+            ;;
+        --with-inews=*)
+            INEWS_OVERRIDE=${arg#--with-inews=}
+            case "$INEWS_OVERRIDE" in
+                /*) ;;
+                *)
+                    echo "configure: --with-inews requires an absolute executable path." >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         --with-local-sendmail=*)
             LOCAL_SENDMAIL_OVERRIDE=${arg#--with-local-sendmail=}
@@ -143,6 +173,11 @@ done
 
 if [ "$ENABLE_EMAIL" -eq 0 ] && [ -n "$SENDMAIL_OVERRIDE" ]; then
     echo "configure: --with-sendmail requires --enable-email." >&2
+    exit 1
+fi
+
+if [ "$ENABLE_USENET_POSTING" -eq 0 ] && [ -n "$INEWS_OVERRIDE" ]; then
+    echo "configure: --with-inews requires --enable-usenet-posting." >&2
     exit 1
 fi
 
@@ -727,17 +762,45 @@ else
 fi
 
 #
-# inews
+# Outgoing Usenet posting (optional)
 #
+# Importing Usenet through newstoss does not require inews.  Only check
+# the posting tool when the Sysop explicitly enables outgoing posting.
+#
+if [ "$ENABLE_USENET_POSTING" -eq 1 ]; then
+    printf "%-36s" "Checking for inews..."
 
-printf "%-36s" "Checking for inews..."
+    if [ -n "$INEWS_OVERRIDE" ]; then
+        INEWS_BIN=$INEWS_OVERRIDE
+    elif INEWS_BIN=`find_program inews`; then
+        :
+    else
+        INEWS_BIN=""
+    fi
 
-if INEWS_BIN=`find_program inews`; then
-    HAVE_INEWS=1
-    echo "$INEWS_BIN"
+    if [ -n "$INEWS_BIN" ] && [ -f "$INEWS_BIN" ] && [ -x "$INEWS_BIN" ]; then
+        # Store an absolute path even when PATH contains relative directories.
+        case "$INEWS_BIN" in
+            /*) ;;
+            *)
+                inews_dir=`dirname "$INEWS_BIN"`
+                inews_base=`basename "$INEWS_BIN"`
+                inews_dir=`cd "$inews_dir" && pwd -P` || exit 1
+                INEWS_BIN=$inews_dir/$inews_base
+                ;;
+        esac
+        HAVE_INEWS=1
+        echo "$INEWS_BIN"
+    else
+        echo "not found"
+        echo
+        echo "configure: --enable-usenet-posting requires an executable inews." >&2
+        echo "configure: install inews, or use --with-inews=/absolute/path." >&2
+        exit 1
+    fi
 else
-    HAVE_INEWS=0
-    echo "not found"
+    printf "%-36s" "Usenet posting support..."
+    echo "disabled"
 fi
 
 #
@@ -829,7 +892,8 @@ if [ "$HAVE_INEWS" -eq 1 ]; then
     INEWS_BIN_C=`c_escape_string "$INEWS_BIN"`
     INEWS_DEFINE="#define INEWS_BIN \"$INEWS_BIN_C\""
 else
-    INEWS_DEFINE="/* INEWS_BIN not detected; using sklaff_programs.h fallback */"
+    # Explicitly disable the old sklaff_programs.h fallback.
+    INEWS_DEFINE='#define INEWS_BIN ""'
 fi
 
 if [ "$HAVE_LYNX" -eq 1 ]; then
@@ -912,7 +976,11 @@ cat > config.h.tmp <<EOF_CONFIG
 #define HAVE_SENDMAIL $HAVE_SENDMAIL
 $SENDMAIL_DEFINE
 
-/* inews */
+/* Optional outgoing Usenet posting (newstoss import is independent) */
+#define ENABLE_USENET_POSTING $ENABLE_USENET_POSTING
+
+/* Outgoing FTN posting (echomail and netmail). Import remains available. */
+#define ENABLE_FTN_POSTING $ENABLE_FTN_POSTING
 #define HAVE_INEWS $HAVE_INEWS
 $INEWS_DEFINE
 
@@ -976,6 +1044,8 @@ CONFIG_WITH_FROTZ = $WITH_FROTZ
 CONFIG_WITH_ZMODEM = $WITH_ZMODEM
 CONFIG_ZMODEM_CPPFLAGS = $ZMODEM_CPPFLAGS
 CONFIG_ENABLE_EMAIL = $ENABLE_EMAIL
+CONFIG_ENABLE_USENET_POSTING = $ENABLE_USENET_POSTING
+CONFIG_ENABLE_FTN_POSTING = $ENABLE_FTN_POSTING
 EOF_CONFIG
 
 mv config.mk.tmp config.mk
@@ -1067,6 +1137,17 @@ else
     echo "  External email:   disabled"
 fi
 echo "  Lynx path:        $LYNX_BIN (required)"
+if [ "$ENABLE_USENET_POSTING" -eq 1 ]; then
+    echo "  Usenet posting:   enabled"
+    echo "  inews path:       $INEWS_BIN"
+else
+    echo "  Usenet posting:   disabled (newstoss still available)"
+fi
+if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
+    echo "  FTN posting:      enabled"
+else
+    echo "  FTN posting:      disabled (ftntoss import still available)"
+fi
 
 if [ -n "$CONFIG_LIBS" ]; then
     echo "  Extra libraries:  $CONFIG_LIBS"

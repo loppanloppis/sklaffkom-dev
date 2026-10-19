@@ -2766,6 +2766,11 @@ cmd_mail(char *args)
             return 0;
          }
 
+        if (!ENABLE_FTN_POSTING) {
+            output("\n%s\n\n", MSG_NONETMAIL);
+            return 0;
+        }
+
         mailrec = ftn_to_name;
         mailuid = 0;
         is_ftn_netmail = 1;
@@ -2844,7 +2849,7 @@ cmd_mail(char *args)
             if (queue_ftn_netmail(Uid, ftn_to_name, ftn_to_addr,
                     th.subject, inbuf) != 0) {
                 free(inbuf);
-                output("%s\n\n", MSG_NOMAIL);
+                output("%s\n\n", MSG_NONETMAIL);
                 return -1;
             }
 
@@ -3054,6 +3059,12 @@ cmd_personal(char *args)
         }
     }
 
+    if (is_ftn_personal && !ENABLE_FTN_POSTING) {
+        output("\n%s\n\n", MSG_NONETMAIL);
+        free_text_entry(&te);
+        return 0;
+    }
+
     if (!commentuid && !is_ftn_personal) {
     
     if (!ENABLE_EMAIL) {
@@ -3151,7 +3162,7 @@ cmd_personal(char *args)
         if (queue_ftn_netmail_reply(Uid, ftn_to_name, ftn_to_addr,
                 th.subject, inbuf, ftn_reply_msgid) != 0) {
             free(inbuf);
-            output("%s\n\n", MSG_NOMAIL);
+            output("%s\n\n", MSG_NONETMAIL);
             return -1;
         }
 
@@ -3306,15 +3317,22 @@ cmd_post_text(char *args)
         output("\n%s\n\n", MSG_USENET_POSTING_OFF);
         return 0;
     }
+    if (conf_is_ftn(ce->type) && !ENABLE_FTN_POSTING) {
+        dlog(5, "cmd_post_text: FTN posting disabled");
+        output("\n%s\n\n", MSG_NOFTN);
+        return 0;
+    }
     
 #ifndef POSTING_OK
-    if (conf_is_external(ce->type)) {
+    /* News and FTN posting use their independent configure flags. */
+    if (conf_is_external(ce->type) && !conf_is_news(ce->type) &&
+        !conf_is_ftn(ce->type)) {
         dlog(5, "cmd_post_text: external conf but POSTING_OK not defined -> MSG_NONEWS");
         output("\n%s\n\n", MSG_NONEWS);
         return 0;
     }
 #endif
-#ifdef POSTING_OK
+    /* Usenet posting is now selected by configure, not legacy POSTING_OK. */
     if (conf_is_news(ce->type)) {
         struct passwd *pw = getpwuid(Uid);
         snprintf(uname, sizeof(uname), "%s <%s@%s>",
@@ -3324,7 +3342,6 @@ cmd_post_text(char *args)
         th.author = 0;
         dlog(6, "cmd_post_text: NEWS posting mode, uname=[%s]", uname);
     }
-#endif
     th.num = 0L;
     th.comment_num = 0;
     th.comment_conf = 0;
@@ -3830,8 +3847,18 @@ cmd_comment(char *args)
     }
 
     /*
+     * Incoming FTN netmail can always be read, but outgoing replies
+     * require the separate FTN posting option.
+     */
+    if (is_netmail_reply && !ENABLE_FTN_POSTING) {
+        output("\n%s\n\n", MSG_NONETMAIL);
+        free_text_entry(&te);
+        return 0;
+    }
+
+    /*
      * Internet mail replies require outbound e-mail support.
-     * Local mail and FTN netmail are unaffected.
+     * Local mail and FTN netmail use separate controls.
      */
 
     if (!Current_conf && !commentuid && !is_netmail_reply &&
@@ -3964,12 +3991,20 @@ cmd_comment(char *args)
             output("\n%s\n\n", MSG_USENET_POSTING_OFF);
             return 0;
         }
+        if (ce != NULL &&
+            conf_is_ftn(ce->type) &&
+            !ENABLE_FTN_POSTING) {
+            dlog(5, "cmd_comment: FTN posting disabled");
+            output("\n%s\n\n", MSG_NOFTN);
+            return 0;
+        }
     }
 
 #ifndef POSTING_OK
     if (nc > 0) {
         ce = get_conf_struct(nc);
-        if (ce != NULL && conf_is_external(ce->type)) {
+        if (ce != NULL && conf_is_external(ce->type) &&
+            !conf_is_news(ce->type) && !conf_is_ftn(ce->type)) {
             dlog(5, "cmd_comment: external conf but POSTING_OK not defined -> MSG_NONEWS");
             output("\n%s\n\n", MSG_NONEWS);
             return 0;
@@ -3977,7 +4012,6 @@ cmd_comment(char *args)
     }
 #endif
 
-#ifdef POSTING_OK
     if (nc > 0) {
         ce = get_conf_struct(nc);
 
@@ -3986,7 +4020,6 @@ cmd_comment(char *args)
         else if (ce != NULL && conf_is_ftn(ce->type))
             show_post_warning(POST_FTNINFO, "POST_FTNINFO");
     }
-#endif
 
     dlog(6, "cmd_comment: display_header subject=[%s] nc=%d mailrec=%s",
          th.subject, nc, mailrec ? mailrec : "(null)");
@@ -4034,7 +4067,7 @@ cmd_comment(char *args)
             if (queue_ftn_netmail_reply(Uid, ftn_to_name, ftn_to_addr,
                     th.subject, inbuf, ftn_reply_msgid) != 0) {
                 free(inbuf);
-                output("%s\n\n", MSG_NOMAIL);
+                output("%s\n\n", MSG_NONETMAIL);
                 return -1;
             }
 

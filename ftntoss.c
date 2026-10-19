@@ -6144,7 +6144,20 @@ int
 main(int argc, char **argv)
 {
     struct ftn_conf_info ce;
-    
+
+    /* Import and diagnostics always work; only outbound .MSG export is gated. */
+    if (!ENABLE_FTN_POSTING && argc > 1 &&
+        (strcmp(argv[1], "--export-one") == 0 ||
+         strcmp(argv[1], "--export-one-conf") == 0 ||
+         strcmp(argv[1], "--export-test") == 0 ||
+         strcmp(argv[1], "--export-netmail-job") == 0 ||
+         strcmp(argv[1], "--export-ibol-job") == 0)) {
+        fprintf(stderr,
+            "[ERROR] ftntoss: outgoing FTN posting is disabled "
+            "(configure with --enable-ftn-posting).\n");
+        return 1;
+    }
+
     if (argc == 2 && strcmp(argv[1], "--dump-ftn-config") == 0) {
         return dump_ftn_config_file(CRASHMAIL_PREFS_FILE) == 0 ? 0 : 1;
     }
