@@ -1176,6 +1176,9 @@ $LYNX_DEFINE
 #define HAVE_AT $HAVE_AT
 $AT_DEFINE
 
+/* Legacy QWK batch download is not ready for a public feature switch. */
+#define ENABLE_QWK 0
+
 /* zip */
 #define HAVE_ZIP $HAVE_ZIP
 $ZIP_DEFINE
