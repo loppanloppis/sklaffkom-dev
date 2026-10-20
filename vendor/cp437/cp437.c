@@ -10,7 +10,6 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <locale.h>
 #include <unistd.h>
 #include <signal.h>
 #if defined(__FreeBSD__)
@@ -100,8 +99,7 @@ int main(int argc, char *argv[])
 	struct conv to_child, from_child;
 	struct sigaction sa;
 
-	/* Set up the LC_CTYPE locale - the character set of the real terminal */
-	setlocale(LC_CTYPE, "");
+	/* SklaffKOM invokes cp437 for UTF-8 terminal sessions. */
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s <command> [args...]\n", argv[0]);
@@ -118,16 +116,19 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	/* Set up iconv conversion descriptors.  We use "" for the real terminal, to request the
-	 * character set defined by the locale.  This isn't guaranteed by POSIX, but then _nothing_
-	 * about iconv is guaranteed by POSIX.
+	/* SklaffKOM starts this wrapper only for UTF-8 sessions.  Use explicit
+	 * conversion names: FreeBSD's iconv does not accept an empty target
+	 * encoding ("//TRANSLIT").  Some iconv versions also lack TRANSLIT.
 	 */
-	if ((to_child.cd = iconv_open("CP437//TRANSLIT", "")) == (iconv_t)-1) {
-		perror("iconv_open(CP437//TRANSLIT, \"\")");
+	to_child.cd = iconv_open("CP437//TRANSLIT", "UTF-8");
+	if (to_child.cd == (iconv_t)-1)
+		to_child.cd = iconv_open("CP437", "UTF-8");
+	if (to_child.cd == (iconv_t)-1) {
+		perror("iconv_open(CP437, UTF-8)");
 		return 1;
 	}
-	if ((from_child.cd = iconv_open("//TRANSLIT", "CP437")) == (iconv_t)-1) {
-		perror("iconv_open(//TRANSLIT, \"CP437\")");
+	if ((from_child.cd = iconv_open("UTF-8", "CP437")) == (iconv_t)-1) {
+		perror("iconv_open(UTF-8, CP437)");
 		return 1;
 	}
 	to_child.bytesleft = 0;

@@ -971,6 +971,9 @@ configure: Install the BBSLink build dependencies using your distribution:
     sudo apt install libcurl4-openssl-dev libssl-dev pkg-config telnet
   Rocky Linux / RHEL:
     sudo dnf install libcurl-devel openssl-devel pkgconf-pkg-config telnet
+  FreeBSD:
+    sudo pkg install pkgconf curl
+    (OpenSSL is provided by the base system; check that telnet is installed.)
 EOF_BBSLINK_PACKAGES
     }
 
