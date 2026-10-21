@@ -9,11 +9,13 @@ on how to administer, set up, and run the BBS itself, see the
 Apart from a good amount of patience and willingness to learn ;), you will 
 need a C compiler, GNU Make, Lynx, and a local sendmail-compatible program. 
 
-The Unix user account `sklaff` must already exist, and it's a good idea to use
+The unix user account `sklaff` must already exist, and it's a good idea to use
 this account throughout this guide.
 
-`./configure` checks dependencies and reports what is missing. Frotz and ZMODEM
-are bundled and enabled by default; other optional integrations are disabled.
+`./configure` checks dependencies and reports what is missing. 
+
+A Z-machine emulator (Frotz) and ZMODEM file transfer tools are bundled and 
+enabled by default; other optional integrations are disabled.
 
 On FreeBSD, use `gmake` wherever this guide says `make`.
 
