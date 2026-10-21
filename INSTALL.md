@@ -1,4 +1,4 @@
-# Installing and upgrading SklaffKOM
+# Installing and upgrading SklaffKOM 1.33rc3
 
 These instructions cover only the installation of SklaffKOM. For instructions
 on how to administer, set up, and run the BBS itself, see the 
@@ -14,40 +14,63 @@ this account throughout this guide.
 
 `./configure` checks dependencies and reports what is missing. Frotz and ZMODEM
 are bundled and enabled by default; other optional integrations are disabled.
+
 On FreeBSD, use `gmake` wherever this guide says `make`.
 
-New installation
+# New installation
 
-From the SklaffKOM source directory:
+Create sklaff_local.h from the supplied example and adjust local settings as
+needed.
+
+Example:
+```
+cp sklaff_local.h.example sklaff_local.h
+nano sklaff_local.h
+```
+
+Now we're ready to `configure`. Run `./configure --help` to list the
+optional integrations available.
+
+Select any desired options before building, for example:
 
 ```
-./configure
+./configure --enable-email --enable-usenet-posting --enable-ftn-posting
+```
+
+Then run the following commands in this order :
+```
 make
 sudo make installdb
 sudo make install
 ```
 
-Run `./configure --help` to see optional features.
-Select any desired options before building, for example:
-
-./configure --enable-email --enable-usenet-posting --enable-ftn-posting
-
 The default paths are `/usr/local/sklaff` for SklaffKOM data and 
 `/usr/local/bin` for programs. Some binaries now also live in 
-'/usr/local/sklaff/libexec'.
+`/usr/local/sklaff/libexec`.
 
 **Warning:** `make installdb` initializes a new data tree and removes existing
 SklaffKOM databases and other runtime data. Never use it for an upgrade.
 
-## Upgrading an existing installation
+# Upgrading an existing installation
 
 Back up `/usr/local/sklaff` and stop active SklaffKOM sessions and related
 jobs first. 
 
+Settings previously customized in sklaff.h should be moved to sklaff_local.h. 
+
+Do not manually edit `sklaff.h`, `sklaff_features.h` or `sklaff_programs.h` 
+for configuration; use sklaff_local.h and ./configure instead.
+
+If the file does not already exist, create it from the example:
+
+```
+test -f sklaff_local.h || cp sklaff_local.h.example sklaff_local.h
+```
+
 From the new source directory:
 
 ```
-./configure             # Include your existing --enable-* options
+./configure             # Include your existing / desired --enable-* options
 make clean
 make
 sudo make install       # Update executables

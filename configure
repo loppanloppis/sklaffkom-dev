@@ -77,8 +77,6 @@ Usage: ./configure [options]
 Options:
   --enable-frotz     Build bundled SklaffKOM Frotz (default)
   --disable-frotz    Do not build or install bundled Frotz
-  --with-frotz       Alias for --enable-frotz (backward compatibility)
-  --without-frotz    Alias for --disable-frotz (backward compatibility)
   --enable-zmodem    Build bundled lrzsz (default)
   --disable-zmodem   Do not build or install ZMODEM file transfers
   --enable-email     Enable external email support (requires mail transport)
@@ -89,7 +87,7 @@ Options:
   --disable-ftn-posting  Disable outgoing FTN posting (default)
   --enable-ibol       Enable InterBBS Oneliner wall and importer
   --disable-ibol      Disable InterBBS Oneliner (default)
-  --enable-bbslink       Build standalone BBSLink C client (default: disabled)
+  --enable-bbslink       Build standalone BBSLink C client
   --disable-bbslink      Do not build BBSLink (default)
   --with-inews=PATH     Use this inews executable for outgoing Usenet posts
   --with-local-sendmail=PATH  Use this sendmail-compatible binary for local mail
