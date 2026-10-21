@@ -161,24 +161,6 @@
 
 
 /*
- * Directory containing imported FTN echomail message files.
- *
- * Example:
- *
- * #define FTN_SPOOL "/usr/local/ftn/echomail"
- */
-
-
-/*
- * Directory containing FTN netmail message files.
- *
- * Example:
- *
- * #define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail"
- */
-
-
-/*
  * ----------------------------------------------------------------------
  * Usenet / news
  * ----------------------------------------------------------------------

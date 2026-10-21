@@ -129,13 +129,4 @@
 #define NEWS_GROUPS "/usr/local/news/db/active"
 #endif
 
-#ifndef FTN_SPOOL
-#define FTN_SPOOL "/usr/local/ftn/echomail"
-#endif
-
-#ifndef FTN_NETMAIL_SPOOL
-#define FTN_NETMAIL_SPOOL "/usr/local/ftn/netmail"
-#endif
-
-
 #endif /* SKLAFF_DEFAULTS_H */
