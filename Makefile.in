@@ -342,16 +342,11 @@ installdb:
 	chmod og-rxw $(SKLAFFDIR)/etc/help.swe/*
 	chmod og-rxw $(SKLAFFDIR)/etc/help.eng/*
 	# Door directories. Keep existing games/saves on repeated installdb runs.
-	mkdir -p $(SKLAFFDIR)/doors/frotz/data
 	mkdir -p $(SKLAFFDIR)/doors/zmachine/data
 	chown $(SKLAFFUSER) $(SKLAFFDIR)/doors
-	chown $(SKLAFFUSER) $(SKLAFFDIR)/doors/frotz
-	chown $(SKLAFFUSER) $(SKLAFFDIR)/doors/frotz/data
 	chown $(SKLAFFUSER) $(SKLAFFDIR)/doors/zmachine
 	chown $(SKLAFFUSER) $(SKLAFFDIR)/doors/zmachine/data
 	chmod 755 $(SKLAFFDIR)/doors
-	chmod 755 $(SKLAFFDIR)/doors/frotz
-	chmod 700 $(SKLAFFDIR)/doors/frotz/data
 	chmod 755 $(SKLAFFDIR)/doors/zmachine
 	chmod 700 $(SKLAFFDIR)/doors/zmachine/data
 	@story_src="games/zmachine/zork1.z3"; \

@@ -217,8 +217,6 @@ ensure_dir "$SKLAFFDIR/ftnqueue/netmail/tmp" 700
 ensure_dir "$SKLAFFDIR/ftnqueue/netmail/pending" 700
 
 ensure_dir "$SKLAFFDIR/doors" 755
-ensure_dir "$SKLAFFDIR/doors/frotz" 755
-ensure_dir "$SKLAFFDIR/doors/frotz/data" 700
 ensure_dir "$SKLAFFDIR/doors/zmachine" 755
 ensure_dir "$SKLAFFDIR/doors/zmachine/data" 700
 
