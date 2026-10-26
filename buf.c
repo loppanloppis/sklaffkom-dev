@@ -528,6 +528,9 @@ get_active_entry(char *buf, struct ACTIVE_ENTRY * ae)
         strcpy(ae->tty, ptr);
         *str = ':';
 
+        ptr = str + 1;
+        ae->node = atoi(ptr);
+
         buf = strchr(buf, '\n');
         buf++;
         return buf;

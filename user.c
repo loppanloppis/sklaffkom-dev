@@ -39,6 +39,8 @@
 #include <string.h>   /* strcmp, strchr */
 #include <strings.h>  /* strcasecmp */
 
+#define MAX_DYNAMIC_NODES 10
+
 /*
  * can_change_realname - check if the system allows real name changes
  * args: none
@@ -612,8 +614,8 @@ replace_active(struct ACTIVE_ENTRY *ae, char *buf)
             tbuf++;
         *tbuf = '\0';           /* Set 'length' of obuf */
 
-        sprintf(tmp, "%d:%d:%lld:%d:%s:%s:dum:dum:dum\n", ae->user, ae->pid,
-            (long long) ae->login_time, ae->avail, ae->from, ae->tty);
+        sprintf(tmp, "%d:%d:%lld:%d:%s:%s:%d:dum:dum\n", ae->user, ae->pid,
+            (long long) ae->login_time, ae->avail, ae->from, ae->tty, ae->node);
         strcpy(nbuf, obuf);
         strcat(nbuf, tmp);
         strcat(nbuf, buf);
@@ -857,10 +859,11 @@ stringify_user_struct(struct USER_ENTRY *user_entry, char *buf)
 int
 add_active()
 {
-    int myuid;
+    int myuid, i, node;
+    int used_nodes[MAX_DYNAMIC_NODES + 1];
 
-    struct ACTIVE_ENTRY ae, *aep;
-    char *buf, *nbuf, *oldbuf;
+    struct ACTIVE_ENTRY ae, node_ae, *aep;
+    char *buf, *nbuf, *oldbuf, *scan;
     char hname[FROM_FIELD_LEN];
     LINE name, tmp, tmpdir;
 
@@ -943,11 +946,37 @@ add_active()
         sys_error("add_active", 2, "read_file");
         return -1;
     }
+    memset(used_nodes, 0, sizeof(used_nodes));
+
+    scan = buf;
+    while ((scan = get_active_entry(scan, &node_ae))) {
+        if (node_ae.node >= 1 && node_ae.node <= MAX_DYNAMIC_NODES)
+            used_nodes[node_ae.node] = 1;
+    }
+
+    node = 0;
+
+    for (i = 1; i <= MAX_DYNAMIC_NODES; i++) {
+        if (!used_nodes[i]) {
+            node = i;
+            break;
+        }
+    }
+
+    if (node == 0) {
+        free(buf);
+        close_file(ActiveFD);
+        ActiveFD = -1;
+        non_critical();
+        output("\nInga lediga noder.\n\n");
+        return -1;
+    }
+
     hname[0] = '*';
     strncpy(hname + 1, get_hostname(), FROM_FIELD_LEN - 1);
     hname[FROM_FIELD_LEN - 1] = 0;
-    sprintf(tmp, "%d:%d:%lld:0:%s:%s:dum:dum:dum\n", Uid, getpid(),
-        (long long) time(0), hname, ttyname(0));
+    sprintf(tmp, "%d:%d:%lld:0:%s:%s:%d:dum:dum\n", Uid, getpid(),
+        (long long) time(0), hname, ttyname(0), node);
 
     nbuf = (char *) malloc(strlen(buf) + strlen(tmp) + 1);
     memset(nbuf, 0, strlen(buf) + strlen(tmp) + 1);

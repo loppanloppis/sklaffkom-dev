@@ -111,6 +111,7 @@ struct TEXT_ENTRY {
 struct ACTIVE_ENTRY {
     int user;                   /* uid of user */
     int pid;                    /* process identification */
+    int node;                   /* BBS node number */
     time_t login_time;          /* time of login */
     int avail;                  /* available or busy */
     char from[FROM_FIELD_LEN];  /* logged in from */

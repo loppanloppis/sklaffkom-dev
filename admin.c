@@ -1576,12 +1576,7 @@ active_entry_cmp(const void *a, const void *b)
     const struct ACTIVE_ENTRY *ae1 = a;
     const struct ACTIVE_ENTRY *ae2 = b;
 
-    int r = idle_time(ae1->user) - idle_time(ae2->user);
-
-    if (r == 0)
-        r = active_time(ae2->user) - active_time(ae1->user);
-
-    return (r);
+    return ae1->node - ae2->node;
 }
 
 
@@ -1630,11 +1625,11 @@ list_who(int who_type)
         /* New vilka-lista (98-04-15, OR) */
 
         if (WHO_INTERNAL == who_type)
-            output("\n%-25s %-11s %4s %4s   %s\n\n", MSG_NAME, MSG_WHEN,
-                MSG_TIME, MSG_ACT, MSG_FROM);
+            output("\n%-4s %-25s %-11s %4s %4s   %s\n\n",
+                MSG_NODE, MSG_NAME, MSG_WHEN, MSG_TIME, MSG_ACT, MSG_FROM);
         if (WHO_EXTERNAL == who_type)
-            outputex("\n%-25s %-11s %4s %4s   %s\n\n", MSG_NAME, MSG_WHEN,
-                MSG_TIME, MSG_ACT, MSG_FROM);
+            outputex("\n%-4s %-25s %-11s %4s %4s   %s\n\n",
+                MSG_NODE, MSG_NAME, MSG_WHEN, MSG_TIME, MSG_ACT, MSG_FROM);
         while ((buf = get_active_entry(buf, &ea))) {
             if (!ea.avail) {
                 user_name(ea.user, namn);
@@ -1651,7 +1646,8 @@ list_who(int who_type)
             else
                 sprintf(idle, "%4ld", itime);
             if (WHO_INTERNAL == who_type)
-                if (output("%-25s %-11s %4ld %s  %s\n",
+                if (output("%-4d %-25s %-11s %4ld %s  %s\n",
+                        ea.node,
                         namn,
                         time_string(ea.login_time, tid, 0),
                         active_time(ea.user),
@@ -1659,7 +1655,8 @@ list_who(int who_type)
                         ea.from) == -1)
                     break;
             if (WHO_EXTERNAL == who_type)
-                outputex("%-25s %-11s %4ld %s  %s\n",
+                outputex("%-4d %-25s %-11s %4ld %s  %s\n",
+                    ea.node,
                     namn,
                     time_string(ea.login_time, tid, 0),
                     active_time(ea.user),
@@ -1688,11 +1685,11 @@ list_who(int who_type)
         qsort(ae, nactive, sizeof(struct ACTIVE_ENTRY), active_entry_cmp);
 
         if (WHO_INTERNAL == who_type)
-            output("\n%-25s %-11s %4s %4s   %s\n\n", MSG_NAME, MSG_WHEN,
-                MSG_TIME, MSG_ACT, MSG_FROM);
+            output("\n%-4s %-25s %-11s %4s %4s   %s\n\n",
+                MSG_NODE, MSG_NAME, MSG_WHEN, MSG_TIME, MSG_ACT, MSG_FROM);
         if (WHO_EXTERNAL == who_type)
-            outputex("\n%-25s %-11s %4s %4s   %s\n\n", MSG_NAME, MSG_WHEN,
-                MSG_TIME, MSG_ACT, MSG_FROM);
+            outputex("\n%-4s %-25s %-11s %4s %4s   %s\n\n",
+                MSG_NODE, MSG_NAME, MSG_WHEN, MSG_TIME, MSG_ACT, MSG_FROM);
 
         for (i = 0; i < nactive; i++) {
             if (!ae[i].avail) {
@@ -1712,7 +1709,8 @@ list_who(int who_type)
                 nidle++;
             }
             if (WHO_INTERNAL == who_type)
-                if (output("%-25s %-11s %4ld %s  %s\n",
+                if (output("%-4d %-25s %-11s %4ld %s  %s\n",
+                        ae[i].node,
                         namn,
                         time_string(ae[i].login_time, tid, 0),
                         active_time(ae[i].user),
@@ -1720,7 +1718,8 @@ list_who(int who_type)
                         ae[i].from) == -1)
                     break;
             if (WHO_EXTERNAL == who_type)
-                outputex("%-25s %-11s %4ld %s  %s\n",
+                outputex("%-4d %-25s %-11s %4ld %s  %s\n",
+                    ae[i].node,
                     namn,
                     time_string(ae[i].login_time, tid, 0),
                     active_time(ae[i].user),
