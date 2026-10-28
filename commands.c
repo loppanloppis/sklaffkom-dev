@@ -29,6 +29,7 @@
 #define LOGTAG "commands"
 #endif
 
+#include "door.h"
 #include "sklaff.h"
 #include "ext_globals.h"
 #include <pwd.h>
@@ -10206,4 +10207,23 @@ cmd_wall(char *args)
         (void)prompt_ibol_oneliner();
 
     return 0;
+}
+
+#define UMRC_DIR     SKLAFFDIR "/doors/umrc"
+#define UMRC_CLIENT  SKLAFFBIN "/umrc-client"
+
+int
+cmd_chat(char *args)
+{
+    (void)args;
+
+    Change_msg = 1;
+    Change_prompt = 1;
+
+    return run_door(
+        UMRC_DIR,
+        UMRC_CLIENT,
+        DROPFILE_DOORSYS,
+        "-D"
+    );
 }

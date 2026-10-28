@@ -39,6 +39,7 @@ Change rows:cmd_mod_numlines:Set number of rows:Y
 Change screen (length):cmd_mod_numlines:Change number of screen rows:P
 Change signature:cmd_mod_sig:Change your signature:P
 Change timeout:cmd_mod_timeout:Change timeout period:P
+Chat:cmd_chat:Chat via MRC:M
 Create conference:cmd_create_conf:Create a new conference:C
 Delete article:cmd_delete_text:Delete a specific article:T
 Delete conference:cmd_delete_conf:Deletes a conference:C

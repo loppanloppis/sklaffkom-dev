@@ -27,6 +27,7 @@ Backa:cmd_back_text:Backar ett antal texter:T
 B|rja om:cmd_restart:B|rjar om med en ny inloggning:O
 BBSLink:cmd_bbslink:Synonymt med 'Spela (onlinespel)':Y
 Blockera:cmd_block_user:Redigerar blockarade anv{ndarnamn:P
+Chatta:cmd_chat:Chatta med anv{ndare p} andra BBS:er via uMRC:M
 Clear:cmd_cls:Rensa sk{rmen:O
 Cls:cmd_cls:Synonym till Clear (rensar sk{rmen):Y
 Endast:cmd_only:V{lj hur m}nga texter i aktuellt m|te som skall vara nya:T

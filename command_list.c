@@ -14,6 +14,7 @@ const struct COMMAND_ENTRY command_list[] = {
     { "cmd_change_comc", cmd_change_comc, },
     { "cmd_change_conf", cmd_change_conf, },
     { "cmd_change_passwd", cmd_change_passwd, },
+    { "cmd_chat", cmd_chat, },
     { "cmd_cls", cmd_cls, },
     { "cmd_comment", cmd_comment, },
     { "cmd_create_conf", cmd_create_conf, },

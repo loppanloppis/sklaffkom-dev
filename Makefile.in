@@ -74,6 +74,8 @@ OBJS = \
 	conf.o \
 	confxtra.o \
 	displaytime.o \
+    door.o \
+    dropfile.o \
 	edit.o \
 	external.o \
 	file.o \
@@ -131,6 +133,10 @@ $(FTYOBJ): sklaff.h globals.h struct.h lang.h
 ibolimport.o: ftnmsg.h ibol.h iboldb.h
 ibol.o: ibol.h ftnmsg.h
 iboldb.o: iboldb.h
+
+door.o: door.h dropfile.h
+dropfile.o: dropfile.h
+commands.o: door.h
 
 # The CP437 wrapper depends only on the platform's PTY and iconv libraries.
 # Do not call upstream Makefile: it hardcodes gcc and platform link flags.

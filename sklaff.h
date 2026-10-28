@@ -386,6 +386,7 @@ int cmd_block_user(char *args); /* 2026-06-16, PL */
 int cmd_change_charset(char *); /* 2026-08-07 PL */
 int cmd_mod_conf(char *); /* 2026-08-09 PL */
 int cmd_wall(char *args); /* 2026-08-12 PL */
+int cmd_chat(char *args); /* 2026-10-27 PL */
 
 /* admin.c */
 
