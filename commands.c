@@ -6290,24 +6290,7 @@ cmd_upload(char *args)
         set_avail(Uid, 0);
         return 0;
     }
-
-    /*
-     * If LRZ_BIN contains a slash, verify it directly.
-     * Otherwise execvp() will later search PATH.
-     */
-    if (strchr(LRZ_BIN, '/') != NULL &&
-        access(LRZ_BIN, X_OK) == -1) {
-        dlog(3,
-             "cmd_upload: LRZ_BIN not executable: %s",
-             LRZ_BIN);
-        output(MSG_ULPRGMERROR "\n\n");
-
-        signal(SIGNAL_NEW_TEXT, baffo);
-        signal(SIGNAL_NEW_MSG, newmsg);
-        set_avail(Uid, 0);
-        return 0;
-    }
-
+ 
     /*
      * Ensure the real conference file directory exists.
      * It remains owned by the SklaffKOM account.
@@ -6471,7 +6454,8 @@ cmd_upload(char *args)
 
         dlog(2,
              "cmd_upload: execvp failed for %s",
-             LRZ_BIN);
+             LRZ_BIN, strerror(errno));
+
         _exit(127);
     }
 
