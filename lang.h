@@ -382,6 +382,8 @@
 #define MSG_BLOCKINTRO2	"Tomma rader och rader som b|rjar med # ignoreras."
 #define MSG_BLOCKED_MSG	"(Text %ld dold: blockerad avs}ndare)"
 #define MSG_JUMPUSERLOCAL "Detta kommando fungerar endast i lokala m|ten."
+#define MSG_NOUMRC "Multitjat {r inte aktiverat p} detta system."
+
 /* Nytt Version-kommando */
 #define MSG_VERSIONH1	"UPPHOVSR[TT"
 #define MSG_VERSIONH1U	"==========="
@@ -1252,6 +1254,7 @@
 #define MSG_BLOCKINTRO2 "Empty lines, and lines starting with # are ignored."
 #define MSG_BLOCKED_MSG "(Article %ld hidden: the author is on your blocklist)"                  
 #define MSG_JUMPUSERLOCAL "This command only works in local conferences."
+#define MSG_NOUMRC "uMRC is not enabled on this system."
 
 /* New version command */
 #define MSG_VERSIONH1	"COPYRIGHT"

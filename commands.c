@@ -10210,13 +10210,14 @@ cmd_wall(char *args)
 }
 
 #define UMRC_DIR     SKLAFFDIR "/doors/umrc"
-#define UMRC_CLIENT  SKLAFFBIN "/umrc-client"
+#define UMRC_CLIENT  SKLAFFBIN "/sklaffumrc"
 
 int
 cmd_chat(char *args)
 {
     (void)args;
 
+#if ENABLE_UMRC
     Change_msg = 1;
     Change_prompt = 1;
 
@@ -10226,4 +10227,8 @@ cmd_chat(char *args)
         DROPFILE_DOORSYS,
         "-D"
     );
+#else
+    output("\n" MSG_NOUMRC "\n\n");
+    return 0;
+#endif
 }

@@ -26,6 +26,7 @@ ZMODEM_CPPFLAGS=""
 ENABLE_EMAIL=0
 ENABLE_USENET_POSTING=0
 ENABLE_FTN_POSTING=0
+ENABLE_UMRC=0
 ENABLE_IBOL=0
 IBOL_BUILD_TARGET=""
 ENABLE_BBSLINK=0
@@ -85,6 +86,8 @@ Options:
   --disable-usenet-posting Disable outgoing Usenet posting (default)
   --enable-ftn-posting   Enable outgoing FTN echomail and netmail
   --disable-ftn-posting  Disable outgoing FTN posting (default)
+  --enable-umrc          Enable experimental uMRC / Multitjat door
+  --disable-umrc         Disable experimental uMRC (default)
   --enable-ibol       Enable InterBBS Oneliner wall and importer
   --disable-ibol      Disable InterBBS Oneliner (default)
   --enable-bbslink       Build standalone BBSLink C client
@@ -128,6 +131,12 @@ for arg in "$@"; do
             ;;
         --disable-ftn-posting)
             ENABLE_FTN_POSTING=0
+            ;;
+        --enable-umrc)
+            ENABLE_UMRC=1
+            ;;
+        --disable-umrc)
+            ENABLE_UMRC=0
             ;;
         --enable-ibol)
             ENABLE_IBOL=1
@@ -1158,6 +1167,9 @@ $SENDMAIL_DEFINE
 #define BBSLINK_CLIENT_BIN SKLAFFDIR "/libexec/bbslink_client"
 #define BBSLINK_TELNET_BIN "$BBSLINK_TELNET_BIN"
 
+/* Experimental uMRC / Multitjat door (generic DOOR32 remains available) */
+#define ENABLE_UMRC $ENABLE_UMRC
+
 /* InterBBS Oneliner (import/display, outgoing messages require FTN posting) */
 #define ENABLE_IBOL $ENABLE_IBOL
 
@@ -1234,6 +1246,7 @@ CONFIG_ZMODEM_CPPFLAGS = $ZMODEM_CPPFLAGS
 CONFIG_ENABLE_EMAIL = $ENABLE_EMAIL
 CONFIG_ENABLE_USENET_POSTING = $ENABLE_USENET_POSTING
 CONFIG_ENABLE_FTN_POSTING = $ENABLE_FTN_POSTING
+CONFIG_ENABLE_UMRC = $ENABLE_UMRC
 CONFIG_ENABLE_IBOL = $ENABLE_IBOL
 CONFIG_IBOL_BUILD_TARGET = $IBOL_BUILD_TARGET
 CONFIG_ENABLE_BBSLINK = $ENABLE_BBSLINK
@@ -1356,6 +1369,11 @@ if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
     echo "  FTN posting:      enabled"
 else
     echo "  FTN posting:      disabled (ftntoss import still available)"
+fi
+if [ "$ENABLE_UMRC" -eq 1 ]; then
+    echo "  uMRC / Multitjat: enabled (experimental)"
+else
+    echo "  uMRC / Multitjat: disabled"
 fi
 if [ "$ENABLE_IBOL" -eq 1 ]; then
     if [ "$ENABLE_FTN_POSTING" -eq 1 ]; then
