@@ -1776,6 +1776,58 @@ list_ftn_name_only(char *s)
 }
 
 /*
+ * list_subj_sanitize - make decoded headers safe for a one-line listing.
+ * Usenet subjects may contain CR, LF or other control bytes. A CR moves
+ * the terminal cursor to column 1 and overwrites the text number.
+ * Replace ASCII control bytes (but not UTF-8 multibyte characters).
+ */
+static void
+list_subj_sanitize(char *s)
+{
+    unsigned char *p;
+
+    for (p = (unsigned char *)s; *p; ++p) {
+        if (*p < 0x20 || *p == 0x7f)
+            *p = ' ';
+    }
+}
+
+/*
+ * list_subj_fit - truncate with "..." and pad to a fixed display width.
+ *
+ * utf8_trunc_cols() treats each UTF-8 codepoint as one terminal column,
+ * which matches SklaffKOM's existing text-list behavior.
+ */
+static void
+list_subj_fit(const char *src, size_t width, char *dst, size_t dstlen)
+{
+    size_t cols = 0;
+    size_t len;
+    const unsigned char *p;
+
+    if (!dstlen)
+        return;
+
+    utf8_trunc_cols(src, width, dst, dstlen);
+    if (strcmp(src, dst) != 0 && width >= 3) {
+        utf8_trunc_cols(src, width - 3, dst, dstlen);
+        size_t used = strlen(dst);
+        if (used + 4 <= dstlen)
+            memcpy(dst + used, "...", 4);
+    }
+
+    for (p = (const unsigned char *)dst; *p; ++p)
+        if ((*p & 0xc0) != 0x80)
+            ++cols;
+
+    len = strlen(dst);
+    if (cols < width && width - cols < dstlen - len) {
+        memset(dst + len, ' ', width - cols);
+        dst[len + width - cols] = '\0';
+    }
+}
+
+/*
  * list_subj - list text subjects
  * args: pointer to string searched for
  * ret: ok (0) or failure (-1)
@@ -1784,23 +1836,40 @@ list_ftn_name_only(char *s)
 int
 list_subj(char *str)
 {
-    LINE subject, subj_disp, subj_dec;
+    LINE subject, subj_dec;
+    char subj_disp[256], author_disp[256], user_full[272];
+    char date_disp[11];
     char fname[128];  /* increased from LINE to avoid overflow, modified on 2025-07-12, PL */
     char author[256]; /* increased to 256 to prevent buffer overflow 2025-09-14, PL */
     char *buf, *oldbuf; char c;
     char *ptr2 = NULL;   /* modified on 2025-07-12, PL */
     long firsttext, current_text;
     int dot_count, wait_count, strlgth, xit, from, fd;
+    int show_local_marks;
     struct TEXT_ENTRY te;
     struct TEXT_BODY *tb;
     struct TEXT_HEADER *th;
 
-    if (Current_conf)
-        output("\n%7s  %-30s    %s\n\n", MSG_TEXTNAME, MSG_WRITTENBY,
-            MSG_SUBJECT2);
-    else
-        output("\n%7s  %-30s  %s\n\n", MSG_TEXTNAME, MSG_TOFROM,
-            MSG_SUBJECT2);
+    /* 79 visible columns; leave column 80 unused to prevent auto-wrap. */
+    output("\n %7s %-40s  %-10s  %-16s\n",
+           MSG_TEXTNAME, MSG_SUBJECT2, MSG_LIST_DATE,
+           Current_conf ? MSG_WRITTENBY : MSG_TOFROM);
+    {
+        char text_rule[8];
+        size_t rule_len = strlen(MSG_TEXTNAME);
+
+        if (rule_len > 7)
+            rule_len = 7;
+        memset(text_rule, '-', rule_len);
+        text_rule[rule_len] = '\0';
+
+        /* Underline just the heading, not the entire numeric field. */
+        output(" %7s ----------------------------------------  ----------  ----------------\n",
+               text_rule);
+    }
+
+    show_local_marks = Current_conf &&
+                       !conf_is_external(text_conf_type(Current_conf));
 
     rtrim(str);
     up_string(str);
@@ -1946,53 +2015,67 @@ list_subj(char *str)
                 }
                 snprintf(author, sizeof(author), "%s", disp);
             }
+            /* Headers from external networks must not move the cursor. */
+            list_subj_sanitize(author);
 
             /* 2025-08-10, PL: decode subject for search/display (don't mutate th->subject) */
             rfc2047_decode(th->subject, subj_dec, sizeof(subj_dec));
+            list_subj_sanitize(subj_dec);
             strcpy(subject, subj_dec);
             up_string(subject);
 
-            /* 2025-08-10, PL: UTF-8 safe author truncation to 30 cols */
-            {
-                LINE tmpa;
-                utf8_trunc_cols(author, 30, tmpa, sizeof(tmpa));
-                snprintf(author, sizeof(author), "%s", tmpa);
-            }
-            utf8_trunc_cols(subj_dec, 36, subj_disp, sizeof(subj_disp));
             if (strncmp(subject, str, strlgth) == 0) {
+                struct tm tm_local;
+
                 while (dot_count > 0) {
                     output("\b \b");
                     dot_count--;
                 }
                 wait_count = 0;
 
+                list_subj_fit(subj_dec, 40, subj_disp, sizeof(subj_disp));
                 if (Current_conf) {
-                    if (th->comment_num)
-                        c = ' ';
-                    else
-                        c = '*';
-                    if (th->type == TYPE_SURVEY)
-                        c = '#';
-                    if (output("%7ld  %-30s  %c %s\n",
-                            th->num, author, c, subj_disp
-                        ) == -1) {
-                        xit = 1;
-                    }
+                    list_subj_fit(author, 16, author_disp, sizeof(author_disp));
                 } else {
-                    if (from) {
-                        if (output("%7ld  %s%-24s  %s\n",
-                                th->num, MSG_TOSUB, author, subj_disp
-                            ) == -1) {
-                            xit = 1;
-                        }
-                    } else {
-                        if (output("%7ld  %s%-24s  %s\n",
-                                th->num, MSG_FROMSUB, author, subj_disp
-                            ) == -1) {
-                            xit = 1;
-                        }
+                    /* Retain direction in mailbox listings. */
+                    snprintf(user_full, sizeof(user_full), "%s%s",
+                             from ? MSG_TOSUB : MSG_FROMSUB, author);
+                    list_subj_fit(user_full, 16, author_disp, sizeof(author_disp));
+                }
+
+                memset(date_disp, ' ', 10);
+                date_disp[10] = '\0';
+                if (th->time != (time_t)0 &&
+                    localtime_r(&th->time, &tm_local) != NULL) {
+                    if (strftime(date_disp, sizeof(date_disp),
+                                 "%Y-%m-%d", &tm_local) == 0) {
+                        memset(date_disp, ' ', 10);
+                        date_disp[10] = '\0';
                     }
                 }
+
+                c = ' ';
+                if (show_local_marks) {
+                    if (th->type == TYPE_SURVEY)
+                        c = '#';
+                    else if (th->comment_num == 0)
+                        c = '*';
+                }
+
+                if (output_ansi_fmt(
+                        YELLOW "%c" DOT CYAN "%7ld" DOT " ",
+                        "%c%7ld ", c, th->num) == -1 ||
+                    output_ansi_fmt(
+                        BR_YELLOW "%s" DOT "  ",
+                        "%s  ", subj_disp) == -1 ||
+                    output_ansi_fmt(
+                        GREY "%s" DOT "  ",
+                        "%s  ", date_disp) == -1 ||
+                    output_ansi_fmt(
+                        BR_YELLOW "%s" DOT,
+                        "%s", author_disp) == -1 ||
+                    output("\n") == -1)
+                    xit = 1;
             } else {
                 wait_count++;
                 if (wait_count == 15) {

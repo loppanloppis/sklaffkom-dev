@@ -201,8 +201,9 @@ ibolmsgdump: $(IBOLMSGDUMPOBJ)
 version.c:
 	@./version.sh
 
-$(SKLAFFLIB):
-	(cd lib; $(MAKE) CC=$(CC) CFLAGS='$(CFLAGS) -I..')
+$(SKLAFFLIB): $(wildcard lib/*.c lib/*.h) lib/Makefile \
+		sklaff.h ext_globals.h struct.h lang.h
+	$(MAKE) -C lib CC="$(CC)" CFLAGS="$(CFLAGS) -I.."
 
 .PHONY: frotz clean-frotz zmodem clean-zmodem upgrade
 

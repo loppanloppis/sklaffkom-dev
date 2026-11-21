@@ -113,6 +113,8 @@ output_prepared(char *fmt2, int translate)
 
     p2 = outline;
     while (*p2 != '\0') {
+        int line_complete = 0;
+
         p1 = tmpline;
         while ((*p2 != '\n') && (*p2 != '\0')) {
             *p1 = *p2;
@@ -135,14 +137,21 @@ output_prepared(char *fmt2, int translate)
             *p1 = '\n';
             p1++;
             p2++;
+            line_complete = 1;
             if (!Cont)
                 Lines++;
         }
 
         *p1 = '\0';
 
-        if ((Lines >= Numlines) && Numlines && !Cont) {
-            printf(MSG_MORE);
+        /* Finish the visible row before paging. Some callers output
+         * one row in several colored chunks, with '\n' only in the last. */
+        fputs(tmpline, stdout);
+
+        if (line_complete && (Lines >= Numlines) && Numlines && !Cont) {
+            /* The completed row already ends in CRLF: no extra blank line. */
+            printf("%s", MSG_MORE);
+            fflush(stdout);
             do {
                 if (Timeout) {
                     alarm(60 * Timeout);
@@ -164,16 +173,9 @@ output_prepared(char *fmt2, int translate)
 
             if ((c == 'q') || (c == 'Q') || (c == 3)
                 || ((c == ' ') && (!Space || Special))) {
-                if ((strlen(tmpline) == 2) &&
-                    (tmpline[0] == '\r') &&
-                    (tmpline[1] == '\n')) {
-                    printf("%s", tmpline);
-                }
                 return -1;
             }
         }
-
-        fputs(tmpline, stdout);
     }
 
     return 0;

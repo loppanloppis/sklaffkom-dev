@@ -1220,7 +1220,7 @@ if ((buf = get_conf_entry(buf, &ce))) {
         const char *mark = c->is_member ? " " : (Ansi_output ? YELLOW "*" DOT : "*");
     /* Siffror: CYAN, namn: BR_YELLOW, suffix: BLUE */
         output_ansi_fmt(
-        CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s" BLUE" (Usenet)\n" DOT,
+        CYAN"%6ld  %6ld"DOT"  %s" BR_YELLOW "%s" BLUE" (Usenet)" DOT "\n",
         "%6ld  %6ld  %s%s (Usenet)\n",
         c->total, c->unreads, mark, c->name
     );
