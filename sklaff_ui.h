@@ -25,6 +25,7 @@
 #define PURPLE      "\e[35m"
 #define CYAN        "\e[36m"
 #define WHITE       "\e[37m"
+#define GREY		"\e[2;37m"
 
 #define BR_WHITE    "\e[97m"
 #define BR_RED      "\e[91m"
